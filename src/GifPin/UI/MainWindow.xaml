@@ -704,6 +704,11 @@
                         <TextBlock Text="{DynamicResource s.fx.trailOpacity}" Style="{StaticResource Hint}"/>
                       </DockPanel>
                       <Slider Tag="FxTrailOpacity" Minimum="10" Maximum="80" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                      <DockPanel Margin="0,6,0,0">
+                        <TextBlock x:Name="FxTrailSpacingText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock Text="{DynamicResource s.fx.trailSpacing}" Style="{StaticResource Hint}"/>
+                      </DockPanel>
+                      <Slider Tag="FxTrailSpacing" Minimum="4" Maximum="120" TickFrequency="2" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
                     </StackPanel>
                     <TextBlock x:Name="FxMotionHint" Text="{DynamicResource s.fx.motionHint}" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,4,0,0"/>
                     <TextBlock Text="{DynamicResource s.fx.groupLight}" Style="{StaticResource Hint}" FontWeight="SemiBold" Margin="0,14,0,0"/>
@@ -772,14 +777,28 @@
                     <StackPanel x:Name="FxParticlesOpts" Margin="14,0,0,6">
                       <TextBlock Text="{DynamicResource s.fx.shape}" Style="{StaticResource Hint}" Margin="0,8,0,0"/>
                       <Border Style="{StaticResource SegmentBox}" Margin="0,4,0,0" Padding="2">
-                        <UniformGrid Columns="5">
+                        <UniformGrid Columns="3">
                           <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleKind" Tag="FxParticleKind=sparkle" Padding="2,0" Height="26" Content="{DynamicResource s.fx.kindSparkle}" Checked="FxChoice_Checked"/>
                           <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleKind" Tag="FxParticleKind=heart" Padding="2,0" Height="26" Content="{DynamicResource s.fx.kindHeart}" Checked="FxChoice_Checked"/>
                           <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleKind" Tag="FxParticleKind=star" Padding="2,0" Height="26" Content="{DynamicResource s.fx.kindStar}" Checked="FxChoice_Checked"/>
                           <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleKind" Tag="FxParticleKind=bubble" Padding="2,0" Height="26" Content="{DynamicResource s.fx.kindBubble}" Checked="FxChoice_Checked"/>
                           <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleKind" Tag="FxParticleKind=dot" Padding="2,0" Height="26" Content="{DynamicResource s.fx.kindDot}" Checked="FxChoice_Checked"/>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleKind" Tag="FxParticleKind=image" Padding="2,0" Height="26" Content="{DynamicResource s.fx.kindImage}" Checked="FxChoice_Checked"/>
                         </UniformGrid>
                       </Border>
+                      <!-- 내 이미지 / GIF 파티클 -->
+                      <StackPanel x:Name="ParticleImagePanel">
+                        <DockPanel Margin="0,8,0,0">
+                          <Button DockPanel.Dock="Right" Height="28" Padding="10,0" Content="{DynamicResource s.fx.pickImages}" Click="PickParticleImages_Click"/>
+                          <TextBlock x:Name="ParticleImageCount" Style="{StaticResource Hint}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                        </DockPanel>
+                        <WrapPanel x:Name="ParticleImageThumbs" Margin="0,6,0,0"/>
+                        <ToggleButton Style="{StaticResource SwitchBox}" Margin="0,8,0,0" Tag="FxParticleKeepColors" Content="{DynamicResource s.fx.keepColors}"
+                                      ToolTip="{DynamicResource s.fx.keepColorsTip}" Click="FxToggle_Click"/>
+                        <ToggleButton Style="{StaticResource SwitchBox}" Margin="0,8,0,0" Tag="FxParticleAnimate" Content="{DynamicResource s.fx.animate}"
+                                      ToolTip="{DynamicResource s.fx.animateTip}" Click="FxToggle_Click"/>
+                        <TextBlock x:Name="ParticleCpuWarn" Text="{DynamicResource s.fx.cpuWarn}" Foreground="{StaticResource WarnTextBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                      </StackPanel>
                       <TextBlock Text="{DynamicResource s.fx.when}" Style="{StaticResource Hint}" Margin="0,8,0,0"/>
                       <Border Style="{StaticResource SegmentBox}" Margin="0,4,0,0" Padding="2">
                         <UniformGrid Columns="3">
@@ -797,6 +816,9 @@
                           <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleStyle" Tag="FxParticleStyle=burst" Padding="2,0" Height="26" Content="{DynamicResource s.fx.styleBurst}" Checked="FxChoice_Checked"/>
                         </UniformGrid>
                       </Border>
+                      <ToggleButton Style="{StaticResource SwitchBox}" Margin="0,8,0,0" Tag="FxParticleRotate" Content="{DynamicResource s.fx.rotate}"
+                                    ToolTip="{DynamicResource s.fx.rotateTip}" Click="FxToggle_Click"/>
+                      <StackPanel x:Name="ParticleColorPanel">
                       <TextBlock Text="{DynamicResource s.fx.color}" Style="{StaticResource Hint}" Margin="0,8,0,0"/>
                       <Border Style="{StaticResource SegmentBox}" Margin="0,4,0,0" Padding="2">
                         <UniformGrid Columns="9">
@@ -838,6 +860,7 @@
                           </RadioButton>
                         </UniformGrid>
                       </Border>
+                      </StackPanel>
                       <DockPanel Margin="0,6,0,0">
                         <TextBlock x:Name="FxParticleRateText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.fx.rate}" Style="{StaticResource Hint}"/>

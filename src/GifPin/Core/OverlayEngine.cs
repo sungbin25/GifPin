@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -163,9 +164,11 @@ public sealed class OverlayEngine : IDisposable
     // ── 공개 API (아무 스레드) ─────────────────────────────────
 
     /// <summary>화면의 GIF를 만들거나 설정을 바꾼다. filePath가 바뀌면 새로 디코딩한다.</summary>
-    public void Sync(ActiveItem item, string filePath, bool pixelated = false)
+    public void Sync(ActiveItem item, string filePath, bool pixelated = false, IReadOnlyList<string>? particlePaths = null)
     {
         var snapshot = item.Clone();
+        var spritePaths = particlePaths?.ToList() ?? new List<string>();
+        string spriteKey = string.Join("|", spritePaths);
         Post(() =>
         {
             if (!_byId.TryGetValue(snapshot.Id, out var w))
@@ -179,6 +182,29 @@ public sealed class OverlayEngine : IDisposable
             }
             w.Update(snapshot);
             w.SetPixelated(pixelated);
+
+            // 내 이미지 파티클: 목록이 바뀌었을 때만 작게 줄여서 새로 불러옴
+            if (w.ParticleKey != spriteKey)
+            {
+                w.ParticleKey = spriteKey;
+                if (spritePaths.Count == 0) w.SetParticleSprites(null);
+                else
+                    Task.Run(() =>
+                    {
+                        var list = new List<GifAnimation>();
+                        foreach (var path in spritePaths)
+                        {
+                            try { list.Add(GifAnimation.Load(path, Fx.ParticleSpriteSize)); }
+                            catch (Exception ex) { Log.Warn($"Particle image could not be loaded: {path}", ex); }
+                        }
+                        return list;
+                    }).ContinueWith(t => Post(() =>
+                    {
+                        var list = t.IsFaulted ? new List<GifAnimation>() : t.Result;
+                        if (_byId.TryGetValue(snapshot.Id, out var target) && target.ParticleKey == spriteKey) target.SetParticleSprites(list);
+                        else foreach (var s in list) s.Dispose();
+                    }));
+            }
 
             if (w.AnimPath != filePath && w.PendingPath != filePath)
             {
@@ -354,4 +380,5 @@ public sealed record OverlayProbe(ActiveItem Item, bool MotionRunning, bool Held
     public int DustPuffs { get; init; }
     public int WindowWidth { get; init; }
     public int WindowHeight { get; init; }
+    public int Sprites { get; init; }
 }

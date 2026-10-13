@@ -123,6 +123,10 @@ public partial class App : Application
         }
         if (app.State.Active.Count > 0)
         {
+            var picker = new ParticleImagePicker(app, app.State.Active[0].Id);
+            picker.Show();
+            picker.Close();
+            sb.Append("· particle picker ok ");
             app.UpdateActive(app.State.Active[0].Id, a => a.MotionMode = Motion.Walk);
             app.EnterEdit();
             app.FinishEdit(save: true);
@@ -291,6 +295,21 @@ public partial class App : Application
         await Wait(100);
         p = await P();
         if (p.Particles < before + 8 || !p.FxRunning) throw new Exception($"click burst: {before} -> {p.Particles} particles");
+
+        // 내 이미지(GIF) 파티클: 라이브러리 사진을 파티클로 불러와 움직이며 그림
+        string photoId = app.State.Active[0].PhotoId;
+        app.UpdateActive(id, a =>
+        {
+            a.FxParticleMode = Fx.Always; a.FxParticleKind = Fx.Image; a.FxParticleImages = photoId;
+            a.FxParticleAnimate = true; a.FxParticleRate = 15; a.FxTrailSpacing = 30;
+        });
+        await Wait(1500);
+        p = await P();
+        if (p.Sprites != 1 || p.Particles == 0) throw new Exception($"image particles on screen: sprites={p.Sprites} particles={p.Particles}");
+        app.UpdateActive(id, a => { a.FxParticleKind = Fx.Sparkle; a.FxParticleImages = ""; });
+        await Wait(300);
+        p = await P();
+        if (p.Sprites != 0) throw new Exception("particle images were not released");
 
         // 모두 끄면 여백·타이머가 사라짐
         app.UpdateActive(id, a =>

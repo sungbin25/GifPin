@@ -740,6 +740,24 @@ public partial class MainWindow : Window
     // ── 효과 레이어: 컨트롤의 Tag = ActiveItem 속성 이름 ───────────────
 
     private readonly List<ToggleButton> _fxToggles = new();
+
+    /// <summary>"모두 끄기"가 끄는 효과 (세부 옵션 스위치는 그대로 둠).</summary>
+    private static readonly string[] MainEffects =
+        { "FxFloat", "FxBreathe", "FxSway", "FxSpin", "FxBlink", "FxSquash", "FxDust", "FxTrail", "FxShadow", "FxGlow", "FxParticles" };
+
+    private void PickParticleImages_Click(object sender, RoutedEventArgs e)
+    {
+        if (_app.SelectedActiveId is not string id) return;
+        var picker = new ParticleImagePicker(_app, id) { Owner = this };
+        picker.ShowDialog();
+        if (_app.SelectedActive is ActiveItem a)
+        {
+            bool was = _updating;
+            _updating = true;
+            LoadEffects(a);
+            _updating = was;
+        }
+    }
     private readonly List<RadioButton> _fxChoices = new();
     private readonly List<System.Windows.Controls.Slider> _fxSliders = new();
 
@@ -747,7 +765,7 @@ public partial class MainWindow : Window
     private static string FxFormat(string prop, double v) => prop switch
     {
         "FxFloatAmp" or "FxParticleSize" => $"{v:0} px",
-        "FxGlowSize" => $"{v:0} px",
+        "FxGlowSize" or "FxTrailSpacing" => $"{v:0} px",
         "FxFloatPeriod" or "FxBreathePeriod" or "FxSwayPeriod" or "FxBlinkPeriod" or "FxParticleLife" => SecondsText(Math.Round(v, 1)),
         "FxSwayAngle" => $"± {v:0}°",
         "FxSpinSpeed" => $"{v:0}°/s",
@@ -816,6 +834,26 @@ public partial class MainWindow : Window
             if (FindName((string)tb.Tag + "Opts") is FrameworkElement opts)
                 opts.Visibility = tb.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         FxClickHint.Visibility = a.FxParticleMode == Fx.Click && a.ClickThrough ? Visibility.Visible : Visibility.Collapsed;
+
+        // 내 이미지 파티클
+        bool image = a.FxParticleKind == Fx.Image;
+        ParticleImagePanel.Visibility = image ? Visibility.Visible : Visibility.Collapsed;
+        ParticleColorPanel.Visibility = image && a.FxParticleKeepColors ? Visibility.Collapsed : Visibility.Visible;
+        ParticleCpuWarn.Visibility = image && a.FxParticleAnimate ? Visibility.Visible : Visibility.Collapsed;
+        if (image)
+        {
+            var photos = _app.ParticlePhotos(a);
+            ParticleImageCount.Text = photos.Count == 0 ? Loc.T("fx.imagesNone") : Loc.F("fx.imagesCount", photos.Count);
+            ParticleImageThumbs.Children.Clear();
+            foreach (var ph in photos)
+                ParticleImageThumbs.Children.Add(new Border
+                {
+                    Width = 34, Height = 34, Margin = new Thickness(0, 0, 4, 4), CornerRadius = new CornerRadius(6),
+                    Background = (System.Windows.Media.Brush)FindResource("CheckerBrush"),
+                    ToolTip = ph.Name,
+                    Child = new Image { Source = Images.LoadThumb(ph), Stretch = System.Windows.Media.Stretch.Uniform, Margin = new Thickness(2) },
+                });
+        }
         FxMotionHint.Visibility = (a.FxSquash || a.FxDust || a.FxTrail) && !Motion.IsMoving(a.MotionMode) ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -842,8 +880,7 @@ public partial class MainWindow : Window
     {
         WithSelected(a =>
         {
-            foreach (var tb in _fxToggles)
-                if ((string)tb.Tag != "FxGlowPulse") FxProp((string)tb.Tag)?.SetValue(a, false);
+            foreach (var prop in MainEffects) FxProp(prop)?.SetValue(a, false);
         });
         if (_app.SelectedActive is ActiveItem a)
         {

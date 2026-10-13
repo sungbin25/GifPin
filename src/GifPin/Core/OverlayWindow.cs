@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using SkiaSharp;
 using static GifPin.Core.Native;
@@ -50,6 +51,18 @@ internal sealed unsafe class OverlayWindow : IDisposable
     private bool _fxRunning;
     private uint _fxInterval;
     private Pads _pads = Pads.Zero; // 지금 창 가장자리 여백 (창 위치 = GIF 위치 − 여백)
+    private List<GifAnimation>? _sprites; // 내 이미지 파티클 (이 창이 주인)
+
+    /// <summary>지금 불러온(또는 불러오는 중인) 파티클 이미지 목록 — 바뀌었는지 비교용.</summary>
+    public string ParticleKey { get; set; } = "";
+
+    public void SetParticleSprites(List<GifAnimation>? sprites)
+    {
+        _fx.SetSprites(sprites);
+        if (_sprites != null) foreach (var s in _sprites) s.Dispose();
+        _sprites = sprites;
+        UpdateFxTimer();
+    }
 
     private Press _press;
     private bool _held;              // 손으로 잡아서 움직임을 멈춤 (놓은 뒤 다시 출발하기 전까지 포함)
@@ -685,6 +698,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
         DustPuffs = _fx.DustPuffs,
         WindowWidth = _dibW,
         WindowHeight = _dibH,
+        Sprites = _fx.SpriteCount,
     };
 
     private Drag HitTest(int x, int y)
@@ -813,7 +827,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
             _framePaint.Color = SKColors.White;
             c.Restore();
 
-            _fx.DrawFront(c, originX, originY);
+            _fx.DrawFront(c, Item, originX, originY);
         }
 
         if (_editMode)
@@ -916,6 +930,8 @@ internal sealed unsafe class OverlayWindow : IDisposable
         KillTimer(Hwnd, TIMER_FX);
         DestroyWindow(Hwnd);
         _fx.Dispose();
+        if (_sprites != null) foreach (var s in _sprites) s.Dispose();
+        _sprites = null;
         FreeSurface();
         _anim?.Dispose();
         _anim = null;

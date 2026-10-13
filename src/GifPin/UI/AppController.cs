@@ -347,6 +347,9 @@ public sealed class AppController
                     {
                         var p = photoByItemId[l.Item];
                         var a = AssetPack.ToActive(l, p, MonitorList);
+                        // 팩 안의 파티클 이미지 id → 이 PC 라이브러리 id
+                        a.FxParticleImages = string.Join(",", Fx.ParticleImageIds(a)
+                            .Select(id => photoByItemId.TryGetValue(id, out var ph) ? ph.Id : null).OfType<string>());
                         State.Active.Add(a);
                         p.LastUsedAt = DateTimeOffset.Now;
                         SyncToEngine(a);
@@ -379,6 +382,12 @@ public sealed class AppController
             return;
         }
         var layout = withLayout ? State.Active.Where(a => photos.Any(p => p.Id == a.PhotoId)).Select(a => a.Clone()).ToList() : null;
+        if (layout != null)
+        {
+            // 화면 배치에 쓰인 파티클 이미지도 함께 담음
+            var extra = layout.SelectMany(a => ParticlePhotos(a)).Where(p => photos.All(x => x.Id != p.Id)).Distinct().ToList();
+            if (extra.Count > 0) photos = photos.Concat(extra).ToList();
+        }
         try
         {
             await Task.Run(() => AssetPack.Export(zipPath, name, photos, layout));
@@ -552,8 +561,24 @@ public sealed class AppController
     private void SyncToEngine(ActiveItem a)
     {
         var p = State.FindPhoto(a.PhotoId);
-        if (p != null) Engine.Sync(a, Store.ResolvePath(p), p.Pixelated);
+        if (p != null) Engine.Sync(a, Store.ResolvePath(p), p.Pixelated, ParticleImagePaths(a));
     }
+
+    /// <summary>내 이미지 파티클로 고른 사진들의 파일 경로 (파티클을 안 쓰면 빈 목록 → 메모리 해제).</summary>
+    private List<string> ParticleImagePaths(ActiveItem a)
+    {
+        if (!Fx.UsesParticleImages(a)) return new List<string>();
+        return Fx.ParticleImageIds(a)
+            .Select(id => State.FindPhoto(id))
+            .Where(ph => ph != null)
+            .Select(ph => Store.ResolvePath(ph!))
+            .Where(File.Exists)
+            .ToList();
+    }
+
+    /// <summary>파티클 이미지로 고른 사진들 (지워진 사진은 빠짐).</summary>
+    public List<PhotoItem> ParticlePhotos(ActiveItem a) =>
+        Fx.ParticleImageIds(a).Select(id => State.FindPhoto(id)).OfType<PhotoItem>().ToList();
 
     private void RebuildActives()
     {

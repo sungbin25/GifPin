@@ -153,7 +153,7 @@ public static class AssetPack
                         SlideAuto = a.SlideAuto, PushDirRandom = a.PushDirRandom, PushAngle = a.PushAngle,
                         PushForceRandom = a.PushForceRandom, PushForce = a.PushForce, PushForceMin = a.PushForceMin, PushForceMax = a.PushForceMax,
                         PushIntervalRandom = a.PushIntervalRandom, PushInterval = a.PushInterval, PushIntervalMin = a.PushIntervalMin, PushIntervalMax = a.PushIntervalMax,
-                        Settings = a.Clone(),
+                        Settings = PackSettings(a, idByPhoto),
                     });
                 }
             }
@@ -260,6 +260,15 @@ public static class AssetPack
     }
 
     /// <summary>배치 정보 → 실제 화면 좌표.</summary>
+    /// <summary>팩에 담을 GIF 설정: 파티클 이미지 id를 팩 안의 항목 id로 바꿈.</summary>
+    private static ActiveItem PackSettings(ActiveItem a, IReadOnlyDictionary<string, string> idByPhoto)
+    {
+        var s = a.Clone();
+        s.FxParticleImages = string.Join(",", GifPin.Core.Fx.ParticleImageIds(a)
+            .Select(id => idByPhoto.TryGetValue(id, out var packId) ? packId : null).OfType<string>());
+        return s;
+    }
+
     public static ActiveItem ToActive(PackLayout l, PhotoItem photo, IReadOnlyList<MonitorInfo> monitors)
     {
         var basic = ToActiveBasic(l, photo, monitors);

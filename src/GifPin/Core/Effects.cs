@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using SkiaSharp;
 
 namespace GifPin.Core;
@@ -8,14 +9,24 @@ namespace GifPin.Core;
 public static class Fx
 {
     // 파티클 모양
-    public const string Sparkle = "sparkle", Heart = "heart", Star = "star", Bubble = "bubble", Dot = "dot";
+    public const string Sparkle = "sparkle", Heart = "heart", Star = "star", Bubble = "bubble", Dot = "dot", Image = "image";
+    public const int MaxParticleImages = 12;
+    /// <summary>파티클 이미지는 이 크기(긴 변)로 줄여서 들고 있음 → 메모리·CPU 절약</summary>
+    public const int ParticleSpriteSize = 96;
     // 파티클이 나오는 때
     public const string Always = "always", Moving = "moving", Click = "click";
     // 파티클 움직임
     public const string Rise = "rise", Fall = "fall", Burst = "burst";
     public const string Rainbow = "rainbow";
 
-    public static readonly string[] Kinds = { Sparkle, Heart, Star, Bubble, Dot };
+    public static readonly string[] Kinds = { Sparkle, Heart, Star, Bubble, Dot, Image };
+
+    /// <summary>파티클 이미지로 고른 사진 id 목록.</summary>
+    public static string[] ParticleImageIds(ActiveItem a) =>
+        (a.FxParticleImages ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    /// <summary>내 이미지 파티클을 실제로 쓰는 중 (이미지를 불러와야 함).</summary>
+    public static bool UsesParticleImages(ActiveItem a) => a.FxParticles && a.FxParticleKind == Image && ParticleImageIds(a).Length > 0;
     public static readonly string[] Modes = { Always, Moving, Click };
     public static readonly string[] Styles = { Rise, Fall, Burst };
 
@@ -49,6 +60,8 @@ public static class Fx
         a.FxSquashAmount = Math.Clamp(a.FxSquashAmount, 5, 50);
         a.FxTrailCount = Math.Round(Math.Clamp(a.FxTrailCount, 2, 10));
         a.FxTrailOpacity = Math.Clamp(a.FxTrailOpacity, 10, 80);
+        a.FxTrailSpacing = Math.Clamp(a.FxTrailSpacing, 4, 120);
+        a.FxParticleImages = string.Join(",", ParticleImageIds(a).Distinct().Take(MaxParticleImages));
         a.FxShadowOpacity = Math.Clamp(a.FxShadowOpacity, 10, 90);
         a.FxShadowSize = Math.Clamp(a.FxShadowSize, 30, 150);
         a.FxGlowSize = Math.Clamp(a.FxGlowSize, 2, 40);
@@ -84,6 +97,8 @@ internal readonly record struct Pads(int Left, int Top, int Right, int Bottom)
 internal sealed class EffectState : IDisposable
 {
     public const int MaxParticles = 300;
+    /// <summary>GIF 파티클은 파티클마다 애니메이션을 돌리므로 더 적게</summary>
+    public const int MaxAnimatedParticles = 80;
     private const int MaxPad = 420;
     private const double TrailStep = 0.035;   // 잔상 간격 (초)
     private const double SquashTime = 0.6;    // 찌그러짐이 풀리는 시간 (초)
@@ -95,7 +110,15 @@ internal sealed class EffectState : IDisposable
         public string Kind;
         public string Style;
         public bool Dust;
+        public int Sprite;        // 내 이미지 파티클: 몇 번째 이미지
+        public double AnimOffset; // GIF 파티클: 재생 시작 위치 (ms) — 파티클마다 다르게
     }
+
+    /// <summary>파티클 이미지 하나 (프레임별 누적 시간 포함).</summary>
+    private sealed record Sprite(GifAnimation Anim, int[] Ends, int Total);
+    private readonly List<Sprite> _sprites = new();
+    private readonly Dictionary<uint, SKColorFilter> _tints = new();
+    private readonly SKPaint _imagePaint = new() { FilterQuality = SKFilterQuality.Medium, IsAntialias = true };
 
     private readonly List<Particle> _particles = new();
     private readonly List<(double x, double y)> _trail = new();
@@ -120,6 +143,8 @@ internal sealed class EffectState : IDisposable
     public int Squashes { get; private set; }
     public int DustPuffs { get; private set; }
     public int TrailCount => _trail.Count;
+    public IReadOnlyList<(double x, double y)> Trail => _trail;
+    public int SpriteCount => _sprites.Count;
     public bool SquashActive => _squashT < SquashTime;
 
     public EffectState(int? seed = null)
@@ -168,7 +193,7 @@ internal sealed class EffectState : IDisposable
         }
 
         if (a.FxGlow) All(a.FxGlowSize * 3);
-        if (a.FxTrail) All(110);
+        if (a.FxTrail) All(Math.Min(400, a.FxTrailCount * a.FxTrailSpacing + 20));
         if (a.FxDust) { l += 50; r += 50; b += 16; t += 10; }
         if (a.FxShadow)
         {
@@ -226,17 +251,26 @@ internal sealed class EffectState : IDisposable
         }
         _squashT += dt;
 
-        // 잔상: 움직이는 동안 위치를 쌓고, 멈추면 하나씩 지움
-        _trailAcc += dt;
-        if (_trailAcc >= TrailStep)
+        // 잔상: 움직이는 동안 "간격"만큼 갈 때마다 하나씩 쌓고, 멈추면 오래된 것부터 지움
+        if (a.FxTrail && Speed > 40)
         {
             _trailAcc = 0;
-            if (a.FxTrail && Speed > 40)
+            double gap = double.MaxValue;
+            if (_trail.Count > 0)
+            {
+                var last = _trail[^1];
+                gap = Math.Sqrt((x - last.x) * (x - last.x) + (y - last.y) * (y - last.y));
+            }
+            if (gap >= a.FxTrailSpacing)
             {
                 _trail.Add((x, y));
                 while (_trail.Count > (int)a.FxTrailCount) _trail.RemoveAt(0);
             }
-            else if (_trail.Count > 0) _trail.RemoveAt(0);
+        }
+        else if (_trail.Count > 0)
+        {
+            _trailAcc += dt;
+            if (_trailAcc >= TrailStep) { _trailAcc = 0; _trail.RemoveAt(0); }
         }
 
         // 파티클 만들기
@@ -283,23 +317,31 @@ internal sealed class EffectState : IDisposable
     private SKColor ParticleColor(ActiveItem a)
     {
         if (a.FxParticleColor != Fx.Rainbow && Fx.TryParseColor(a.FxParticleColor, out var c)) return c;
-        return SKColor.FromHsv((float)Rnd(0, 360), 65, 100);
+        return SKColor.FromHsv(_rng.Next(24) * 15f, 65, 100); // 24가지 색 (물들이기 필터를 재사용하려고)
     }
 
     private void Spawn(ActiveItem a, double x, double y, int w, int h, string style)
     {
-        if (_particles.Count >= MaxParticles) return;
+        bool image = a.FxParticleKind == Fx.Image && _sprites.Count > 0;
+        int cap = image && a.FxParticleAnimate ? MaxAnimatedParticles : MaxParticles;
+        if (_particles.Count >= cap) return;
         var p = new Particle
         {
             Life = a.FxParticleLife * Rnd(0.75, 1.25),
             Size = a.FxParticleSize * Rnd(0.7, 1.3),
-            Rot = Rnd(0, 360),
-            VRot = a.FxParticleKind is Fx.Sparkle or Fx.Star ? Rnd(-120, 120) : Rnd(-20, 20),
+            Rot = a.FxParticleRotate ? Rnd(0, 360) : 0,
+            VRot = !a.FxParticleRotate ? 0 : a.FxParticleKind is Fx.Sparkle or Fx.Star ? Rnd(-120, 120) : Rnd(-40, 40),
             Seed = Rnd(0, 10),
             Color = ParticleColor(a),
-            Kind = a.FxParticleKind,
+            // 이미지를 아직 불러오는 중이면 반짝이로 대신
+            Kind = a.FxParticleKind == Fx.Image && !image ? Fx.Sparkle : a.FxParticleKind,
             Style = style,
         };
+        if (image)
+        {
+            p.Sprite = _rng.Next(_sprites.Count);
+            p.AnimOffset = Rnd(0, Math.Max(1, _sprites[p.Sprite].Total));
+        }
         switch (style)
         {
             case Fx.Rise:
@@ -340,6 +382,45 @@ internal sealed class EffectState : IDisposable
                 Dust = true,
             });
         }
+    }
+
+    /// <summary>내 이미지 파티클에 쓸 그림들 (주인은 OverlayWindow — 여기서는 해제하지 않음).</summary>
+    public void SetSprites(IReadOnlyList<GifAnimation>? sprites)
+    {
+        _sprites.Clear();
+        if (sprites != null)
+            foreach (var anim in sprites)
+            {
+                if (anim.Frames.Count == 0) continue;
+                var ends = new int[anim.Frames.Count];
+                int t = 0;
+                for (int i = 0; i < ends.Length; i++) { t += Math.Max(10, i < anim.DelaysMs.Count ? anim.DelaysMs[i] : 100); ends[i] = t; }
+                _sprites.Add(new Sprite(anim, ends, t));
+            }
+        // 바뀐 이미지 목록과 맞지 않는 파티클은 정리
+        _particles.RemoveAll(p => p.Kind == Fx.Image && p.Sprite >= _sprites.Count);
+    }
+
+    /// <summary>GIF 파티클: ms 시점의 프레임 번호.</summary>
+    internal int SpriteFrameAt(int sprite, double ms)
+    {
+        var sp = _sprites[sprite];
+        if (sp.Anim.Frames.Count < 2) return 0;
+        int t = (int)(ms % sp.Total);
+        int i = Array.BinarySearch(sp.Ends, t + 1);
+        if (i < 0) i = ~i;
+        return Math.Min(i, sp.Ends.Length - 1);
+    }
+
+    private SKColorFilter Tint(SKColor color)
+    {
+        uint key = (uint)color.WithAlpha(255);
+        if (!_tints.TryGetValue(key, out var f))
+        {
+            f = SKColorFilter.CreateBlendMode(color.WithAlpha(255), SKBlendMode.SrcIn); // 모양은 그대로, 색만 바꿈
+            _tints[key] = f;
+        }
+        return f;
     }
 
     // ── 그리기 ──────────────────────────────────────────────
@@ -449,16 +530,33 @@ internal sealed class EffectState : IDisposable
     }
 
     /// <summary>GIF 앞에 그리는 것: 파티클.</summary>
-    public void DrawFront(SKCanvas c, double originX, double originY)
+    public void DrawFront(SKCanvas c, ActiveItem a, double originX, double originY)
     {
         foreach (var p in _particles)
         {
             double t = p.Age / p.Life;
             double alpha = t < 0.15 ? t / 0.15 : t > 0.6 ? (1 - t) / 0.4 : 1;
-            _particlePaint.Color = p.Color.WithAlpha((byte)Math.Round(255 * Math.Clamp(alpha, 0, 1) * (p.Dust ? 0.7 : 1)));
+            byte alphaByte = (byte)Math.Round(255 * Math.Clamp(alpha, 0, 1) * (p.Dust ? 0.7 : 1));
+            _particlePaint.Color = p.Color.WithAlpha(alphaByte);
             float px = (float)(p.X - originX), py = (float)(p.Y - originY), r = (float)(p.Size / 2);
             switch (p.Kind)
             {
+                case Fx.Image when p.Sprite < _sprites.Count:
+                {
+                    var sp = _sprites[p.Sprite];
+                    int fi = a.FxParticleAnimate ? SpriteFrameAt(p.Sprite, p.Age * 1000 + p.AnimOffset) : 0;
+                    var bmp = sp.Anim.Frames[fi];
+                    float k = (float)p.Size / Math.Max(1, Math.Max(bmp.Width, bmp.Height));
+                    float hw = bmp.Width * k / 2, hh = bmp.Height * k / 2;
+                    _imagePaint.Color = new SKColor(255, 255, 255, alphaByte);
+                    _imagePaint.ColorFilter = a.FxParticleKeepColors ? null : Tint(p.Color);
+                    c.Save();
+                    c.Translate(px, py);
+                    if (p.Rot != 0) c.RotateDegrees((float)p.Rot);
+                    c.DrawBitmap(bmp, new SKRect(-hw, -hh, hw, hh), _imagePaint);
+                    c.Restore();
+                    break;
+                }
                 case Fx.Dot:
                     _particlePaint.Style = SKPaintStyle.Fill;
                     c.DrawCircle(px, py, r, _particlePaint);
@@ -530,5 +628,9 @@ internal sealed class EffectState : IDisposable
         _shadowPaint.Dispose();
         _particlePaint.Dispose();
         _ghostPaint.Dispose();
+        _imagePaint.ColorFilter = null;
+        _imagePaint.Dispose();
+        foreach (var f in _tints.Values) f.Dispose();
+        _tints.Clear();
     }
 }

@@ -124,6 +124,8 @@ public sealed class ActiveItem
     public bool FxTrail { get; set; }
     public double FxTrailCount { get; set; } = 5;
     public double FxTrailOpacity { get; set; } = 40;
+    /// <summary>잔상 사이 간격 (px): 이만큼 움직일 때마다 잔상 하나</summary>
+    public double FxTrailSpacing { get; set; } = 24;
     /// <summary>바닥 그림자 (진하기 %, 크기 %)</summary>
     public bool FxShadow { get; set; }
     public double FxShadowOpacity { get; set; } = 40;
@@ -143,6 +145,14 @@ public sealed class ActiveItem
     public double FxParticleSize { get; set; } = 14;
     public double FxParticleLife { get; set; } = 1.6;
     public string FxParticleColor { get; set; } = Fx.Rainbow;
+    /// <summary>파티클로 쓸 내 이미지 (라이브러리 사진 id, 쉼표로 구분. 여러 장이면 랜덤)</summary>
+    public string FxParticleImages { get; set; } = "";
+    /// <summary>내 이미지 파티클: 원래 색 그대로 (끄면 고른 색으로 물들임)</summary>
+    public bool FxParticleKeepColors { get; set; } = true;
+    /// <summary>파티클이 돌면서 날림</summary>
+    public bool FxParticleRotate { get; set; } = true;
+    /// <summary>GIF 파티클: 파티클마다 애니메이션 재생 (CPU를 더 씀)</summary>
+    public bool FxParticleAnimate { get; set; }
 
     /// <summary>미끄러짐 마찰 (1~10). 높을수록 빨리 멈춤</summary>
     public double SlideFriction { get; set; } = Motion.DefaultFriction;

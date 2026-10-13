@@ -103,6 +103,9 @@ public static class SmokeTest
         report.Append(RunPhysics()).Append(" · ");
         report.Append(RunEffects()).Append(" · ");
 
+        // 내 이미지 · GIF 파티클: 실제로 그려서 확인
+        report.Append(RunImageParticles(Path.Combine(assetsDir, "sample.gif"))).Append(" · ");
+
         // 번역 사전: 모든 키에 영어·한국어가 있어야 함
         var missing = Strings.All.Where(kv => string.IsNullOrWhiteSpace(kv.Value.en) || string.IsNullOrWhiteSpace(kv.Value.ko)).Select(kv => kv.Key).ToList();
         if (missing.Count > 0) throw new Exception("untranslated: " + string.Join(", ", missing));
@@ -282,6 +285,38 @@ public static class SmokeTest
         }
     }
 
+    /// <summary>GIF를 파티클 이미지로 불러와 애니메이션 프레임이 바뀌는지, 실제 캔버스에 그려지는지 확인.</summary>
+    public static string RunImageParticles(string gifPath)
+    {
+        using var sprite = GifAnimation.Load(gifPath, Fx.ParticleSpriteSize);
+        if (Math.Max(sprite.Width, sprite.Height) > Fx.ParticleSpriteSize) throw new Exception("particle sprite was not scaled down");
+        var a = new ActiveItem
+        {
+            FxParticles = true, FxParticleKind = Fx.Image, FxParticleMode = Fx.Always, FxParticleRate = 30,
+            FxParticleAnimate = true, FxParticleKeepColors = false, FxParticleColor = "#81D4FA", FxParticleSize = 40, FxParticleLife = 3,
+        };
+        using var fx = new EffectState(seed: 11);
+        fx.SetSprites(new[] { sprite });
+        for (int i = 0; i < 100; i++) fx.Advance(0.01, a, 100, 100, 80, 80, null);
+        if (fx.ParticleCount < 20) throw new Exception($"image particles: {fx.ParticleCount}");
+        if (sprite.Frames.Count > 1 && fx.SpriteFrameAt(0, 0) == fx.SpriteFrameAt(0, sprite.DelaysMs[0] + 5))
+            throw new Exception("GIF particle frame did not advance");
+
+        using var bmp = new SkiaSharp.SKBitmap(new SkiaSharp.SKImageInfo(400, 400, SkiaSharp.SKColorType.Bgra8888, SkiaSharp.SKAlphaType.Premul));
+        bmp.Erase(SkiaSharp.SKColors.Transparent);
+        using (var c = new SkiaSharp.SKCanvas(bmp)) { fx.DrawFront(c, a, 0, 0); c.Flush(); }
+        int drawn = 0;
+        for (int y = 0; y < 400; y += 2)
+            for (int x = 0; x < 400; x += 2)
+                if (bmp.GetPixel(x, y).Alpha > 0) drawn++;
+        if (drawn < 50) throw new Exception($"image particles drew {drawn} pixels");
+        // 지나치게 많이 만들지 않음 (GIF 파티클 상한)
+        for (int i = 0; i < 1000; i++) fx.Advance(0.01, a, 100, 100, 80, 80, null);
+        if (fx.ParticleCount > EffectState.MaxAnimatedParticles) throw new Exception($"GIF particles exceeded the cap: {fx.ParticleCount}");
+        fx.SetSprites(null);
+        return $"image particles ok ({sprite.Frames.Count} frames, {drawn} px drawn)";
+    }
+
     /// <summary>효과 계산 점검 (그리기 제외): 여백, 파티클 양, 충돌 반응, 잔상, 클릭 터뜨리기.</summary>
     public static string RunEffects()
     {
@@ -339,12 +374,30 @@ public static class SmokeTest
         for (int i = 0; i < 60; i++) tr.Advance(0.01, a, 340, 100, 50, 50, null);
         if (tr.TrailCount != 0) throw new Exception("trail did not clear after stopping");
 
+        // 잔상 간격: 넓히면 같은 거리에서 잔상 수가 줄고, 잔상 사이 거리는 간격 이상
+        a.FxTrailCount = 10;
+        int Ghosts(double spacing)
+        {
+            a.FxTrailSpacing = spacing;
+            var g = new EffectState(seed: 10);
+            for (int i = 0; i < 50; i++) g.Advance(0.01, a, 100 + i * 4, 100, 50, 50, null); // 200px
+            for (int i = 1; i < g.Trail.Count; i++)
+            {
+                double d = Math.Abs(g.Trail[i].x - g.Trail[i - 1].x);
+                if (d < spacing - 0.01) throw new Exception($"ghosts {d:0}px apart, spacing {spacing}");
+            }
+            return g.TrailCount;
+        }
+        int tight = Ghosts(8), wide = Ghosts(40);
+        if (tight != 10 || wide < 4 || wide > 6) throw new Exception($"trail spacing: 8px -> {tight}, 40px -> {wide}");
+        a.FxTrailCount = 5; a.FxTrailSpacing = 24;
+
         // 범위 바로잡기
         var bad = new ActiveItem { FxParticleKind = "???", FxGlowColor = "nope", FxTrailCount = 99, FxParticleColor = "#12" };
         Fx.Normalize(bad);
         if (bad.FxParticleKind != Fx.Sparkle || bad.FxGlowColor != "#FFD54F" || bad.FxTrailCount != 10 || bad.FxParticleColor != Fx.Rainbow)
             throw new Exception("effect settings were not normalized");
 
-        return $"effects ok (spin pad {pads.Top}, {always} particles/s, landing squash+dust, trail 5)";
+        return $"effects ok (spin pad {pads.Top}, {always} particles/s, landing squash+dust, trail 5, spacing 8px={tight} 40px={wide})";
     }
 }
