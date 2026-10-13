@@ -916,6 +916,8 @@
               <StackPanel>
                 <TextBlock Text="{DynamicResource s.set.autostart}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
                 <TextBlock Text="{DynamicResource s.set.autostartDesc}" Style="{StaticResource Hint}" FontSize="12" Margin="0,2,0,0"/>
+                <TextBlock x:Name="AutostartBlockedText" Text="{DynamicResource s.set.autostartBlocked}" Foreground="{StaticResource WarnTextBrush}"
+                           FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0" Visibility="Collapsed"/>
               </StackPanel>
             </ToggleButton>
             <Border Height="1" Background="{StaticResource LineBrush}"/>

@@ -134,6 +134,18 @@ public partial class App : Application
             app.ShowAll();
             sb.Append("· edit mode + recovery ok ");
         }
+        // Windows 시작 시 자동 실행: 켜기 → Windows 설정에서 꺼진 것으로 표시 → 다시 켜면 허용 → 끄기 (원래 상태로 되돌림)
+        bool hadAutostart = Autostart.IsEnabled();
+        app.SetStartWithWindows(true);
+        if (Autostart.GetStatus() != Autostart.Status.On) throw new Exception("autostart did not turn on");
+        Autostart.MarkBlockedForTest();
+        if (Autostart.GetStatus() != Autostart.Status.BlockedByWindows) throw new Exception("blocked autostart not detected");
+        app.SetStartWithWindows(true);
+        if (Autostart.GetStatus() != Autostart.Status.On) throw new Exception("autostart was not re-allowed");
+        app.SetStartWithWindows(false);
+        if (Autostart.GetStatus() != Autostart.Status.Off) throw new Exception("autostart did not turn off");
+        if (hadAutostart) app.SetStartWithWindows(true);
+        sb.Append("· autostart ok ");
         sb.Append($"· monitors {app.MonitorList.Count} · log {(System.IO.File.Exists(Log.FilePath) ? "written" : "missing")}");
         if (!System.IO.File.Exists(Log.FilePath)) throw new Exception("log file was not written");
         return sb.ToString();

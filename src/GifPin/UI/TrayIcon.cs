@@ -17,7 +17,7 @@ public sealed class TrayIcon : IDisposable
     public TrayIcon(AppController app)
     {
         _app = app;
-        _menu = new Forms.ContextMenuStrip { ShowImageMargin = false, Font = _font };
+        _menu = new Forms.ContextMenuStrip { ShowImageMargin = false, ShowCheckMargin = true, Font = _font };
         _menu.Opening += (_, _) => Rebuild();
 
         _icon = new Forms.NotifyIcon
@@ -63,6 +63,10 @@ public sealed class TrayIcon : IDisposable
         }
 
         _menu.Items.Add(new Forms.ToolStripSeparator());
+        bool autostart = Autostart.IsEnabled();
+        var startItem = Item(Loc.T("tray.autostart"), () => _app.SetStartWithWindows(!autostart));
+        startItem.Checked = autostart;
+        _menu.Items.Add(startItem);
         var recovery = new Forms.ToolStripMenuItem(Loc.T("tray.recovery"));
         recovery.DropDownItems.Add(Item(Loc.T("rec.gather"), _app.GatherAllToCenter));
         recovery.DropDownItems.Add(Item(Loc.T("rec.showAll"), _app.ShowAll));

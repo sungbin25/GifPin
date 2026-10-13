@@ -308,6 +308,8 @@ internal static class Strings
         ["set.general"] = ("General", "일반"),
         ["set.autostart"] = ("Start with Windows", "Windows 시작 시 자동 실행"),
         ["set.autostartDesc"] = ("GifPin starts in the tray and shows your saved GIFs when you sign in", "컴퓨터를 켜면 GifPin이 트레이에서 시작되고 저장된 GIF를 바로 띄워요"),
+        ["set.autostartBlocked"] = ("Turned off in Windows Startup apps settings, so it won't run. Switch it on here to allow it again.", "Windows의 '시작 프로그램' 설정에서 꺼져 있어 실행되지 않아요. 여기서 다시 켜면 허용돼요."),
+        ["tray.autostart"] = ("Start with Windows", "Windows 시작 시 자동 실행"),
         ["set.openOnStart"] = ("Open the main window on auto start", "자동 실행할 때 메인 창 열기"),
         ["set.openOnStartDesc"] = ("When off, GifPin starts quietly in the tray", "끄면 메인 창 없이 트레이 아이콘으로만 시작해요"),
         ["set.hotkeys"] = ("Hotkeys", "단축키"),

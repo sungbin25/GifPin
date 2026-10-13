@@ -44,6 +44,7 @@ public partial class MainWindow : Window
         _app.GeometryChanged += OnGeometryChanged;
         _app.Notice += ShowToast;
         _app.MonitorsChanged += () => { RefreshPanel(); RefreshDiagnostics(); };
+        _app.AutostartChanged += RefreshSettings; // 트레이 메뉴에서 바꾼 경우
         Loc.Changed += OnLanguageChanged;
 
         BindMotionSliders();
@@ -1062,7 +1063,9 @@ public partial class MainWindow : Window
         var s = _app.State.Settings;
         LangEn.IsChecked = Loc.Language == Loc.English;
         LangKo.IsChecked = Loc.Language == Loc.Korean;
-        StartWithWindowsToggle.IsChecked = s.StartWithWindows;
+        var autostart = Autostart.GetStatus(); // 설치 프로그램이나 Windows 설정에서 바뀌었을 수 있으니 실제 상태로
+        StartWithWindowsToggle.IsChecked = autostart == Autostart.Status.On;
+        AutostartBlockedText.Visibility = autostart == Autostart.Status.BlockedByWindows ? Visibility.Visible : Visibility.Collapsed;
         OpenOnStartToggle.IsChecked = s.OpenWindowOnStart;
         CopyOnAddToggle.IsChecked = s.CopyOnAdd;
         Fps30.IsChecked = s.EffectsFps < 45;
@@ -1145,7 +1148,9 @@ public partial class MainWindow : Window
 
     private void StartWithWindows_Click(object sender, RoutedEventArgs e)
     {
-        if (!_updating) _app.SetStartWithWindows(StartWithWindowsToggle.IsChecked == true);
+        if (_updating) return;
+        _app.SetStartWithWindows(StartWithWindowsToggle.IsChecked == true);
+        RefreshSettings();
     }
 
     private void OpenOnStart_Click(object sender, RoutedEventArgs e)

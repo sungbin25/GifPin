@@ -850,11 +850,15 @@ public sealed class AppController
         Save();
     }
 
+    /// <summary>Windows 시작 시 자동 실행이 바뀜 (설정 화면 갱신용).</summary>
+    public event Action? AutostartChanged;
+
     public void SetStartWithWindows(bool on)
     {
-        State.Settings.StartWithWindows = on;
         Autostart.Apply(on);
+        State.Settings.StartWithWindows = Autostart.IsEnabled();
         Save();
+        AutostartChanged?.Invoke();
     }
 
     public void OpenBackgroundRemover(string photoId, string? fromActiveId)
