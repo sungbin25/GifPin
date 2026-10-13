@@ -272,7 +272,9 @@ public partial class App : Application
         p = await P();
         if (!p.FxRunning || p.Particles == 0 || p.Squashes == 0) throw new Exception($"effects: running={p.FxRunning} particles={p.Particles} squashes={p.Squashes}");
         if (p.WindowWidth <= w || p.WindowHeight <= h) throw new Exception($"effects window not padded: {p.WindowWidth}x{p.WindowHeight} for {w}x{h}");
-        int fxParticles = p.Particles, fxSquashes = p.Squashes;
+        int fxParticles = p.Particles, fxSquashes = p.Squashes, fxFps = p.FramesPerSecond;
+        // 공용 프레임 박자: 60fps 설정이면 실제로 고르게 45fps 이상 (예전 창별 타이머는 약 32fps)
+        if (fxFps < 45) throw new Exception($"effects ran at {fxFps} fps ({eng.FramePacing}), expected about 60");
 
         // 여백이 있어도 끌기는 정확히 끈 만큼
         app.UpdateActive(id, a => { a.MotionMode = Motion.None; a.FxParticleKind = Fx.Star; });
@@ -319,7 +321,7 @@ public partial class App : Application
         await Wait(2500);
         p = await P();
         if (p.FxRunning || p.WindowWidth != w || p.WindowHeight != h) throw new Exception($"effects off: running={p.FxRunning} window {p.WindowWidth}x{p.WindowHeight} vs {w}x{h}");
-        sb.Append($" effects ok ({fxParticles} particles, {fxSquashes} squashes, burst) ·");
+        sb.Append($" effects ok ({fxParticles} particles, {fxSquashes} squashes, {fxFps} fps via {eng.FramePacing}, burst) ·");
 
         // 7) 표시 층: 바탕화면이면 항상 위(topmost)가 아니고, 맨 위로 되돌리면 다시 topmost
         app.UpdateActive(id, a => { a.MotionMode = Motion.None; a.MotionGravity = true; a.Layer = Layers.Desktop; });

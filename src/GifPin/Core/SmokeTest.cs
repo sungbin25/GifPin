@@ -304,7 +304,7 @@ public static class SmokeTest
 
         using var bmp = new SkiaSharp.SKBitmap(new SkiaSharp.SKImageInfo(400, 400, SkiaSharp.SKColorType.Bgra8888, SkiaSharp.SKAlphaType.Premul));
         bmp.Erase(SkiaSharp.SKColors.Transparent);
-        using (var c = new SkiaSharp.SKCanvas(bmp)) { fx.DrawFront(c, a, 0, 0); c.Flush(); }
+        using (var c = new SkiaSharp.SKCanvas(bmp)) { fx.DrawFront(c, a, SkiaSharp.SKRect.Create(100, 100, 80, 80), 0, 0, SkiaSharp.SKRect.Create(0, 0, 400, 400)); c.Flush(); }
         int drawn = 0;
         for (int y = 0; y < 400; y += 2)
             for (int x = 0; x < 400; x += 2)
@@ -392,12 +392,32 @@ public static class SmokeTest
         if (tight != 10 || wide < 4 || wide > 6) throw new Exception($"trail spacing: 8px -> {tight}, 40px -> {wide}");
         a.FxTrailCount = 5; a.FxTrailSpacing = 24;
 
+        // 빠르게 움직일 때: 따라오기를 끄면 한 프레임 사이에 생긴 파티클이 지나온 길 위에 고르게 퍼짐 (한 점에 몰리지 않음)
+        var pa = new ActiveItem { FxParticles = true, FxParticleMode = Fx.Always, FxParticleRate = 60, FxParticleLife = 3, FxParticleStyle = Fx.Rise, FxParticleFollow = false };
+        var path = new EffectState(seed: 12);
+        path.Advance(0, pa, 0, 100, 40, 40, null);
+        path.Advance(0.1, pa, 1000, 100, 40, 40, null);
+        double minPx = double.MaxValue, maxPx = double.MinValue;
+        for (int i = 0; i < path.ParticleCount; i++) { var q = path.ParticleAt(i); minPx = Math.Min(minPx, q.x); maxPx = Math.Max(maxPx, q.x); }
+        if (path.ParticleCount < 5 || maxPx - minPx < 500) throw new Exception($"path spawn: {path.ParticleCount} particles spread {maxPx - minPx:0}px");
+
+        // 따라오기: 파티클 좌표가 GIF 기준이라 GIF가 멀리 가도 GIF 근처에 있음
+        pa.FxParticleFollow = true;
+        var fol = new EffectState(seed: 13);
+        for (int i = 0; i < 100; i++) fol.Advance(0.01, pa, i * 10, 100, 40, 40, null);
+        for (int i = 0; i < fol.ParticleCount; i++)
+        {
+            var q = fol.ParticleAt(i);
+            if (!q.local || q.x < -60 || q.x > 100) throw new Exception($"follow particle at {q.x:0} (local={q.local})");
+        }
+        if (fol.ParticleCount == 0) throw new Exception("follow made no particles");
+
         // 범위 바로잡기
         var bad = new ActiveItem { FxParticleKind = "???", FxGlowColor = "nope", FxTrailCount = 99, FxParticleColor = "#12" };
         Fx.Normalize(bad);
         if (bad.FxParticleKind != Fx.Sparkle || bad.FxGlowColor != "#FFD54F" || bad.FxTrailCount != 10 || bad.FxParticleColor != Fx.Rainbow)
             throw new Exception("effect settings were not normalized");
 
-        return $"effects ok (spin pad {pads.Top}, {always} particles/s, landing squash+dust, trail 5, spacing 8px={tight} 40px={wide})";
+        return $"effects ok (spin pad {pads.Top}, {always} particles/s, landing squash+dust, trail 5, spacing 8px={tight} 40px={wide}, path spread {maxPx - minPx:0}px, follow ok)";
     }
 }

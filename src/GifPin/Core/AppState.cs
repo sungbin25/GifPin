@@ -149,6 +149,8 @@ public sealed class ActiveItem
     public string FxParticleImages { get; set; } = "";
     /// <summary>내 이미지 파티클: 원래 색 그대로 (끄면 고른 색으로 물들임)</summary>
     public bool FxParticleKeepColors { get; set; } = true;
+    /// <summary>파티클이 GIF를 따라 함께 움직임 (끄면 생긴 자리에 남아 꼬리처럼 보임)</summary>
+    public bool FxParticleFollow { get; set; } = true;
     /// <summary>파티클이 돌면서 날림</summary>
     public bool FxParticleRotate { get; set; } = true;
     /// <summary>GIF 파티클: 파티클마다 애니메이션 재생 (CPU를 더 씀)</summary>

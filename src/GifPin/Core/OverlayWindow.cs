@@ -20,9 +20,8 @@ internal sealed unsafe class OverlayWindow : IDisposable
     private const int HandleHit = 18;
     private const int SnapPx = 8;
     private const int KeepVisiblePx = 20;
-    private const nuint TIMER_FRAME = 1, TIMER_FLASH = 2, TIMER_MOTION = 3, TIMER_HOLD = 4, TIMER_RESUME = 5, TIMER_FX = 6;
+    private const nuint TIMER_FRAME = 1, TIMER_FLASH = 2, TIMER_HOLD = 4, TIMER_RESUME = 5;
     private const double ThrowWindowSec = 0.1; // 놓기 직전 이 시간 동안의 마우스 속도로 던짐
-    private const uint MotionIntervalMs = 15;
     private const long MotionReportMs = 3000; // 움직이는 중 위치를 UI에 알리는 간격
     private const double MinScale = 0.1, MaxScale = 4.0;
 
@@ -41,15 +40,25 @@ internal sealed unsafe class OverlayWindow : IDisposable
     private bool _editMode, _selected, _globalHidden, _flash, _showSize;
 
     private readonly MotionState _motion = new();
-    private readonly System.Diagnostics.Stopwatch _motionClock = new();
-    private long _lastMotionReport;
+    private double _reportAcc; // 움직이는 중 위치를 알린 뒤 지난 시간 (초)
     private bool _motionRunning, _facingLeft;
 
     // 효과 레이어
     private readonly EffectState _fx = new();
-    private readonly System.Diagnostics.Stopwatch _fxClock = new();
     private bool _fxRunning;
-    private uint _fxInterval;
+
+    // 프레임 (엔진의 공용 박자에 맞춰 진행)
+    private long _lastFrameTs;        // 이 창이 마지막으로 처리한 프레임 시각 (Stopwatch 틱, 0 = 멈춤)
+    private bool _dirty;              // 프레임 사이에 GIF 장면이 바뀜 → 다음 프레임에 그림
+    private double _subX, _subY;      // 움직임 위치의 소수점 부분 (효과가 있을 때 GIF를 소수점 단위로 그려 덜컥임 제거)
+    private bool _pixelated;
+    private int _frameCount;
+    private long _fpsWindowStart;
+    /// <summary>최근 1초 동안 처리한 프레임 수 (점검·진단용).</summary>
+    public int FramesPerSecond { get; private set; }
+
+    /// <summary>매 프레임 계산이 필요함 (움직이는 중이거나 효과가 도는 중).</summary>
+    internal bool NeedsFrames => _motionRunning || _fxRunning;
     private Pads _pads = Pads.Zero; // 지금 창 가장자리 여백 (창 위치 = GIF 위치 − 여백)
     private List<GifAnimation>? _sprites; // 내 이미지 파티클 (이 창이 주인)
 
@@ -162,6 +171,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
         if (_framePaint.FilterQuality == q) return;
         _framePaint.FilterQuality = q;
         _framePaint.IsAntialias = !pixelated;
+        _pixelated = pixelated;
         Render();
     }
 
@@ -199,61 +209,96 @@ internal sealed unsafe class OverlayWindow : IDisposable
         bool run = MotionShouldRun;
         if (run == _motionRunning) return;
         _motionRunning = run;
-        UpdateFxTimer();
         if (run)
         {
             _motion.X = Item.X; // 편집·숨김 뒤 다시 출발할 때 현재 위치에서
             _motion.Y = Item.Y;
-            _motionClock.Restart();
-            _lastMotionReport = 0;
-            SetTimer(Hwnd, TIMER_MOTION, MotionIntervalMs, IntPtr.Zero);
+            _reportAcc = 0;
+        }
+        else _subX = _subY = 0;
+        UpdateFxTimer();
+        SyncFrameClock();
+    }
+
+    /// <summary>프레임이 필요하면 엔진 박자에 등록, 아니면 멈춤.</summary>
+    private void SyncFrameClock()
+    {
+        if (NeedsFrames)
+        {
+            if (_lastFrameTs == 0) _lastFrameTs = System.Diagnostics.Stopwatch.GetTimestamp();
+            _engine.WantFrames();
         }
         else
         {
-            KillTimer(Hwnd, TIMER_MOTION);
-            _motionClock.Stop();
+            _lastFrameTs = 0;
+            FramesPerSecond = 0;
         }
     }
 
-    private void OnMotionTick()
+    /// <summary>
+    /// 한 프레임: 움직임 계산 → 효과 계산 → 그리기 (한 번).
+    /// 위치와 그림이 늘 같은 박자로 바뀌므로 GIF와 파티클이 서로 어긋나 흔들리지 않는다.
+    /// </summary>
+    internal void OnFrame(long now)
     {
-        if (_anim == null || !MotionShouldRun) { UpdateMotionTimer(); return; }
-        double dt = _motionClock.Elapsed.TotalSeconds;
-        long now = _motionClock.ElapsedMilliseconds;
-        _motionClock.Restart();
-        _lastMotionReport += now;
+        if (!NeedsFrames || _anim == null) { _lastFrameTs = 0; return; }
+        double dt = _lastFrameTs == 0 ? 0 : (now - _lastFrameTs) / (double)System.Diagnostics.Stopwatch.Frequency;
+        _lastFrameTs = now;
+        CountFrame(now);
 
+        bool render = _dirty, moved = false;
+        _dirty = false;
         var (w, h) = ContentSize(Item.Scale);
-        var work = WorkAreaAt(Item.X + w / 2, Item.Y + h / 2);
-        bool wasSliding = _motion.IsSliding;
-        _motion.Step(dt, w, h, work.Left, work.Top, work.Right, work.Bottom);
-        int nx = (int)Math.Round(_motion.X), ny = (int)Math.Round(_motion.Y);
 
-        if (UpdateFacing())
+        if (_motionRunning)
         {
-            Item.X = nx;
-            Item.Y = ny;
-            Render(); // 방향이 바뀌면 다시 그림 (위치도 함께 반영)
-        }
-        else if (nx != Item.X || ny != Item.Y)
-        {
-            Item.X = nx;
-            Item.Y = ny;
-            if (!_fxRunning) // 효과가 돌고 있으면 다음 효과 프레임에서 함께 옮겨짐
-                SetWindowPos(Hwnd, IntPtr.Zero, nx - _pads.Left, ny - _pads.Top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+            _reportAcc += dt;
+            var work = WorkAreaAt(Item.X + w / 2, Item.Y + h / 2);
+            bool wasSliding = _motion.IsSliding;
+            _motion.Step(dt, w, h, work.Left, work.Top, work.Right, work.Bottom);
+            int nx = (int)Math.Round(_motion.X), ny = (int)Math.Round(_motion.Y);
+            // 도트 그래픽은 픽셀이 번지지 않게 정수 위치 그대로
+            _subX = _pixelated ? 0 : _motion.X - nx;
+            _subY = _pixelated ? 0 : _motion.Y - ny;
+            if (UpdateFacing()) render = true;
+            if (nx != Item.X || ny != Item.Y) { Item.X = nx; Item.Y = ny; moved = true; }
+
+            if (!MotionShouldRun)
+            {
+                UpdateMotionTimer(); // 미끄러짐이 멈춤 → 멈춘 자리 저장
+                ReportPosition();
+                render = true;
+            }
+            else if (wasSliding && !_motion.IsSliding) ReportPosition(); // 자동 밀기 사이에 멈춤
+            else if (_reportAcc * 1000 >= MotionReportMs)
+            {
+                _reportAcc = 0;
+                ReportPosition();
+            }
         }
 
-        if (!MotionShouldRun)
+        if (_fxRunning)
         {
-            // 미끄러짐이 멈춤 → 멈춘 자리 저장
-            UpdateMotionTimer();
-            ReportPosition();
+            _fx.Advance(dt, Item, Item.X + _subX, Item.Y + _subY, w, h, Motion.IsMoving(Item.MotionMode) ? _motion : null);
+            render = true;
         }
-        else if (wasSliding && !_motion.IsSliding) ReportPosition(); // 자동 밀기 사이에 멈춤
-        else if (_lastMotionReport >= MotionReportMs)
+
+        if (render) Render();
+        else if (moved) SetWindowPos(Hwnd, IntPtr.Zero, Item.X - _pads.Left, Item.Y - _pads.Top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+
+        if (_fxRunning) UpdateFxTimer(); // 파티클이 다 사라졌으면 멈춤
+    }
+
+    private void CountFrame(long now)
+    {
+        if (_fpsWindowStart == 0) _fpsWindowStart = now;
+        _frameCount++;
+        double span = (now - _fpsWindowStart) / (double)System.Diagnostics.Stopwatch.Frequency;
+        if (span >= 1)
         {
-            _lastMotionReport = 0;
-            ReportPosition();
+            FramesPerSecond = (int)Math.Round(_frameCount / span);
+            _frameCount = 0;
+            _fpsWindowStart = now;
         }
     }
 
@@ -369,37 +414,15 @@ internal sealed unsafe class OverlayWindow : IDisposable
 
     // ── 효과 타이머 ─────────────────────────────────────────
 
-    /// <summary>효과가 움직여야 할 때만 타이머를 돌림 (편집 중·숨김·일시정지 중에는 멈춤).</summary>
+    /// <summary>효과가 움직여야 할 때만 프레임을 받음 (편집 중·숨김·일시정지 중에는 멈춤).</summary>
     internal void UpdateFxTimer()
     {
         bool motionActive = Motion.IsMoving(Item.MotionMode) && (_motionRunning || _held || _press == Press.Grab);
         bool run = !_editMode && IsShown && !_engine.FxPaused && _fx.IsAnimated(Item, motionActive);
-        uint interval = (uint)Math.Max(10, 1000 / Math.Max(1, _engine.FxFps));
-        if (run == _fxRunning && (!run || interval == _fxInterval)) return;
+        if (run == _fxRunning) return;
         _fxRunning = run;
-        _fxInterval = interval;
-        if (run)
-        {
-            _fxClock.Restart();
-            SetTimer(Hwnd, TIMER_FX, interval, IntPtr.Zero);
-        }
-        else
-        {
-            KillTimer(Hwnd, TIMER_FX);
-            _fxClock.Stop();
-            Render(); // 멈춘 모습으로 한 번 그림
-        }
-    }
-
-    private void OnFxTick()
-    {
-        if (!_fxRunning || _anim == null) return;
-        double dt = _fxClock.Elapsed.TotalSeconds;
-        _fxClock.Restart();
-        var (w, h) = ContentSize(Item.Scale);
-        _fx.Advance(dt, Item, Item.X, Item.Y, w, h, Motion.IsMoving(Item.MotionMode) ? _motion : null);
-        Render();
-        UpdateFxTimer();
+        if (!run) Render(); // 멈춘 모습으로 한 번 그림
+        SyncFrameClock();
     }
 
     private void StartTimer()
@@ -433,16 +456,9 @@ internal sealed unsafe class OverlayWindow : IDisposable
                 if ((nuint)wParam == TIMER_FRAME && _anim != null && _anim.Frames.Count > 1)
                 {
                     _frame = (_frame + 1) % _anim.Frames.Count;
-                    Render();
+                    if (NeedsFrames) _dirty = true; // 다음 프레임에 위치·효과와 함께 그림
+                    else Render();
                     StartTimer();
-                }
-                else if ((nuint)wParam == TIMER_MOTION)
-                {
-                    OnMotionTick();
-                }
-                else if ((nuint)wParam == TIMER_FX)
-                {
-                    OnFxTick();
                 }
                 else if ((nuint)wParam == TIMER_HOLD)
                 {
@@ -699,6 +715,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
         WindowWidth = _dibW,
         WindowHeight = _dibH,
         Sprites = _fx.SpriteCount,
+        FramesPerSecond = FramesPerSecond,
     };
 
     private Drag HitTest(int x, int y)
@@ -797,7 +814,9 @@ internal sealed unsafe class OverlayWindow : IDisposable
 
         var c = _surface!.Canvas;
         c.Clear(SKColors.Transparent);
-        var content = new SKRect(_pads.Left, _pads.Top, _pads.Left + w, _pads.Top + h);
+        // 움직이는 중에는 소수점 위치까지 반영 (창은 정수 픽셀로만 움직일 수 있으므로 그 차이를 안쪽에서 보정)
+        float sx = _editMode ? 0 : (float)_subX, sy = _editMode ? 0 : (float)_subY;
+        var content = new SKRect(_pads.Left + sx, _pads.Top + sy, _pads.Left + sx + w, _pads.Top + sy + h);
         var frame = _anim.Frames[_frame];
         bool flip = Item.FlipX ^ (_facingLeft && !_editMode);
 
@@ -813,7 +832,8 @@ internal sealed unsafe class OverlayWindow : IDisposable
         {
             double originX = Item.X - _pads.Left, originY = Item.Y - _pads.Top;
             double ground = Motion.Normalize(Item.MotionMode) is Motion.Walk or Motion.Fall ? _motion.GroundDistance : 0;
-            _fx.DrawBehind(c, Item, content, originX, originY, frame, flip, ground);
+            var bounds = new SKRect(0, 0, ww, wh);
+            _fx.DrawBehind(c, Item, content, originX, originY, frame, flip, ground, bounds);
 
             c.Save();
             _fx.ApplyTransform(c, Item, content);
@@ -827,7 +847,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
             _framePaint.Color = SKColors.White;
             c.Restore();
 
-            _fx.DrawFront(c, Item, originX, originY);
+            _fx.DrawFront(c, Item, content, originX, originY, bounds);
         }
 
         if (_editMode)
@@ -926,8 +946,6 @@ internal sealed unsafe class OverlayWindow : IDisposable
     {
         KillTimer(Hwnd, TIMER_FRAME);
         KillTimer(Hwnd, TIMER_FLASH);
-        KillTimer(Hwnd, TIMER_MOTION);
-        KillTimer(Hwnd, TIMER_FX);
         DestroyWindow(Hwnd);
         _fx.Dispose();
         if (_sprites != null) foreach (var s in _sprites) s.Dispose();

@@ -173,6 +173,8 @@ internal static class Strings
         ["fx.animate"] = ("Play GIFs", "GIF 움직이기"),
         ["fx.animateTip"] = ("Each particle plays the GIF animation", "파티클 하나하나가 GIF 애니메이션을 재생해요"),
         ["fx.cpuWarn"] = ("⚠ Animated particles use more CPU. Keep the amount low (up to 80 at once).", "⚠ GIF 파티클은 CPU를 더 많이 써요. 양을 적게 두세요 (한 번에 최대 80개)."),
+        ["fx.follow"] = ("Follow the GIF", "GIF 따라오기"),
+        ["fx.followTip"] = ("On: particles move along with the GIF. Off: they stay where they appeared and leave a tail.", "켜면 파티클이 GIF와 함께 움직여요. 끄면 생긴 자리에 남아 꼬리처럼 보여요."),
         ["fx.rotate"] = ("Spin while flying", "돌면서 날리기"),
         ["fx.rotateTip"] = ("Off: particles stay upright", "끄면 똑바로 선 채로 날려요"),
         ["picker.title"] = ("Particle images", "파티클 이미지"),

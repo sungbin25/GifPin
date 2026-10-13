@@ -19,6 +19,7 @@ public sealed class OverlayEngine : IDisposable
     public const int HotkeyEdit = 1, HotkeyHide = 2, HotkeyQuit = 3;
     private const string MsgClassName = "GifPinEngine";
     private const uint WM_RUN = WM_APP + 1;
+    private const uint WM_FRAME = WM_APP + 2;
     private const nuint TIMER_TOPMOST = 1;
 
     /// <summary>드래그·휠·방향키로 위치·크기가 확정됨 (사본 전달).</summary>
@@ -48,6 +49,125 @@ public sealed class OverlayEngine : IDisposable
     private volatile bool _pauseFxFullscreen = true, _pauseFxBattery;
     /// <summary>전체 화면 앱·배터리 때문에 효과를 멈춘 상태.</summary>
     internal bool FxPaused { get; private set; }
+
+    // ── 프레임 박자 ──
+    // 움직임·효과는 창마다 따로 타이머를 돌리지 않고, 이 박자에 맞춰 "계산 → 그리기"를 한 번에 한다.
+    // 박자는 화면 갱신(DwmFlush)에 맞추고, 그게 안 되면 고정밀 타이머로 정확한 간격을 지킨다.
+    private Thread? _pacer;
+    private readonly AutoResetEvent _pacerWake = new(false);
+    private volatile bool _pacerRun = true;
+    private volatile bool _framesWanted;
+    private int _framePending;
+    /// <summary>지금 박자 방식 (진단용): "vsync" 또는 "timer".</summary>
+    public string FramePacing { get; private set; } = "timer";
+
+    /// <summary>창이 매 프레임 계산·그리기가 필요해졌을 때 (엔진 스레드에서 호출).</summary>
+    internal void WantFrames()
+    {
+        if (_framesWanted) return;
+        _framesWanted = true;
+        _pacerWake.Set();
+    }
+
+    private void PacerLoop()
+    {
+        IntPtr timer = IntPtr.Zero;
+        try { timer = CreateWaitableTimerExW(IntPtr.Zero, null, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS); } catch { }
+        bool lowRes = timer == IntPtr.Zero;
+        if (lowRes) { try { timeBeginPeriod(1); } catch { } }
+        double freq = System.Diagnostics.Stopwatch.Frequency;
+        bool useVsync = true;
+        int vsyncMisses = 0;
+        double vsyncPeriod = 1 / 60.0;
+        long last = System.Diagnostics.Stopwatch.GetTimestamp(), lastFlush = last;
+        Log.Info($"Frame pacer started ({(lowRes ? "1 ms sleep" : "high-resolution timer")} + display sync)");
+
+        void SleepUntil(long deadline)
+        {
+            long now = System.Diagnostics.Stopwatch.GetTimestamp();
+            if (deadline <= now) return;
+            double sec = (deadline - now) / freq;
+            if (!lowRes)
+            {
+                long due = -(long)(sec * 10_000_000); // 100ns 단위, 음수 = 지금부터
+                if (SetWaitableTimer(timer, ref due, 0, IntPtr.Zero, IntPtr.Zero, false)) { WaitForSingleObject(timer, INFINITE); return; }
+            }
+            Thread.Sleep(Math.Max(1, (int)(sec * 1000)));
+        }
+
+        try
+        {
+            while (_pacerRun)
+            {
+                if (!_framesWanted)
+                {
+                    _pacerWake.WaitOne(500);
+                    last = System.Diagnostics.Stopwatch.GetTimestamp();
+                    continue;
+                }
+                double interval = 1.0 / Math.Max(1, FxFps);
+                bool synced = false;
+                if (useVsync)
+                {
+                    long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+                    int hr;
+                    try { hr = DwmFlush(); } catch { hr = -1; }
+                    long t1 = System.Diagnostics.Stopwatch.GetTimestamp();
+                    synced = hr == 0 && (t1 - t0) / freq >= 0.002; // 실제로 화면 갱신을 기다렸을 때만
+                    if (synced)
+                    {
+                        vsyncMisses = 0;
+                        double p = (t1 - lastFlush) / freq;
+                        if (p > 0.002 && p < 0.05) vsyncPeriod = vsyncPeriod * 0.9 + p * 0.1;
+                        lastFlush = t1;
+                        if (FramePacing != "vsync") FramePacing = "vsync";
+                    }
+                    else if (++vsyncMisses > 30)
+                    {
+                        useVsync = false; // 화면 동기화가 안 되는 환경 → 타이머만
+                        FramePacing = "timer";
+                        Log.Info("Display sync unavailable; using the precise timer for frame pacing");
+                    }
+                }
+                if (!synced)
+                {
+                    if (FramePacing != "timer" && !useVsync) FramePacing = "timer";
+                    SleepUntil(last + (long)(interval * freq)); // 바쁘게 돌지 않도록 항상 기다림
+                }
+
+                long now = System.Diagnostics.Stopwatch.GetTimestamp();
+                double elapsed = (now - last) / freq;
+                // 화면 갱신에 맞출 때: 목표 간격에 반 프레임 이내로 가까우면 이번 갱신에 그림 (60Hz에서 60fps, 144Hz에서 72fps)
+                if (elapsed >= interval - (synced ? vsyncPeriod * 0.5 : 0.0005))
+                {
+                    last = now;
+                    if (Interlocked.Exchange(ref _framePending, 1) == 0)
+                        PostMessageW(_msgHwnd, WM_FRAME, IntPtr.Zero, IntPtr.Zero);
+                }
+            }
+        }
+        catch (Exception ex) { Log.Error("Frame pacer stopped", ex); }
+        finally
+        {
+            if (timer != IntPtr.Zero) CloseHandle(timer);
+            if (lowRes) { try { timeEndPeriod(1); } catch { } }
+        }
+    }
+
+    /// <summary>한 프레임: 프레임이 필요한 모든 창을 같은 시각 기준으로 진행.</summary>
+    private void OnFrame()
+    {
+        Interlocked.Exchange(ref _framePending, 0);
+        long now = System.Diagnostics.Stopwatch.GetTimestamp();
+        bool any = false;
+        foreach (var w in _byId.Values.ToList())
+        {
+            if (!w.NeedsFrames) continue;
+            w.OnFrame(now);
+            any |= w.NeedsFrames;
+        }
+        if (!any) _framesWanted = false;
+    }
 
     // 네이티브 콜백은 GC 수거 방지를 위해 필드로 보관
     private readonly WndProc _overlayProc, _msgProc;
@@ -83,6 +203,9 @@ public sealed class OverlayEngine : IDisposable
         if (!RegisterHotKey(_msgHwnd, HotkeyEdit, mods, 0x45)) _hotkeyFailures.Add("Ctrl+Alt+E");
         if (!RegisterHotKey(_msgHwnd, HotkeyHide, mods, 0x48)) _hotkeyFailures.Add("Ctrl+Alt+H");
         if (!RegisterHotKey(_msgHwnd, HotkeyQuit, mods, 0x51)) _hotkeyFailures.Add("Ctrl+Alt+Q");
+
+        _pacer = new Thread(PacerLoop) { IsBackground = true, Name = "GifPin.FramePacer", Priority = ThreadPriority.AboveNormal };
+        _pacer.Start();
 
         _winEventHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, IntPtr.Zero, _winEventProc, 0, 0, WINEVENT_OUTOFCONTEXT);
         SetTimer(_msgHwnd, TIMER_TOPMOST, 1500, IntPtr.Zero);
@@ -135,6 +258,9 @@ public sealed class OverlayEngine : IDisposable
             {
                 case WM_RUN:
                     while (_queue.TryDequeue(out var action)) action();
+                    return IntPtr.Zero;
+                case WM_FRAME:
+                    OnFrame();
                     return IntPtr.Zero;
                 case WM_HOTKEY:
                     HotkeyPressed?.Invoke((int)wParam);
@@ -365,6 +491,9 @@ public sealed class OverlayEngine : IDisposable
     public void Dispose()
     {
         if (_thread == null) return;
+        _pacerRun = false;
+        _pacerWake.Set();
+        _pacer?.Join(500);
         Post(() => PostQuitMessage(0));
         _thread.Join(2000);
         _thread = null;
@@ -381,4 +510,5 @@ public sealed record OverlayProbe(ActiveItem Item, bool MotionRunning, bool Held
     public int WindowWidth { get; init; }
     public int WindowHeight { get; init; }
     public int Sprites { get; init; }
+    public int FramesPerSecond { get; init; }
 }

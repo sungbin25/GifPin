@@ -159,6 +159,20 @@ internal static unsafe class Native
         public int BatteryLifeTime, BatteryFullLifeTime;
     }
     [DllImport("kernel32.dll")] public static extern bool GetSystemPowerStatus(out SYSTEM_POWER_STATUS status);
+
+    // ── 프레임 박자 (화면 갱신 동기화 / 고정밀 타이머) ──────────
+    [DllImport("dwmapi.dll")] public static extern int DwmFlush();
+    public const uint CREATE_WAITABLE_TIMER_HIGH_RESOLUTION = 0x00000002;
+    public const uint TIMER_ALL_ACCESS = 0x001F0003;
+    public const uint INFINITE = 0xFFFFFFFF;
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern IntPtr CreateWaitableTimerExW(IntPtr attributes, string? name, uint flags, uint access);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool SetWaitableTimer(IntPtr timer, ref long dueTime, int period, IntPtr completion, IntPtr arg, bool resume);
+    [DllImport("kernel32.dll")] public static extern uint WaitForSingleObject(IntPtr handle, uint milliseconds);
+    [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr handle);
+    [DllImport("winmm.dll")] public static extern uint timeBeginPeriod(uint ms);
+    [DllImport("winmm.dll")] public static extern uint timeEndPeriod(uint ms);
     [DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT pt);
     [DllImport("user32.dll")] public static extern bool ScreenToClient(IntPtr hWnd, ref POINT pt);
     [DllImport("user32.dll")] public static extern short GetKeyState(int vk);

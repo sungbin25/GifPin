@@ -816,6 +816,8 @@
                           <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleStyle" Tag="FxParticleStyle=burst" Padding="2,0" Height="26" Content="{DynamicResource s.fx.styleBurst}" Checked="FxChoice_Checked"/>
                         </UniformGrid>
                       </Border>
+                      <ToggleButton Style="{StaticResource SwitchBox}" Margin="0,8,0,0" Tag="FxParticleFollow" Content="{DynamicResource s.fx.follow}"
+                                    ToolTip="{DynamicResource s.fx.followTip}" Click="FxToggle_Click"/>
                       <ToggleButton Style="{StaticResource SwitchBox}" Margin="0,8,0,0" Tag="FxParticleRotate" Content="{DynamicResource s.fx.rotate}"
                                     ToolTip="{DynamicResource s.fx.rotateTip}" Click="FxToggle_Click"/>
                       <StackPanel x:Name="ParticleColorPanel">

@@ -717,6 +717,7 @@ public sealed class AppController
         sb.AppendLine($"Data: {Store.DataDir}");
         sb.AppendLine($"Log: {Log.FilePath}");
         sb.AppendLine($"Library: {State.Library.Count} photos · On screen: {State.Active.Count} · All hidden: {State.Settings.AllHidden}");
+        sb.AppendLine($"Effects: {State.Settings.EffectsFps} fps target · frame pacing {Engine.FramePacing} · paused for full screen: {State.Settings.PauseEffectsFullscreen}, battery: {State.Settings.PauseEffectsOnBattery}");
         foreach (var m in MonitorList)
             sb.AppendLine($"Monitor {m.Index}{(m.Primary ? " (primary)" : "")}: {m.Left},{m.Top} {m.Width}x{m.Height} work {m.WorkLeft},{m.WorkTop}-{m.WorkRight},{m.WorkBottom}");
         foreach (var a in State.Active)

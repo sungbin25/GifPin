@@ -110,6 +110,7 @@ internal sealed class EffectState : IDisposable
         public string Kind;
         public string Style;
         public bool Dust;
+        public bool Local;        // "따라오기": 좌표가 GIF 기준 (GIF와 함께 움직임). 아니면 화면 좌표
         public int Sprite;        // 내 이미지 파티클: 몇 번째 이미지
         public double AnimOffset; // GIF 파티클: 재생 시작 위치 (ms) — 파티클마다 다르게
     }
@@ -145,6 +146,9 @@ internal sealed class EffectState : IDisposable
     public int TrailCount => _trail.Count;
     public IReadOnlyList<(double x, double y)> Trail => _trail;
     public int SpriteCount => _sprites.Count;
+
+    /// <summary>점검용: i번째 파티클 좌표와 기준 (따라오기면 GIF 기준).</summary>
+    internal (double x, double y, bool local) ParticleAt(int i) => (_particles[i].X, _particles[i].Y, _particles[i].Local);
     public bool SquashActive => _squashT < SquashTime;
 
     public EffectState(int? seed = null)
@@ -223,6 +227,9 @@ internal sealed class EffectState : IDisposable
         dt = Math.Clamp(dt, 0, 0.1);
         Time += dt;
 
+        // 이번 프레임 사이에 GIF가 지나온 길 (파티클을 길 위에 고르게 만들기 위해)
+        double prevX = double.IsNaN(_lastX) ? x : _lastX, prevY = double.IsNaN(_lastX) ? y : _lastY;
+
         // 속도 (잔상·파티클용, 부드럽게)
         if (!double.IsNaN(_lastX) && dt > 0)
         {
@@ -273,24 +280,6 @@ internal sealed class EffectState : IDisposable
             if (_trailAcc >= TrailStep) { _trailAcc = 0; _trail.RemoveAt(0); }
         }
 
-        // 파티클 만들기
-        if (a.FxParticles)
-        {
-            double rate = a.FxParticleMode switch
-            {
-                Fx.Always => a.FxParticleRate,
-                Fx.Moving => Speed > 30 ? a.FxParticleRate * Math.Min(2, 0.5 + Speed / 400) : 0,
-                _ => 0,
-            };
-            _emitAcc += rate * dt;
-            while (_emitAcc >= 1)
-            {
-                _emitAcc -= 1;
-                Spawn(a, x, y, w, h, a.FxParticleStyle);
-            }
-        }
-        else _emitAcc = 0;
-
         // 파티클 움직이기
         for (int i = _particles.Count - 1; i >= 0; i--)
         {
@@ -305,13 +294,36 @@ internal sealed class EffectState : IDisposable
             p.Rot += p.VRot * dt;
             _particles[i] = p;
         }
+        // 파티클 만들기: 이번 프레임 사이에 생겼어야 할 개수를 GIF가 지나온 길 위에 고르게 나눠 놓고,
+        // 그 사이 흐른 시간만큼 미리 진행시킴 → 빠르게 움직여도 도장 찍힌 듯 끊기지 않음
+        if (a.FxParticles)
+        {
+            double rate = a.FxParticleMode switch
+            {
+                Fx.Always => a.FxParticleRate,
+                Fx.Moving => Speed > 30 ? a.FxParticleRate * Math.Min(2, 0.5 + Speed / 400) : 0,
+                _ => 0,
+            };
+            _emitAcc += rate * dt;
+            int n = (int)_emitAcc;
+            _emitAcc -= n;
+            for (int i = 0; i < n; i++)
+            {
+                double t = (i + 1.0) / n; // 1 = 지금
+                // 따라오기면 GIF에 붙어 있으니 지금 자리 기준, 아니면 지나온 길 위
+                double sx = a.FxParticleFollow ? x : prevX + (x - prevX) * t;
+                double sy = a.FxParticleFollow ? y : prevY + (y - prevY) * t;
+                Spawn(a, sx, sy, w, h, a.FxParticleStyle, (1 - t) * dt, x, y);
+            }
+        }
+        else _emitAcc = 0;
     }
 
     /// <summary>클릭했을 때 한꺼번에 터뜨림.</summary>
     public void Burst(ActiveItem a, double x, double y, int w, int h)
     {
         int n = (int)Math.Clamp(a.FxParticleRate * 1.5, 8, 40);
-        for (int i = 0; i < n; i++) Spawn(a, x, y, w, h, Fx.Burst);
+        for (int i = 0; i < n; i++) Spawn(a, x, y, w, h, Fx.Burst, 0, x, y);
     }
 
     private SKColor ParticleColor(ActiveItem a)
@@ -320,7 +332,11 @@ internal sealed class EffectState : IDisposable
         return SKColor.FromHsv(_rng.Next(24) * 15f, 65, 100); // 24가지 색 (물들이기 필터를 재사용하려고)
     }
 
-    private void Spawn(ActiveItem a, double x, double y, int w, int h, string style)
+    /// <summary>
+    /// 파티클 하나. (x, y) = 생기는 순간의 GIF 위치, preAge = 이미 흐른 시간,
+    /// (curX, curY) = 지금 GIF 위치 ("따라오기"면 이 기준의 상대 좌표로 저장).
+    /// </summary>
+    private void Spawn(ActiveItem a, double x, double y, int w, int h, string style, double preAge, double curX, double curY)
     {
         bool image = a.FxParticleKind == Fx.Image && _sprites.Count > 0;
         int cap = image && a.FxParticleAnimate ? MaxAnimatedParticles : MaxParticles;
@@ -357,6 +373,20 @@ internal sealed class EffectState : IDisposable
                 p.X = x + w / 2.0 + Math.Cos(ang) * w * 0.15; p.Y = y + h / 2.0 + Math.Sin(ang) * h * 0.15;
                 p.Vx = Math.Cos(ang) * sp; p.Vy = Math.Sin(ang) * sp;
                 break;
+        }
+        // 생긴 뒤 흐른 시간만큼 미리 이동
+        if (preAge > 0)
+        {
+            p.Age = preAge;
+            p.X += p.Vx * preAge;
+            p.Y += p.Vy * preAge;
+            p.Rot += p.VRot * preAge;
+        }
+        if (a.FxParticleFollow)
+        {
+            p.Local = true;
+            p.X -= curX;
+            p.Y -= curY;
         }
         _particles.Add(p);
     }
@@ -436,8 +466,15 @@ internal sealed class EffectState : IDisposable
         : _squashStrength * a.FxSquashAmount / 100 * Math.Exp(-7 * _squashT) * Math.Cos(22 * _squashT);
 
     /// <summary>GIF 뒤에 그리는 것: 바닥 그림자, 잔상.</summary>
+    /// <summary>창 가장자리에 가까울수록 투명하게 (여백 끝에서 뚝 잘려 보이지 않게).</summary>
+    private static double EdgeFade(float px, float py, SKRect bounds, double margin)
+    {
+        double d = Math.Min(Math.Min(px - bounds.Left, bounds.Right - px), Math.Min(py - bounds.Top, bounds.Bottom - py));
+        return Math.Clamp(d / Math.Max(1, margin), 0, 1);
+    }
+
     public void DrawBehind(SKCanvas c, ActiveItem a, SKRect content, double originX, double originY,
-        SKBitmap frame, bool flip, double groundDistance)
+        SKBitmap frame, bool flip, double groundDistance, SKRect bounds)
     {
         if (a.FxShadow)
         {
@@ -458,8 +495,10 @@ internal sealed class EffectState : IDisposable
             for (int i = 0; i < n; i++)
             {
                 var (gx, gy) = _trail[i];
-                double fade = a.FxTrailOpacity / 100 * (i + 1) / (n + 1);
                 var r = SKRect.Create((float)(gx - originX), (float)(gy - originY), content.Width, content.Height);
+                double fade = a.FxTrailOpacity / 100 * (i + 1) / (n + 1)
+                              * EdgeFade(r.MidX, r.MidY, bounds, Math.Max(r.Width, r.Height) * 0.5);
+                if (fade <= 0.003) continue;
                 _ghostPaint.Color = new SKColor(255, 255, 255, (byte)(255 * fade));
                 c.Save();
                 if (flip) c.Scale(-1, 1, r.MidX, 0);
@@ -530,15 +569,20 @@ internal sealed class EffectState : IDisposable
     }
 
     /// <summary>GIF 앞에 그리는 것: 파티클.</summary>
-    public void DrawFront(SKCanvas c, ActiveItem a, double originX, double originY)
+    public void DrawFront(SKCanvas c, ActiveItem a, SKRect content, double originX, double originY, SKRect bounds)
     {
         foreach (var p in _particles)
         {
             double t = p.Age / p.Life;
             double alpha = t < 0.15 ? t / 0.15 : t > 0.6 ? (1 - t) / 0.4 : 1;
+            // 따라오기 파티클은 GIF 기준, 나머지는 화면 기준 좌표
+            float px = p.Local ? content.Left + (float)p.X : (float)(p.X - originX);
+            float py = p.Local ? content.Top + (float)p.Y : (float)(p.Y - originY);
+            float r = (float)(p.Size / 2);
+            alpha *= EdgeFade(px, py, bounds, Math.Max(10, p.Size * 0.75));
+            if (alpha <= 0.003) continue;
             byte alphaByte = (byte)Math.Round(255 * Math.Clamp(alpha, 0, 1) * (p.Dust ? 0.7 : 1));
             _particlePaint.Color = p.Color.WithAlpha(alphaByte);
-            float px = (float)(p.X - originX), py = (float)(p.Y - originY), r = (float)(p.Size / 2);
             switch (p.Kind)
             {
                 case Fx.Image when p.Sprite < _sprites.Count:
