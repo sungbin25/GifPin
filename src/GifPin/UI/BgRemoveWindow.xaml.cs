@@ -174,7 +174,7 @@ public partial class BgRemoveWindow : Window
     private void ResultBg_Checked(object sender, RoutedEventArgs e)
     {
         if (ResultBg == null || sender is not RadioButton rb) return;
-        ResultBg.Background = (Brush)FindResource(rb.Tag as string switch
+        ResultBg.Background = (Brush)FindResource((rb.Tag as string) switch
         {
             "dark" => "PreviewDarkBrush",
             "light" => "PreviewLightBrush",

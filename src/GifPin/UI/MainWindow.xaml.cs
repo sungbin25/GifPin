@@ -45,7 +45,7 @@ public partial class MainWindow : Window
 
         BuildAnchorButtons();
         BuildHotkeyRows();
-        RestoreBounds();
+        RestoreSavedBounds();
         RefreshSettings();
         RefreshHiddenToggle();
         UpdateCounts();
@@ -72,7 +72,7 @@ public partial class MainWindow : Window
         return new WindowBounds { Left = r.Left, Top = r.Top, Width = r.Width, Height = r.Height };
     }
 
-    private void RestoreBounds()
+    private void RestoreSavedBounds()
     {
         var b = _app.State.Settings.Window;
         if (b == null || b.Width < MinWidth || b.Height < MinHeight) return;
