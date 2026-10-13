@@ -27,6 +27,8 @@ public sealed class PhotoItem
     /// <summary>배경을 지운 사진이면 원본 사진의 Id.</summary>
     public string? SourceId { get; set; }
     public BgRemoveSettings? BgRemoval { get; set; }
+    /// <summary>도트 그래픽: 확대할 때 흐리지 않고 픽셀을 그대로 키운다.</summary>
+    public bool Pixelated { get; set; }
 }
 
 public sealed class BgRemoveSettings
@@ -50,6 +52,12 @@ public sealed class ActiveItem
     public bool FlipX { get; set; }
     public bool ClickThrough { get; set; } = true;
     public bool Visible { get; set; } = true;
+    /// <summary>움직임: none | walk | bounce | fall (Motion 참고)</summary>
+    public string MotionMode { get; set; } = Motion.None;
+    /// <summary>움직이는 속도 (px/초)</summary>
+    public double MotionSpeed { get; set; } = Motion.DefaultSpeed;
+    /// <summary>움직이는 방향을 바라보도록 좌우 자동 반전</summary>
+    public bool MotionFaceDirection { get; set; } = true;
 
     public ActiveItem Clone() => (ActiveItem)MemberwiseClone();
 }
@@ -64,6 +72,8 @@ public sealed class WindowBounds
 
 public sealed class AppSettings
 {
+    /// <summary>UI 언어: "en"(기본) 또는 "ko"</summary>
+    public string Language { get; set; } = "en";
     public bool StartWithWindows { get; set; }
     public bool OpenWindowOnStart { get; set; }
     public bool CopyOnAdd { get; set; } = true;

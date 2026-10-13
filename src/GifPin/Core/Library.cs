@@ -18,8 +18,9 @@ public sealed class ImportResult
 /// <summary>사진 파일 등록·썸네일·삭제. 상태(AppState)는 바꾸지 않으므로 백그라운드 스레드에서 호출해도 된다.</summary>
 public static class Library
 {
-    public static readonly string[] SupportedExtensions = { ".gif", ".webp", ".png", ".jpg", ".jpeg", ".bmp" };
-    public const string OpenFileFilter = "이미지 (*.gif;*.webp;*.png;*.jpg;*.jpeg;*.bmp)|*.gif;*.webp;*.png;*.jpg;*.jpeg;*.bmp|모든 파일 (*.*)|*.*";
+    public static readonly string[] SupportedExtensions = { ".gif", ".webp", ".png", ".apng", ".jpg", ".jpeg", ".bmp" };
+    public static string OpenFileFilter =>
+        Loc.T("file.images") + " (*.gif;*.webp;*.png;*.apng;*.jpg;*.jpeg;*.bmp)|*.gif;*.webp;*.png;*.apng;*.jpg;*.jpeg;*.bmp|" + Loc.T("file.all") + " (*.*)|*.*";
 
     public static bool IsSupported(string path) =>
         SupportedExtensions.Contains(Path.GetExtension(path).ToLowerInvariant());
@@ -72,6 +73,10 @@ public static class Library
             w = codec.Info.Width;
             h = codec.Info.Height;
             frames = Math.Max(1, codec.FrameCount);
+        }
+        if (ApngDecoder.Probe(path) is { } apng) // APNG는 Skia가 1프레임으로 보고함
+        {
+            (w, h, frames) = apng;
         }
 
         var id = Store.NewId("p");

@@ -53,6 +53,7 @@ jobs:
 
           $env:GIFPIN_SMOKETEST = "1"
           $env:GIFPIN_SMOKE_GIF = $gif
+          $env:GIFPIN_SMOKE_ASSETS = (Resolve-Path tests).Path
           $p = Start-Process -FilePath publish\GifPin.exe -PassThru
           if (-not $p.WaitForExit(90000)) { Stop-Process -Id $p.Id -Force; Write-Error "GifPin did not exit within 90s"; exit 1 }
           $err = Join-Path $data 'smoke.err'

@@ -113,7 +113,7 @@ public sealed class OverlayEngine : IDisposable
                 if (r.HasValue) return r.Value;
             }
         }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+        catch (Exception ex) { Log.Error("Overlay message handling failed", ex); }
         return DefWindowProcW(hWnd, msg, wParam, lParam);
     }
 
@@ -134,7 +134,7 @@ public sealed class OverlayEngine : IDisposable
                     return IntPtr.Zero;
             }
         }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+        catch (Exception ex) { Log.Error("Overlay message handling failed", ex); }
         return DefWindowProcW(hWnd, msg, wParam, lParam);
     }
 
@@ -153,7 +153,7 @@ public sealed class OverlayEngine : IDisposable
     // ── 공개 API (아무 스레드) ─────────────────────────────────
 
     /// <summary>화면의 GIF를 만들거나 설정을 바꾼다. filePath가 바뀌면 새로 디코딩한다.</summary>
-    public void Sync(ActiveItem item, string filePath)
+    public void Sync(ActiveItem item, string filePath, bool pixelated = false)
     {
         var snapshot = item.Clone();
         Post(() =>
@@ -168,6 +168,7 @@ public sealed class OverlayEngine : IDisposable
                 w.SetGlobalHidden(_allHidden);
             }
             w.Update(snapshot);
+            w.SetPixelated(pixelated);
 
             if (w.AnimPath != filePath && w.PendingPath != filePath)
             {
@@ -178,7 +179,8 @@ public sealed class OverlayEngine : IDisposable
                     if (t.IsFaulted)
                     {
                         if (current) target!.PendingPath = null;
-                        LoadFailed?.Invoke(snapshot.Id, t.Exception?.GetBaseException().Message ?? "알 수 없는 오류");
+                        Log.Error($"Failed to load {filePath}", t.Exception?.GetBaseException());
+                        LoadFailed?.Invoke(snapshot.Id, t.Exception?.GetBaseException().Message ?? "unknown error");
                         return;
                     }
                     if (!current) { t.Result.Dispose(); return; }
@@ -220,6 +222,12 @@ public sealed class OverlayEngine : IDisposable
     {
         _allHidden = hidden;
         foreach (var w in _byId.Values) w.SetGlobalHidden(hidden);
+    });
+
+    /// <summary>위치를 강제로 옮김 (움직이는 GIF 포함).</summary>
+    public void Relocate(string id, int x, int y) => Post(() =>
+    {
+        if (_byId.TryGetValue(id, out var w)) w.Relocate(x, y);
     });
 
     public void Nudge(string id, int dx, int dy) => Post(() =>

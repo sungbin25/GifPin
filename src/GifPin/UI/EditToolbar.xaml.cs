@@ -57,7 +57,7 @@ public partial class EditToolbar : Window
     {
         var a = _app.SelectedActive;
         var p = _app.State.FindPhoto(a?.PhotoId);
-        SelName.Text = p?.Name ?? "GIF 없음";
+        SelName.Text = p?.Name ?? Loc.T("edit.noGif");
         SelThumb.Source = p != null ? Images.LoadThumb(p) : null;
         ScaleText.Text = a != null ? $"{a.Scale * 100:0}%" : "–";
     }
@@ -105,7 +105,7 @@ public partial class EditToolbar : Window
             var id = a.Id;
             var item = new MenuItem
             {
-                Header = $"화면 {i++} · {p?.Name ?? "(사진 없음)"}" + (a.Id == _app.SelectedActiveId ? "  ✓" : ""),
+                Header = Loc.F("panel.screenN", i++) + " · " + (p?.Name ?? Loc.T("active.noPhoto")) + (a.Id == _app.SelectedActiveId ? "  ✓" : ""),
             };
             item.Click += (_, _) => _app.SelectActive(id, flash: false);
             menu.Items.Add(item);

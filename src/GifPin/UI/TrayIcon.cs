@@ -1,29 +1,24 @@
 using System;
 using System.Linq;
+using GifPin.Core;
 using Forms = System.Windows.Forms;
 
 namespace GifPin.UI;
 
-/// <summary>시스템 트레이 아이콘과 메뉴 (WinForms NotifyIcon).</summary>
+/// <summary>시스템 트레이 아이콘과 메뉴 (WinForms NotifyIcon). 메뉴는 열 때마다 현재 언어로 다시 만든다.</summary>
 public sealed class TrayIcon : IDisposable
 {
     private readonly AppController _app;
     private readonly Forms.NotifyIcon _icon;
     private readonly Forms.ContextMenuStrip _menu;
-    private readonly Forms.ToolStripMenuItem _edit, _hide;
+    private readonly System.Drawing.Font _font = new("Segoe UI", 9.5f);
+    private readonly System.Drawing.Font _bold = new("Segoe UI", 9.5f, System.Drawing.FontStyle.Bold);
 
     public TrayIcon(AppController app)
     {
         _app = app;
-        _menu = new Forms.ContextMenuStrip { ShowImageMargin = false, Font = new System.Drawing.Font("Malgun Gothic", 9.5f) };
-
-        var open = new Forms.ToolStripMenuItem("GifPin 열기", null, (_, _) => _app.ShowMain()) { Font = new System.Drawing.Font("Malgun Gothic", 9.5f, System.Drawing.FontStyle.Bold) };
-        _edit = new Forms.ToolStripMenuItem("편집 모드", null, (_, _) => _app.ToggleEdit()) { ShortcutKeyDisplayString = "Ctrl+Alt+E" };
-        _hide = new Forms.ToolStripMenuItem("모두 숨기기", null, (_, _) => _app.SetAllHidden(!_app.State.Settings.AllHidden)) { ShortcutKeyDisplayString = "Ctrl+Alt+H" };
-        var quit = new Forms.ToolStripMenuItem("종료", null, (_, _) => _app.Quit()) { ShortcutKeyDisplayString = "Ctrl+Alt+Q" };
-
-        _menu.Items.AddRange(new Forms.ToolStripItem[] { open, _edit, _hide, new Forms.ToolStripSeparator(), quit });
-        _menu.Opening += (_, _) => RebuildRecent();
+        _menu = new Forms.ContextMenuStrip { ShowImageMargin = false, Font = _font };
+        _menu.Opening += (_, _) => Rebuild();
 
         _icon = new Forms.NotifyIcon
         {
@@ -33,32 +28,47 @@ public sealed class TrayIcon : IDisposable
             Visible = true,
         };
         _icon.MouseDoubleClick += (_, e) => { if (e.Button == Forms.MouseButtons.Left) _app.ShowMain(); };
-        Refresh();
+        Rebuild();
     }
 
-    public void Refresh()
+    public void Refresh() => Rebuild();
+
+    private Forms.ToolStripMenuItem Item(string text, Action onClick, string? shortcut = null)
     {
-        _edit.Text = _app.IsEditing ? "편집 모드 끝내기 (저장)" : "편집 모드";
-        _hide.Text = _app.State.Settings.AllHidden ? "모두 보이기" : "모두 숨기기";
+        var item = new Forms.ToolStripMenuItem(text, null, (_, _) => onClick());
+        if (shortcut != null) item.ShortcutKeyDisplayString = shortcut;
+        return item;
     }
 
-    /// <summary>메뉴를 열 때마다 "최근 사용" 5개를 다시 채운다.</summary>
-    private void RebuildRecent()
+    private void Rebuild()
     {
-        Refresh();
-        for (int i = _menu.Items.Count - 1; i >= 0; i--)
-            if (_menu.Items[i].Tag as string == "recent") _menu.Items.RemoveAt(i);
+        _menu.Items.Clear();
+        var open = Item(Loc.T("tray.open"), _app.ShowMain);
+        open.Font = _bold;
+        _menu.Items.Add(open);
+        _menu.Items.Add(Item(_app.IsEditing ? Loc.T("tray.editEnd") : Loc.T("tray.edit"), _app.ToggleEdit, "Ctrl+Alt+E"));
+        _menu.Items.Add(Item(_app.State.Settings.AllHidden ? Loc.T("tray.showAll") : Loc.T("tray.hideAll"),
+            () => _app.SetAllHidden(!_app.State.Settings.AllHidden), "Ctrl+Alt+H"));
 
         var recent = _app.RecentPhotos(5).ToList();
-        if (recent.Count == 0) return;
-        int at = 3; // "모두 숨기기" 다음
-        _menu.Items.Insert(at++, new Forms.ToolStripSeparator { Tag = "recent" });
-        _menu.Items.Insert(at++, new Forms.ToolStripMenuItem("최근 사용 · 눌러서 화면에 추가") { Enabled = false, Tag = "recent" });
-        foreach (var p in recent)
+        if (recent.Count > 0)
         {
-            var id = p.Id;
-            _menu.Items.Insert(at++, new Forms.ToolStripMenuItem("   " + p.Name, null, (_, _) => _app.AddToScreen(id)) { Tag = "recent" });
+            _menu.Items.Add(new Forms.ToolStripSeparator());
+            _menu.Items.Add(new Forms.ToolStripMenuItem(Loc.T("tray.recent")) { Enabled = false });
+            foreach (var p in recent)
+            {
+                var id = p.Id;
+                _menu.Items.Add(Item("   " + p.Name, () => _app.AddToScreen(id)));
+            }
         }
+
+        _menu.Items.Add(new Forms.ToolStripSeparator());
+        var recovery = new Forms.ToolStripMenuItem(Loc.T("tray.recovery"));
+        recovery.DropDownItems.Add(Item(Loc.T("rec.gather"), _app.GatherAllToCenter));
+        recovery.DropDownItems.Add(Item(Loc.T("rec.showAll"), _app.ShowAll));
+        recovery.DropDownItems.Add(Item(Loc.T("rec.clickThroughOff"), _app.DisableClickThroughAll));
+        _menu.Items.Add(recovery);
+        _menu.Items.Add(Item(Loc.T("tray.quit"), _app.Quit, "Ctrl+Alt+Q"));
     }
 
     public void ShowBalloon(string title, string text)
@@ -84,5 +94,7 @@ public sealed class TrayIcon : IDisposable
         _icon.Visible = false;
         _icon.Dispose();
         _menu.Dispose();
+        _font.Dispose();
+        _bold.Dispose();
     }
 }

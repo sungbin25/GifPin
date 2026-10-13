@@ -19,7 +19,9 @@ internal sealed unsafe class OverlayWindow : IDisposable
     private const int HandleHit = 18;
     private const int SnapPx = 8;
     private const int KeepVisiblePx = 20;
-    private const nuint TIMER_FRAME = 1, TIMER_FLASH = 2;
+    private const nuint TIMER_FRAME = 1, TIMER_FLASH = 2, TIMER_MOTION = 3;
+    private const uint MotionIntervalMs = 15;
+    private const long MotionReportMs = 3000; // 움직이는 중 위치를 UI에 알리는 간격
     private const double MinScale = 0.1, MaxScale = 4.0;
 
     private enum Drag { None, Move, TopLeft, TopRight, BottomLeft, BottomRight }
@@ -33,6 +35,11 @@ internal sealed unsafe class OverlayWindow : IDisposable
     private GifAnimation? _anim;
     private int _frame;
     private bool _editMode, _selected, _globalHidden, _flash, _showSize;
+
+    private readonly MotionState _motion = new();
+    private readonly System.Diagnostics.Stopwatch _motionClock = new();
+    private long _lastMotionReport;
+    private bool _motionRunning, _facingLeft;
 
     private Drag _drag;
     private POINT _dragStart;
@@ -85,16 +92,102 @@ internal sealed unsafe class OverlayWindow : IDisposable
 
     public void Update(ActiveItem item)
     {
-        // 드래그 중에는 위치·크기를 엔진 쪽 값으로 유지
-        if (_drag != Drag.None)
+        var prev = Item;
+        bool prevMoving = Motion.IsMoving(prev.MotionMode);
+        // 드래그 중이거나 움직이는 중에는 위치를 엔진 쪽 값으로 유지 (위치를 강제로 바꿀 때는 Relocate)
+        if (_drag != Drag.None || prevMoving)
         {
-            item.X = Item.X;
-            item.Y = Item.Y;
-            item.Scale = Item.Scale;
+            item.X = prev.X;
+            item.Y = prev.Y;
         }
+        if (_drag != Drag.None) item.Scale = prev.Scale;
         Item = item;
         ApplyStyles();
+        if (prev.MotionMode != item.MotionMode || Math.Abs(prev.MotionSpeed - item.MotionSpeed) > 0.01) ResetMotion();
         Refresh();
+        if (prevMoving && !Motion.IsMoving(item.MotionMode)) _engine.RaiseChanged(Item); // 멈춘 위치 저장
+    }
+
+    /// <summary>위치를 강제로 옮김 (모니터 이동, 9분할 배치, 복구 도구). 움직이는 중이면 그 자리에서 다시 출발.</summary>
+    public void Relocate(int x, int y)
+    {
+        Item.X = x;
+        Item.Y = y;
+        ResetMotion();
+        Render();
+        _engine.RaiseChanged(Item);
+    }
+
+    public void SetPixelated(bool pixelated)
+    {
+        var q = pixelated ? SKFilterQuality.None : SKFilterQuality.Medium;
+        if (_framePaint.FilterQuality == q) return;
+        _framePaint.FilterQuality = q;
+        _framePaint.IsAntialias = !pixelated;
+        Render();
+    }
+
+    private void ResetMotion()
+    {
+        _motion.Reset(Item.MotionMode, Item.MotionSpeed, Item.X, Item.Y);
+        _facingLeft = false;
+    }
+
+    private bool MotionShouldRun => Motion.IsMoving(Item.MotionMode) && !_editMode && _drag == Drag.None && IsShown;
+
+    private void UpdateMotionTimer()
+    {
+        bool run = MotionShouldRun;
+        if (run == _motionRunning) return;
+        _motionRunning = run;
+        if (run)
+        {
+            _motion.X = Item.X; // 편집·숨김 뒤 다시 출발할 때 현재 위치에서
+            _motion.Y = Item.Y;
+            _motionClock.Restart();
+            _lastMotionReport = 0;
+            SetTimer(Hwnd, TIMER_MOTION, MotionIntervalMs, IntPtr.Zero);
+        }
+        else
+        {
+            KillTimer(Hwnd, TIMER_MOTION);
+            _motionClock.Stop();
+        }
+    }
+
+    private void OnMotionTick()
+    {
+        if (_anim == null || !MotionShouldRun) { UpdateMotionTimer(); return; }
+        double dt = _motionClock.Elapsed.TotalSeconds;
+        long now = _motionClock.ElapsedMilliseconds;
+        _motionClock.Restart();
+        _lastMotionReport += now;
+
+        var (w, h) = ContentSize(Item.Scale);
+        var work = WorkAreaAt(Item.X + w / 2, Item.Y + h / 2);
+        _motion.Step(dt, w, h, work.Left, work.Top, work.Right, work.Bottom);
+        int nx = (int)Math.Round(_motion.X), ny = (int)Math.Round(_motion.Y);
+        bool facing = Item.MotionFaceDirection && _motion.FacingLeft;
+
+        if (facing != _facingLeft)
+        {
+            _facingLeft = facing;
+            Item.X = nx;
+            Item.Y = ny;
+            Render(); // 방향이 바뀌면 다시 그림 (위치도 함께 반영)
+        }
+        else if (nx != Item.X || ny != Item.Y)
+        {
+            Item.X = nx;
+            Item.Y = ny;
+            SetWindowPos(Hwnd, IntPtr.Zero, nx, ny, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+        }
+
+        if (_lastMotionReport >= MotionReportMs)
+        {
+            _lastMotionReport = 0;
+            _engine.RaiseChanged(Item);
+        }
     }
 
     public void SetEditMode(bool edit)
@@ -104,6 +197,8 @@ internal sealed unsafe class OverlayWindow : IDisposable
         _editMode = edit;
         ApplyStyles();
         Refresh();
+        if (!edit) ResetMotion(); // 편집에서 옮긴 자리에서 다시 출발
+        UpdateMotionTimer();
     }
 
     public void SetSelected(bool selected)
@@ -117,6 +212,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
     {
         _globalHidden = hidden;
         Refresh();
+        UpdateMotionTimer();
     }
 
     public void Flash()
@@ -157,6 +253,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
             KillTimer(Hwnd, TIMER_FRAME);
             ShowWindow(Hwnd, SW_HIDE);
         }
+        UpdateMotionTimer();
     }
 
     private void StartTimer()
@@ -192,6 +289,10 @@ internal sealed unsafe class OverlayWindow : IDisposable
                     _frame = (_frame + 1) % _anim.Frames.Count;
                     Render();
                     StartTimer();
+                }
+                else if ((nuint)wParam == TIMER_MOTION)
+                {
+                    OnMotionTick();
                 }
                 else if ((nuint)wParam == TIMER_FLASH)
                 {
@@ -367,7 +468,8 @@ internal sealed unsafe class OverlayWindow : IDisposable
 
         if (_editMode) c.DrawRect(content, _editFill);
 
-        if (Item.FlipX)
+        bool flip = Item.FlipX ^ (_motionRunning && _facingLeft);
+        if (flip)
         {
             c.Save();
             c.Scale(-1, 1, pad + w / 2f, 0);
@@ -472,6 +574,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
     {
         KillTimer(Hwnd, TIMER_FRAME);
         KillTimer(Hwnd, TIMER_FLASH);
+        KillTimer(Hwnd, TIMER_MOTION);
         DestroyWindow(Hwnd);
         FreeSurface();
         _anim?.Dispose();

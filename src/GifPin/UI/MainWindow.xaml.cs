@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
@@ -32,7 +33,7 @@ public partial class MainWindow : Window
 
         _hoverPlayer = new AnimPlayer(img => { if (_hoverVm != null) _hoverVm.HoverFrame = img; });
         _previewPlayer = new AnimPlayer(img => PreviewImage.Source = img);
-        _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3.5) };
+        _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
         _toastTimer.Tick += (_, _) => { _toastTimer.Stop(); Toast.Visibility = Visibility.Collapsed; };
 
         PhotoList.ItemsSource = _app.VisiblePhotos;
@@ -42,6 +43,8 @@ public partial class MainWindow : Window
         _app.SelectionChanged += RefreshPanel;
         _app.GeometryChanged += OnGeometryChanged;
         _app.Notice += ShowToast;
+        _app.MonitorsChanged += () => { RefreshPanel(); RefreshDiagnostics(); };
+        Loc.Changed += OnLanguageChanged;
 
         BuildAnchorButtons();
         BuildHotkeyRows();
@@ -49,6 +52,7 @@ public partial class MainWindow : Window
         RefreshSettings();
         RefreshHiddenToggle();
         UpdateCounts();
+        UpdateSortLabel();
         _updating = false;
         RefreshPanel();
 
@@ -56,6 +60,15 @@ public partial class MainWindow : Window
         DragOver += OnDragOver;
         Closing += OnClosing;
         SourceInitialized += (_, _) => Native.UseDarkTitleBar(new WindowInteropHelper(this).Handle);
+    }
+
+    private void OnLanguageChanged()
+    {
+        UpdateCounts();
+        UpdateSortLabel();
+        BuildHotkeyRows();
+        RefreshSettings();
+        RefreshPanel();
     }
 
     public void ShowFromTray()
@@ -76,7 +89,6 @@ public partial class MainWindow : Window
     {
         var b = _app.State.Settings.Window;
         if (b == null || b.Width < MinWidth || b.Height < MinHeight) return;
-        // 화면 밖이면 무시
         var vs = new Rect(SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenTop,
             SystemParameters.VirtualScreenWidth, SystemParameters.VirtualScreenHeight);
         if (!vs.IntersectsWith(new Rect(b.Left, b.Top, b.Width, b.Height))) return;
@@ -133,12 +145,14 @@ public partial class MainWindow : Window
     {
         var dlg = new Microsoft.Win32.OpenFileDialog
         {
-            Title = "라이브러리에 추가할 사진 선택",
+            Title = Loc.T("dlg.addTitle"),
             Filter = Library.OpenFileFilter,
             Multiselect = true,
         };
         if (dlg.ShowDialog(this) == true) await _app.AddFilesAsync(dlg.FileNames);
     }
+
+    private void Sprite_Click(object sender, RoutedEventArgs e) => _app.OpenSpriteImport();
 
     private void OnDragOver(object sender, DragEventArgs e)
     {
@@ -163,33 +177,81 @@ public partial class MainWindow : Window
         if (SortButton != null && FilterRecent != null) SortButton.IsEnabled = FilterRecent.IsChecked != true;
     }
 
-    private void SortButton_Click(object sender, RoutedEventArgs e)
+    private static void OpenMenuBelow(Button b)
     {
-        var menu = SortButton.ContextMenu;
-        menu.PlacementTarget = SortButton;
+        var menu = b.ContextMenu;
+        if (menu == null) return;
+        menu.PlacementTarget = b;
         menu.Placement = PlacementMode.Bottom;
         menu.IsOpen = true;
     }
+
+    private void SortButton_Click(object sender, RoutedEventArgs e) => OpenMenuBelow(SortButton);
 
     private void SortItem_Click(object sender, RoutedEventArgs e)
     {
         if (sender is MenuItem mi && mi.Tag is string tag)
         {
             _app.SetSort(tag);
-            SortLabel.Text = mi.Header as string ?? "";
+            UpdateSortLabel();
         }
     }
 
+    private void UpdateSortLabel() => SortLabel.Text = Loc.T("sort." + _app.Sort);
+
     private void UpdateCounts()
     {
-        FilterAll.Content = $"전체 {_app.State.Library.Count}";
-        FilterFavorite.Content = $"즐겨찾기 {_app.FavoriteCount}";
+        FilterAll.Content = Loc.F("lib.filterAll", _app.State.Library.Count);
+        FilterFavorite.Content = Loc.F("lib.filterFavorite", _app.FavoriteCount);
         ActiveCount.Text = _app.Actives.Count.ToString(CultureInfo.InvariantCulture);
         bool empty = _app.VisiblePhotos.Count == 0;
         EmptyLibrary.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
-        EmptyText.Text = _app.State.Library.Count == 0
-            ? "GIF 파일을 이 창에 끌어다 놓거나 'PC에서 추가'를 누르세요"
-            : "조건에 맞는 사진이 없습니다";
+        EmptyText.Text = _app.State.Library.Count == 0 ? Loc.T("lib.empty") : Loc.T("lib.noMatch");
+    }
+
+    // ── 에셋 팩 ──────────────────────────────────────────────
+
+    private void PackButton_Click(object sender, RoutedEventArgs e) => OpenMenuBelow(PackButton);
+
+    private async void PackImport_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog { Title = Loc.T("pack.importTitle"), Filter = AssetPack.FileFilter };
+        if (dlg.ShowDialog(this) == true) await _app.ImportPackAsync(dlg.FileName);
+    }
+
+    private async void PackExportScreen_Click(object sender, RoutedEventArgs e)
+    {
+        var photos = _app.State.Active.Select(a => _app.State.FindPhoto(a.PhotoId)).OfType<PhotoItem>().Distinct().ToList();
+        await ExportPack(photos, withLayout: true, Loc.T("pack.defaultNameScreen"));
+    }
+
+    private async void PackExportFavorites_Click(object sender, RoutedEventArgs e) =>
+        await ExportPack(_app.State.Library.Where(p => p.Favorite).ToList(), withLayout: false, Loc.T("pack.defaultNameFavorites"));
+
+    private async void PackExportAll_Click(object sender, RoutedEventArgs e) =>
+        await ExportPack(_app.State.Library.ToList(), withLayout: false, Loc.T("pack.defaultNameAll"));
+
+    private async void CardMenu_ExportPack(object sender, RoutedEventArgs e)
+    {
+        if (VmOf(sender) is PhotoVM vm) await ExportPack(new List<PhotoItem> { vm.Photo }, withLayout: false, vm.Name);
+    }
+
+    private async System.Threading.Tasks.Task ExportPack(List<PhotoItem> photos, bool withLayout, string defaultName)
+    {
+        if (photos.Count == 0)
+        {
+            ShowToast(Loc.T("notice.packEmpty"));
+            return;
+        }
+        var safe = string.Concat(defaultName.Split(Path.GetInvalidFileNameChars()));
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = Loc.T("pack.exportTitle"),
+            Filter = AssetPack.FileFilter,
+            FileName = (safe.Length > 0 ? safe : "GifPin pack") + ".zip",
+        };
+        if (dlg.ShowDialog(this) != true) return;
+        await _app.ExportPackAsync(dlg.FileName, Path.GetFileNameWithoutExtension(dlg.FileName), photos, withLayout);
     }
 
     // ── 사진 카드 ────────────────────────────────────────────
@@ -257,9 +319,7 @@ public partial class MainWindow : Window
     private void CardMenu_Remove(object sender, RoutedEventArgs e)
     {
         if (VmOf(sender) is not PhotoVM vm) return;
-        string msg = vm.InUse
-            ? $"\"{vm.Name}\"은(는) 지금 화면에 표시 중입니다.\n화면에서 내리고 라이브러리에서 제거할까요?"
-            : $"\"{vm.Name}\"을(를) 라이브러리에서 제거할까요?";
+        string msg = vm.InUse ? Loc.F("card.removeInUseQuestion", vm.Name) : Loc.F("card.removeQuestion", vm.Name);
         if (MessageBox.Show(this, msg, "GifPin", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         if (vm == _hoverVm) StopHover();
         _app.RemovePhoto(vm.Id);
@@ -304,26 +364,30 @@ public partial class MainWindow : Window
         PanelEmpty.Visibility = Visibility.Collapsed;
         PanelContent.Visibility = Visibility.Visible;
 
+        bool was = _updating;
         _updating = true;
         PanelTitle.Text = photo.Name;
-        PanelInfo.Text = $"{photo.Width} × {photo.Height} · {(photo.FrameCount > 1 ? photo.FrameCount + "프레임" : "정지 이미지")} · {Library.FormatSize(photo.FileSize)}";
+        PanelInfo.Text = $"{photo.Width} × {photo.Height} · "
+            + (photo.FrameCount > 1 ? Loc.F("panel.frames", photo.FrameCount) : Loc.T("kind.still"))
+            + " · " + Library.FormatSize(photo.FileSize);
+        PixelToggle.IsChecked = photo.Pixelated;
+        RenderOptions.SetBitmapScalingMode(PreviewImage, photo.Pixelated ? System.Windows.Media.BitmapScalingMode.NearestNeighbor : System.Windows.Media.BitmapScalingMode.HighQuality);
 
         if (active != null)
         {
             int index = _app.State.Active.IndexOf(active) + 1;
-            PanelSubtitle.Text = "선택한 GIF";
+            PanelSubtitle.Text = Loc.T("panel.selectedGif");
             ScreenBadge.Visibility = Visibility.Visible;
-            ScreenBadgeText.Text = $"화면 {index}";
+            ScreenBadgeText.Text = Loc.F("panel.screenN", index);
             ActiveProps.Visibility = Visibility.Visible;
             ActiveButtons.Visibility = Visibility.Visible;
             PhotoButtons.Visibility = Visibility.Collapsed;
             FillActiveValues(active);
-            PreviewFlip.ScaleX = active.FlipX ? -1 : 1;
             _previewPlayer.Speed = active.Speed;
         }
         else
         {
-            PanelSubtitle.Text = "선택한 사진";
+            PanelSubtitle.Text = Loc.T("panel.selectedPhoto");
             ScreenBadge.Visibility = Visibility.Collapsed;
             ActiveProps.Visibility = Visibility.Collapsed;
             ActiveButtons.Visibility = Visibility.Collapsed;
@@ -331,11 +395,11 @@ public partial class MainWindow : Window
             var sel = _app.SelectedActive;
             var selPhoto = _app.State.FindPhoto(sel?.PhotoId);
             ReplaceSelectedButton.Visibility = sel != null && sel.PhotoId != photo.Id ? Visibility.Visible : Visibility.Collapsed;
-            ReplaceSelectedButton.Content = $"화면 {_app.State.Active.IndexOf(sel!) + 1}의 \"{selPhoto?.Name}\"와 교체";
+            if (sel != null) ReplaceSelectedButton.Content = Loc.F("panel.replaceWith", _app.State.Active.IndexOf(sel) + 1, selPhoto?.Name);
             PreviewFlip.ScaleX = 1;
             _previewPlayer.Speed = 1;
         }
-        _updating = false;
+        _updating = was;
 
         var path = Store.ResolvePath(photo);
         if (path != _previewPath)
@@ -360,7 +424,25 @@ public partial class MainWindow : Window
         Speed2.IsChecked = a.Speed > 1.5;
         Speed1.IsChecked = a.Speed >= 0.75 && a.Speed <= 1.5;
         FlipToggle.IsChecked = a.FlipX;
+        PreviewFlip.ScaleX = a.FlipX ? -1 : 1;
         ClickThroughToggle.IsChecked = a.ClickThrough;
+
+        string mode = Motion.Normalize(a.MotionMode);
+        MotionNone.IsChecked = mode == Motion.None;
+        MotionWalk.IsChecked = mode == Motion.Walk;
+        MotionBounce.IsChecked = mode == Motion.Bounce;
+        MotionFall.IsChecked = mode == Motion.Fall;
+        MotionOptions.Visibility = mode == Motion.None ? Visibility.Collapsed : Visibility.Visible;
+        MotionSpeedSlider.Value = a.MotionSpeed;
+        MotionSpeedText.Text = $"{a.MotionSpeed:0} px/s";
+        FaceDirToggle.IsChecked = a.MotionFaceDirection;
+        bool moving = mode != Motion.None;
+        XBox.IsEnabled = YBox.IsEnabled = !moving; // 움직이는 중에는 위치 직접 입력 대신 9분할·모니터 이동만
+
+        var monitors = _app.MonitorList;
+        MonitorRow.Visibility = monitors.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+        var mon = _app.MonitorOf(a);
+        MonitorLabel.Text = mon?.Label ?? Loc.T("panel.monitorUnknown");
         _updating = was;
     }
 
@@ -384,18 +466,19 @@ public partial class MainWindow : Window
 
     private void CommitPosition()
     {
+        if (_updating || _app.SelectedActive is not ActiveItem cur) return;
         if (!int.TryParse(XBox.Text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int x) ||
             !int.TryParse(YBox.Text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int y))
         {
-            if (_app.SelectedActive is ActiveItem cur) FillActiveValues(cur);
+            FillActiveValues(cur);
             return;
         }
-        WithSelected(a => { a.X = x; a.Y = y; });
+        if (x != cur.X || y != cur.Y) _app.Relocate(cur.Id, x, y);
     }
 
     private void BuildAnchorButtons()
     {
-        string[] names = { "왼쪽 위", "위 가운데", "오른쪽 위", "왼쪽 가운데", "가운데", "오른쪽 가운데", "왼쪽 아래", "아래 가운데", "오른쪽 아래" };
+        string[] keys = { "anchor.tl", "anchor.tc", "anchor.tr", "anchor.ml", "anchor.mc", "anchor.mr", "anchor.bl", "anchor.bc", "anchor.br" };
         for (int i = 0; i < 9; i++)
         {
             int index = i;
@@ -407,8 +490,8 @@ public partial class MainWindow : Window
                 Padding = new Thickness(0),
                 Background = (System.Windows.Media.Brush)FindResource("BorderBrush"),
                 BorderThickness = new Thickness(0),
-                ToolTip = names[i] + "에 배치",
             };
+            b.SetResourceReference(ToolTipProperty, "s." + keys[i]);
             b.Click += (_, _) => PlaceAt(index);
             AnchorGrid.Children.Add(b);
         }
@@ -418,15 +501,29 @@ public partial class MainWindow : Window
     private void PlaceAt(int index)
     {
         var a = _app.SelectedActive;
-        var p = _app.State.FindPhoto(a?.PhotoId);
-        if (a == null || p == null) return;
-        int w = (int)Math.Round(p.Width * a.Scale), h = (int)Math.Round(p.Height * a.Scale);
+        if (a == null) return;
+        var (w, h) = _app.ShownSize(a);
         var work = Native.WorkAreaAt(a.X + w / 2, a.Y + h / 2);
         const int m = 24;
         int col = index % 3, row = index / 3;
         int x = col == 0 ? work.Left + m : col == 1 ? (work.Left + work.Right - w) / 2 : work.Right - w - m;
         int y = row == 0 ? work.Top + m : row == 1 ? (work.Top + work.Bottom - h) / 2 : work.Bottom - h - m;
-        _app.UpdateActive(a.Id, it => { it.X = x; it.Y = y; });
+        _app.Relocate(a.Id, x, y);
+    }
+
+    private void MonitorButton_Click(object sender, RoutedEventArgs e)
+    {
+        var menu = MonitorButton.ContextMenu;
+        menu.Items.Clear();
+        var current = _app.SelectedActive is ActiveItem a ? _app.MonitorOf(a) : null;
+        foreach (var m in _app.MonitorList)
+        {
+            int index = m.Index;
+            var item = new MenuItem { Header = m.Label + (current?.Index == m.Index ? "  ✓" : "") };
+            item.Click += (_, _) => _app.MoveSelectedToMonitor(index);
+            menu.Items.Add(item);
+        }
+        OpenMenuBelow(MonitorButton);
     }
 
     private void ScaleSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -468,6 +565,34 @@ public partial class MainWindow : Window
         WithSelected(a => a.ClickThrough = on);
     }
 
+    private void PixelToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (_updating || _app.SelectedPhotoId == null) return;
+        _app.SetPixelated(_app.SelectedPhotoId, PixelToggle.IsChecked == true);
+        RefreshPanel();
+    }
+
+    private void Motion_Checked(object sender, RoutedEventArgs e)
+    {
+        if (sender is not RadioButton rb || rb.Tag is not string mode || MotionOptions == null) return;
+        MotionOptions.Visibility = mode == Motion.None ? Visibility.Collapsed : Visibility.Visible;
+        WithSelected(a => a.MotionMode = mode);
+    }
+
+    private void MotionSpeed_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (MotionSpeedText == null) return;
+        MotionSpeedText.Text = $"{e.NewValue:0} px/s";
+        double v = Math.Round(e.NewValue);
+        WithSelected(a => a.MotionSpeed = v);
+    }
+
+    private void FaceDir_Click(object sender, RoutedEventArgs e)
+    {
+        bool on = FaceDirToggle.IsChecked == true;
+        WithSelected(a => a.MotionFaceDirection = on);
+    }
+
     private void BgRemove_Click(object sender, RoutedEventArgs e)
     {
         if (_app.SelectedPhotoId == null) return;
@@ -493,24 +618,43 @@ public partial class MainWindow : Window
 
     private void RefreshSettings()
     {
+        bool was = _updating;
         _updating = true;
         var s = _app.State.Settings;
+        LangEn.IsChecked = Loc.Language == Loc.English;
+        LangKo.IsChecked = Loc.Language == Loc.Korean;
         StartWithWindowsToggle.IsChecked = s.StartWithWindows;
         OpenOnStartToggle.IsChecked = s.OpenWindowOnStart;
         CopyOnAddToggle.IsChecked = s.CopyOnAdd;
         DataFolderText.Text = Store.DataDir;
-        var ver = typeof(MainWindow).Assembly.GetName().Version;
-        VersionText.Text = $"GifPin {ver?.ToString(3)} · 창을 닫아도 트레이에서 계속 실행됩니다. 완전히 끄려면 트레이 메뉴의 \"종료\" 또는 Ctrl+Alt+Q를 누르세요.";
-        _updating = false;
+        VersionText.Text = Loc.F("set.version", AppController.AppVersion);
+        RefreshDiagnostics();
+        _updating = was;
+    }
+
+    private void RefreshDiagnostics()
+    {
+        var mons = _app.MonitorList;
+        DiagText.Text =
+            $"GifPin {AppController.AppVersion} · {Environment.OSVersion.VersionString}\n" +
+            Loc.F("diag.summary", _app.State.Library.Count, _app.State.Active.Count, mons.Count) + "\n" +
+            Loc.T("diag.logFile") + ": " + Log.FilePath;
+    }
+
+    private void Lang_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_updating || sender is not RadioButton rb || rb.Tag is not string lang) return;
+        _app.SetLanguage(lang);
     }
 
     private void BuildHotkeyRows()
     {
-        var rows = new (string title, string keys)[]
+        HotkeyRows.Children.Clear();
+        var rows = new (string titleKey, string keys)[]
         {
-            ("편집 모드 켜기 / 끄기", "Ctrl+Alt+E"),
-            ("모두 숨기기 / 보이기", "Ctrl+Alt+H"),
-            ("GifPin 종료", "Ctrl+Alt+Q"),
+            ("hotkey.edit", "Ctrl+Alt+E"),
+            ("hotkey.hide", "Ctrl+Alt+H"),
+            ("hotkey.quit", "Ctrl+Alt+Q"),
         };
         for (int i = 0; i < rows.Length; i++)
         {
@@ -531,7 +675,7 @@ public partial class MainWindow : Window
             }
             DockPanel.SetDock(keys, Dock.Right);
             dock.Children.Add(keys);
-            dock.Children.Add(new TextBlock { Text = rows[i].title, FontSize = 14, VerticalAlignment = VerticalAlignment.Center });
+            dock.Children.Add(new TextBlock { Text = Loc.T(rows[i].titleKey), FontSize = 14, VerticalAlignment = VerticalAlignment.Center });
             HotkeyRows.Children.Add(dock);
             if (i < rows.Length - 1)
                 HotkeyRows.Children.Add(new Border { Height = 1, Background = (System.Windows.Media.Brush)FindResource("LineBrush") });
@@ -539,10 +683,11 @@ public partial class MainWindow : Window
         if (_app.Engine.HotkeyFailures.Count > 0)
             HotkeyRows.Children.Add(new TextBlock
             {
-                Text = "다른 프로그램이 사용 중이라 등록하지 못한 단축키: " + string.Join(", ", _app.Engine.HotkeyFailures),
+                Text = Loc.F("hotkey.failed", string.Join(", ", _app.Engine.HotkeyFailures)),
                 Foreground = (System.Windows.Media.Brush)FindResource("DangerBrush"),
                 Margin = new Thickness(18, 0, 18, 12),
                 FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
             });
     }
 
@@ -569,6 +714,29 @@ public partial class MainWindow : Window
     {
         Directory.CreateDirectory(Store.DataDir);
         Process.Start("explorer.exe", $"\"{Store.DataDir}\"");
+    }
+
+    private void RecoverGather_Click(object sender, RoutedEventArgs e) => _app.GatherAllToCenter();
+    private void RecoverShow_Click(object sender, RoutedEventArgs e) { _app.ShowAll(); RefreshHiddenToggle(); }
+    private void RecoverClick_Click(object sender, RoutedEventArgs e) => _app.DisableClickThroughAll();
+
+    private void OpenLogs_Click(object sender, RoutedEventArgs e)
+    {
+        Directory.CreateDirectory(Log.Folder);
+        Process.Start("explorer.exe", $"\"{Log.Folder}\"");
+    }
+
+    private void CopyDiagnostics_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Clipboard.SetText(_app.BuildDiagnostics());
+            ShowToast(Loc.T("diag.copied"));
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Clipboard copy failed", ex);
+        }
     }
 
     // ── 토스트 ───────────────────────────────────────────────

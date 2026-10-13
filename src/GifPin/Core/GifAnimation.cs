@@ -11,8 +11,8 @@ namespace GifPin.Core;
 /// </summary>
 internal sealed unsafe class GifAnimation : IDisposable
 {
-    public int Width { get; private init; }
-    public int Height { get; private init; }
+    public int Width { get; internal init; }
+    public int Height { get; internal init; }
     public List<SKBitmap> Frames { get; } = new();
     public List<int> DelaysMs { get; } = new();
     public bool IsAnimated => Frames.Count > 1;
@@ -36,8 +36,10 @@ internal sealed unsafe class GifAnimation : IDisposable
 
     private static GifAnimation LoadFull(string path)
     {
+        if (ApngDecoder.IsApng(path)) return ApngDecoder.Decode(path); // SkiaSharp은 APNG 첫 장만 읽음
+
         using var codec = SKCodec.Create(path)
-            ?? throw new InvalidDataException("지원하지 않는 이미지 형식이거나 파일이 손상되었습니다.");
+            ?? throw new InvalidDataException(Loc.T("err.unsupportedImage"));
 
         var info = new SKImageInfo(codec.Info.Width, codec.Info.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
         var anim = new GifAnimation { Width = info.Width, Height = info.Height };
@@ -67,7 +69,7 @@ internal sealed unsafe class GifAnimation : IDisposable
                 if (result != SKCodecResult.Success && result != SKCodecResult.IncompleteInput)
                 {
                     bmp.Dispose();
-                    if (i == 0) throw new InvalidDataException($"첫 프레임 디코딩 실패: {result}");
+                    if (i == 0) throw new InvalidDataException(Loc.F("err.firstFrame", result));
                     break; // 뒤쪽 프레임이 깨졌으면 정상 프레임까지만 사용
                 }
 

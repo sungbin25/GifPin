@@ -71,7 +71,7 @@ public sealed class PhotoVM : Observable
     {
         var ext = Path.GetExtension(p.File).TrimStart('.').ToUpperInvariant();
         if (ext == "JPEG") ext = "JPG";
-        return p.FrameCount > 1 ? ext : "정지 이미지";
+        return p.FrameCount > 1 ? ext : Loc.T("kind.still");
     }
 }
 
@@ -91,12 +91,21 @@ public sealed class ActiveVM : Observable
     }
 
     public string Id => Item.Id;
-    public string Name => Photo?.Name ?? "(사진 없음)";
-    public string Meta => $"화면 {Index} · {Item.Scale * 100:0}%" + (Item.Visible ? "" : " · 숨김");
+    public string Name => Photo?.Name ?? Loc.T("active.noPhoto");
+    public string Meta => Loc.F("active.meta", Index, Math.Round(Item.Scale * 100))
+        + (Motion.IsMoving(Item.MotionMode) ? " · " + Loc.T("motion." + Item.MotionMode) : "")
+        + (Item.Visible ? "" : " · " + Loc.T("active.hidden"));
     public double TileOpacity => Item.Visible ? 1.0 : 0.4;
-    public string EyeTip => Item.Visible ? "숨기기" : "보이기";
+    public string EyeTip => Item.Visible ? Loc.T("active.hide") : Loc.T("active.show");
     public ImageSource? Thumb => Photo == null ? null : Images.LoadThumb(Photo);
     public bool IsSelected { get => _isSelected; set => Set(ref _isSelected, value); }
+
+    public void RefreshText()
+    {
+        Raise(nameof(Name));
+        Raise(nameof(Meta));
+        Raise(nameof(EyeTip));
+    }
 
     public void Update(ActiveItem item, PhotoItem? photo, int index)
     {

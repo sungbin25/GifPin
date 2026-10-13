@@ -15,7 +15,7 @@ public static class WebpWriter
 {
     public static void Save(string path, IReadOnlyList<SKBitmap> frames, IReadOnlyList<int> delaysMs)
     {
-        if (frames.Count == 0) throw new ArgumentException("프레임이 없습니다.", nameof(frames));
+        if (frames.Count == 0) throw new ArgumentException("No frames", nameof(frames));
         int w = frames[0].Width, h = frames[0].Height;
 
         using var body = new MemoryStream();
@@ -59,10 +59,10 @@ public static class WebpWriter
     {
         using var pixmap = frame.PeekPixels();
         using var data = pixmap.Encode(new SKWebpEncoderOptions(SKWebpEncoderCompression.Lossless, 75))
-            ?? throw new InvalidOperationException("WebP 인코딩 실패");
+            ?? throw new InvalidOperationException("WebP encoding failed");
         byte[] file = data.ToArray();
         if (file.Length < 12 || Encoding.ASCII.GetString(file, 0, 4) != "RIFF" || Encoding.ASCII.GetString(file, 8, 4) != "WEBP")
-            throw new InvalidDataException("예상치 못한 WebP 형식");
+            throw new InvalidDataException("Unexpected WebP format");
 
         using var outStream = new MemoryStream();
         int pos = 12;
@@ -75,7 +75,7 @@ public static class WebpWriter
                 outStream.Write(file, pos, Math.Min(total, file.Length - pos));
             pos += total;
         }
-        if (outStream.Length == 0) throw new InvalidDataException("WebP 이미지 데이터를 찾지 못했습니다.");
+        if (outStream.Length == 0) throw new InvalidDataException("WebP image data not found");
         return outStream.ToArray();
     }
 

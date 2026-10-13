@@ -44,8 +44,8 @@ public partial class BgRemoveWindow : Window
         InitializeComponent();
         _updating = false;
 
-        Title = $"배경 지우기 — {photo.Name}";
-        NameBox.Text = $"{photo.Name} (배경 제거)";
+        Title = Loc.T("bg.title") + " — " + photo.Name;
+        NameBox.Text = Loc.F("bg.defaultName", photo.Name);
         TolText.Text = $"{TolSlider.Value:0}";
 
         _playTimer = new DispatcherTimer(DispatcherPriority.Render);
@@ -76,7 +76,8 @@ public partial class BgRemoveWindow : Window
         }
         catch (Exception ex)
         {
-            LoadingText.Text = "이미지를 열 수 없습니다: " + ex.Message;
+            LoadingText.Text = Loc.F("err.cannotOpenImage", ex.Message);
+            Log.Warn($"Background remover could not open {path}", ex);
             return;
         }
 
@@ -262,7 +263,7 @@ public partial class BgRemoveWindow : Window
     {
         _picking = true;
         ResultImage.Cursor = Cursors.Cross;
-        PickHint.Text = "원본이나 결과에서 배경을 클릭하세요";
+        PickHint.Text = Loc.T("bg.pickNow");
         PickHint.Foreground = (Brush)FindResource("AccentLightBrush");
     }
 
@@ -283,7 +284,7 @@ public partial class BgRemoveWindow : Window
 
         _picking = false;
         ResultImage.Cursor = null;
-        PickHint.Text = "클릭해서 배경색 고르기";
+        PickHint.Text = Loc.T("bg.clickToPick");
         PickHint.Foreground = (Brush)FindResource("TextMutedBrush");
     }
 
@@ -309,7 +310,7 @@ public partial class BgRemoveWindow : Window
     {
         if (_anim == null || _saving) return;
         var name = NameBox.Text.Trim();
-        if (name.Length == 0) name = $"{_photo.Name} (배경 제거)";
+        if (name.Length == 0) name = Loc.F("bg.defaultName", _photo.Name);
 
         _saving = true;
         _playing = false;
@@ -318,7 +319,7 @@ public partial class BgRemoveWindow : Window
         SaveButton.IsEnabled = false;
         NameBox.IsEnabled = false;
         ProgressPanel.Visibility = Visibility.Visible;
-        ProgressText.Text = "모든 프레임을 처리하는 중…";
+        ProgressText.Text = Loc.F("bg.processing", 0);
         _saveCts = new CancellationTokenSource();
 
         var (bg, tol, connected, refine) = CurrentSettings();
@@ -327,7 +328,7 @@ public partial class BgRemoveWindow : Window
         var progress = new Progress<double>(v =>
         {
             SaveProgress.Value = v;
-            ProgressText.Text = $"모든 프레임을 처리하는 중… {v * 100:0}%";
+            ProgressText.Text = Loc.F("bg.processing", Math.Round(v * 100));
         });
         var token = _saveCts.Token;
 
@@ -356,7 +357,7 @@ public partial class BgRemoveWindow : Window
                         WebpWriter.Save(file, results, delays);
                     }
                     var p = Library.RegisterGenerated(file, name);
-                    if (p == null) throw new InvalidDataException("저장한 파일을 다시 열 수 없습니다.");
+                    if (p == null) throw new InvalidDataException(Loc.T("err.unsupportedImage"));
                     p.SourceId = _photo.Id;
                     p.BgRemoval = new BgRemoveSettings { Color = BackgroundRemover.ToHex(bg), Tolerance = tol, ConnectedOnly = connected, Refine = refine };
                     return p;
@@ -369,11 +370,12 @@ public partial class BgRemoveWindow : Window
         }
         catch (OperationCanceledException)
         {
-            ProgressText.Text = "취소했습니다";
+            ProgressText.Text = Loc.T("common.cancelled");
         }
         catch (Exception ex)
         {
-            ProgressText.Text = "저장하지 못했습니다: " + ex.Message;
+            ProgressText.Text = Loc.F("bg.saveFailed", ex.Message);
+            Log.Error("Background removal save failed", ex);
         }
         finally
         {
@@ -392,8 +394,7 @@ public partial class BgRemoveWindow : Window
         _app.AddGeneratedPhoto(created);
         if (_fromActiveId != null && _app.State.Active.Exists(a => a.Id == _fromActiveId))
         {
-            var answer = MessageBox.Show(this, "저장했습니다.\n\n화면에 표시 중인 GIF도 배경을 지운 사진으로 바꿀까요?\n(위치와 크기는 그대로 유지됩니다)",
-                "배경 지우기", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            var answer = MessageBox.Show(this, Loc.T("bg.replaceQuestion"), Loc.T("bg.title"), MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (answer == MessageBoxResult.Yes) _app.ReplaceActive(_fromActiveId, created.Id);
         }
         Close();
