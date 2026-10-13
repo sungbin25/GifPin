@@ -123,12 +123,21 @@ public sealed class ActiveVM : Observable
 
 public static class Images
 {
-    private static readonly Dictionary<string, ImageSource> ThumbCache = new();
+    // 썸네일 캐시: 최근에 쓴 것부터 최대 MaxThumbs개 (라이브러리가 커도 메모리가 계속 늘지 않게)
+    private const int MaxThumbs = 400;
+    private const int ThumbDecodeWidth = 256;
+    private static readonly Dictionary<string, (ImageSource img, LinkedListNode<string> node)> ThumbCache = new();
+    private static readonly LinkedList<string> ThumbOrder = new();
 
     public static ImageSource? LoadThumb(PhotoItem p)
     {
         var path = Store.ThumbPath(p);
-        if (ThumbCache.TryGetValue(path, out var cached)) return cached;
+        if (ThumbCache.TryGetValue(path, out var cached))
+        {
+            ThumbOrder.Remove(cached.node);
+            ThumbOrder.AddFirst(cached.node);
+            return cached.img;
+        }
         if (!File.Exists(path) && !Library.TryCreateThumbnail(p)) return null;
         try
         {
@@ -136,16 +145,25 @@ public static class Images
             b.BeginInit();
             b.CacheOption = BitmapCacheOption.OnLoad;
             b.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
+            b.DecodePixelWidth = ThumbDecodeWidth; // 큰 썸네일 파일도 카드 크기로만 풀어 둠
             b.UriSource = new Uri(path);
             b.EndInit();
             b.Freeze();
-            ThumbCache[path] = b;
+            ThumbCache[path] = (b, ThumbOrder.AddFirst(path));
+            while (ThumbOrder.Count > MaxThumbs)
+            {
+                ThumbCache.Remove(ThumbOrder.Last!.Value);
+                ThumbOrder.RemoveLast();
+            }
             return b;
         }
         catch { return null; }
     }
 
-    public static void ForgetThumb(PhotoItem p) => ThumbCache.Remove(Store.ThumbPath(p));
+    public static void ForgetThumb(PhotoItem p)
+    {
+        if (ThumbCache.Remove(Store.ThumbPath(p), out var e)) ThumbOrder.Remove(e.node);
+    }
 
     /// <summary>Skia 프레임(BGRA, premultiplied) → WPF 이미지. 어느 스레드에서나 호출 가능(Freeze됨).</summary>
     public static BitmapSource ToBitmapSource(SKBitmap bmp)
@@ -166,10 +184,11 @@ public sealed class WpfAnimation
     public int Height { get; init; }
 }
 
-/// <summary>미리보기용 애니메이션 캐시 (UI 스레드 전용, 최근 24개).</summary>
+/// <summary>미리보기용 애니메이션 캐시 (UI 스레드 전용, 최근 16개, 하나당 최대 24MB → 최대 약 384MB).</summary>
 public static class AnimationCache
 {
-    private const int Max = 24;
+    private const int Max = 16;
+    private const long EntryBudget = 24L * 1024 * 1024;
     private static readonly Dictionary<string, Task<WpfAnimation?>> Cache = new();
     private static readonly LinkedList<string> Order = new();
 
@@ -186,7 +205,8 @@ public static class AnimationCache
         {
             try
             {
-                using var a = GifAnimation.Load(path, maxSize);
+                // 미리보기 크기로 줄여 가며 디코딩하고, 프레임이 너무 많으면 건너뛰어 예산 안에 맞춤
+                using var a = GifAnimation.Load(path, maxSize, maxSize, EntryBudget);
                 var frames = new BitmapSource[a.Frames.Count];
                 for (int i = 0; i < frames.Length; i++) frames[i] = Images.ToBitmapSource(a.Frames[i]);
                 return (WpfAnimation?)new WpfAnimation { Frames = frames, Delays = a.DelaysMs.ToArray(), Width = a.Width, Height = a.Height };

@@ -67,7 +67,10 @@ internal static class ApngDecoder
         catch { return null; }
     }
 
-    public static GifAnimation Decode(string path)
+    public static GifAnimation Decode(string path) => Decode(path, 0, 0, 1);
+
+    /// <summary>targetW×targetH로 줄여서(0이면 원본) step 간격으로 프레임을 저장. 합성은 원본 크기 캔버스 하나에서.</summary>
+    public static GifAnimation Decode(string path, int targetW, int targetH, int step)
     {
         var bytes = ReadAll(path);
         var chunks = ParseChunks(bytes);
@@ -82,7 +85,7 @@ internal static class ApngDecoder
         {
             switch (c.Type)
             {
-                case "IHDR": ihdr = c; break;
+                case "IHDR": if (c.Length >= 13) ihdr = c; break;
                 case "fcTL":
                     if (c.Length < 26) throw new InvalidDataException("APNG: fcTL chunk too short");
                     current = new Frame
@@ -118,7 +121,12 @@ internal static class ApngDecoder
         int width = ReadInt(bytes, ihdr.Value.DataOffset), height = ReadInt(bytes, ihdr.Value.DataOffset + 4);
         if (width <= 0 || height <= 0 || width > 8192 || height > 8192) throw new InvalidDataException("APNG: unsupported image size");
 
-        var anim = new GifAnimation { Width = width, Height = height };
+        if ((long)width * height > GifAnimation.MaxCanvasPixels) throw new InvalidDataException("APNG: unsupported image size");
+        if (targetW <= 0 || targetH <= 0) { targetW = width; targetH = height; }
+        step = Math.Max(1, step);
+        bool scale = targetW != width || targetH != height;
+        var target = new SKImageInfo(targetW, targetH, SKColorType.Bgra8888, SKAlphaType.Premul);
+        var anim = new GifAnimation { Width = targetW, Height = targetH, SourceWidth = width, SourceHeight = height, FrameStep = step };
         var info = new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Premul);
         using var canvasBmp = new SKBitmap(info);
         canvasBmp.Erase(SKColors.Transparent);
@@ -130,7 +138,7 @@ internal static class ApngDecoder
             for (int i = 0; i < frames.Count; i++)
             {
                 var f = frames[i];
-                if (f.X < 0 || f.Y < 0 || f.X + f.Width > width || f.Y + f.Height > height)
+                if (f.X < 0 || f.Y < 0 || (long)f.X + f.Width > width || (long)f.Y + f.Height > height)
                     throw new InvalidDataException($"APNG: frame {i + 1} is outside the image");
 
                 using var piece = DecodeFramePng(bytes, ihdr.Value, shared, f);
@@ -148,10 +156,15 @@ internal static class ApngDecoder
                 canvas.DrawBitmap(piece, f.X, f.Y);
                 canvas.Flush();
 
-                anim.Frames.Add(canvasBmp.Copy());
                 int den = f.DelayDen == 0 ? 100 : f.DelayDen;
                 int ms = (int)Math.Round(f.DelayNum * 1000.0 / den);
-                anim.DelaysMs.Add(ms <= 10 ? 100 : ms);
+                ms = ms <= 10 ? 100 : ms;
+                if (i % step == 0)
+                {
+                    anim.Frames.Add(scale ? canvasBmp.Resize(target, SKFilterQuality.Medium) ?? canvasBmp.Copy() : canvasBmp.Copy());
+                    anim.DelaysMs.Add(ms);
+                }
+                else if (anim.DelaysMs.Count > 0) anim.DelaysMs[^1] += ms; // 건너뛴 프레임 시간은 앞 프레임에 더함
 
                 if (dispose == 1)
                 {

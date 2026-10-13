@@ -22,6 +22,7 @@ internal static class Strings
         ["err.unsupportedImage"] = ("Unsupported image format, or the file is damaged.", "지원하지 않는 이미지 형식이거나 파일이 손상되었습니다."),
         ["err.firstFrame"] = ("Could not decode the first frame ({0}).", "첫 프레임을 읽지 못했습니다 ({0})."),
         ["err.cannotOpenImage"] = ("Can't open the image: {0}", "이미지를 열 수 없습니다: {0}"),
+        ["err.imageTooLarge"] = ("The image is too large to open (over about 40 megapixels).", "이미지가 너무 커서 열 수 없습니다 (약 4천만 화소 초과)."),
         ["err.fileTooLarge"] = ("The file is too large.", "파일이 너무 큽니다."),
         ["err.gridTooFine"] = ("There are more cells than pixels in the image.", "칸 수가 이미지 크기보다 많습니다."),
         ["err.frameTooLarge"] = ("Frames are too large (max 4096 px).", "프레임이 너무 큽니다 (최대 4096px)."),

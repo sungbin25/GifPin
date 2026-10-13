@@ -20,7 +20,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
     private const int HandleHit = 18;
     private const int SnapPx = 8;
     private const int KeepVisiblePx = 20;
-    private const nuint TIMER_FRAME = 1, TIMER_FLASH = 2, TIMER_HOLD = 4, TIMER_RESUME = 5;
+    private const nuint TIMER_FLASH = 2, TIMER_HOLD = 4, TIMER_RESUME = 5;
     private const double ThrowWindowSec = 0.1; // 놓기 직전 이 시간 동안의 마우스 속도로 던짐
     private const long MotionReportMs = 3000; // 움직이는 중 위치를 UI에 알리는 간격
     private const double MinScale = 0.1, MaxScale = 4.0;
@@ -33,7 +33,11 @@ internal sealed unsafe class OverlayWindow : IDisposable
     public IntPtr Hwnd { get; }
     public ActiveItem Item { get; private set; }
     public string? AnimPath { get; private set; }
-    public string? PendingPath { get; set; }
+    /// <summary>공유 GIF 키 (파일|크기). 해제는 엔진이 참조 수로 관리 — 창이 직접 Dispose하지 않음.</summary>
+    public string? AnimKey { get; private set; }
+    /// <summary>불러오는 중인 GIF 키.</summary>
+    public string? PendingKey { get; set; }
+    internal GifAnimation? Anim => _anim;
 
     private GifAnimation? _anim;
     private int _frame;
@@ -57,8 +61,16 @@ internal sealed unsafe class OverlayWindow : IDisposable
     /// <summary>최근 1초 동안 처리한 프레임 수 (점검·진단용).</summary>
     public int FramesPerSecond { get; private set; }
 
-    /// <summary>매 프레임 계산이 필요함 (움직이는 중이거나 효과가 도는 중).</summary>
-    internal bool NeedsFrames => _motionRunning || _fxRunning;
+    // GIF 재생: Windows 타이머(15.6ms 단위) 대신 공용 프레임 박자와 정확한 시각으로 장면을 넘김
+    private bool _gifPlaying;
+    private long _gifDue; // 다음 장면으로 넘어갈 시각 (Stopwatch 틱)
+    /// <summary>프레임 처리 중 난 오류 수 (로그를 한 번만 남기려고).</summary>
+    internal int FrameErrors;
+    /// <summary>지금까지 넘긴 GIF 장면 수 (점검용).</summary>
+    public long GifFramesAdvanced { get; private set; }
+
+    /// <summary>매 프레임 계산이 필요함 (움직이는 중, 효과가 도는 중, 또는 GIF 재생 중).</summary>
+    internal bool NeedsFrames => _motionRunning || _fxRunning || _gifPlaying;
     private Pads _pads = Pads.Zero; // 지금 창 가장자리 여백 (창 위치 = GIF 위치 − 여백)
     private List<GifAnimation>? _sprites; // 내 이미지 파티클 (이 창이 주인)
 
@@ -120,12 +132,15 @@ internal sealed unsafe class OverlayWindow : IDisposable
 
     // ── 엔진에서 호출 ─────────────────────────────────────────
 
-    public void SetAnimation(GifAnimation anim, string path)
+    public void SetAnimation(GifAnimation anim, string path, string key)
     {
-        _anim?.Dispose();
+        bool samePath = AnimPath == path && _anim != null && _anim.Frames.Count == anim.Frames.Count;
         _anim = anim;
         AnimPath = path;
-        _frame = 0;
+        AnimKey = key;
+        if (!samePath) _frame = 0; // 같은 GIF를 다른 크기로 다시 불러온 경우엔 재생 위치 유지
+        _frame = Math.Min(_frame, anim.Frames.Count - 1);
+        _gifPlaying = false; // 재생 시각을 새로 맞춤
         Refresh();
     }
 
@@ -149,7 +164,16 @@ internal sealed unsafe class OverlayWindow : IDisposable
         }
         else _motion.Configure(MotionParams.From(item));
         UpdateFacing();
-        Refresh();
+        // 보이기·층이 바뀐 경우만 창 전체를 다시 설정. 그 밖에(슬라이더 등)는 그림만 다시 → 슬라이더를 끌어도 GIF가 멈추지 않음
+        if (prev.Visible != item.Visible || Layers.Normalize(prev.Layer) != Layers.Normalize(item.Layer)) Refresh();
+        else
+        {
+            UpdateMotionTimer();
+            UpdateFxTimer();
+            UpdateGifPlayback();
+            if (NeedsFrames) _dirty = true; // 다음 프레임에 함께 그림
+            else Render();
+        }
         if (prevMoving && !Motion.IsMoving(item.MotionMode)) _engine.RaiseChanged(Item); // 멈춘 위치 저장
     }
 
@@ -248,6 +272,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
 
         bool render = _dirty, moved = false;
         _dirty = false;
+        if (AdvanceGif(now)) render = true;
         var (w, h) = ContentSize(Item.Scale);
 
         if (_motionRunning)
@@ -310,7 +335,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
         if (Item.X == _reportedX && Item.Y == _reportedY) return;
         _reportedX = Item.X;
         _reportedY = Item.Y;
-        _engine.RaiseChanged(Item);
+        _engine.RaiseMoved(Item); // 저장은 느긋하게 (자주 바뀌므로)
     }
 
     public void SetEditMode(bool edit)
@@ -401,15 +426,11 @@ internal sealed unsafe class OverlayWindow : IDisposable
             Render();
             ShowWindow(Hwnd, SW_SHOWNOACTIVATE);
             BringToTop();
-            StartTimer();
         }
-        else
-        {
-            KillTimer(Hwnd, TIMER_FRAME);
-            ShowWindow(Hwnd, SW_HIDE);
-        }
+        else ShowWindow(Hwnd, SW_HIDE);
         UpdateMotionTimer();
         UpdateFxTimer();
+        UpdateGifPlayback();
     }
 
     // ── 효과 타이머 ─────────────────────────────────────────
@@ -425,12 +446,38 @@ internal sealed unsafe class OverlayWindow : IDisposable
         SyncFrameClock();
     }
 
-    private void StartTimer()
+    /// <summary>보이는 움직이는 GIF면 프레임 박자에 맞춰 재생.</summary>
+    private void UpdateGifPlayback()
     {
-        if (_anim == null || _anim.Frames.Count < 2) { KillTimer(Hwnd, TIMER_FRAME); return; }
+        bool play = IsShown && _anim != null && _anim.Frames.Count > 1;
+        if (play == _gifPlaying) return;
+        _gifPlaying = play;
+        if (play) _gifDue = System.Diagnostics.Stopwatch.GetTimestamp() + DelayTicks(_frame);
+        SyncFrameClock();
+    }
+
+    private long DelayTicks(int frame)
+    {
         double speed = Item.Speed <= 0 ? 1 : Item.Speed;
-        uint delay = (uint)Math.Max(10, _anim.DelaysMs[_frame] / speed);
-        SetTimer(Hwnd, TIMER_FRAME, delay, IntPtr.Zero);
+        double ms = Math.Max(10, _anim!.DelaysMs[Math.Min(frame, _anim.DelaysMs.Count - 1)] / speed);
+        return (long)(ms * System.Diagnostics.Stopwatch.Frequency / 1000);
+    }
+
+    /// <summary>정해진 시각이 지났으면 다음 장면으로 (늦었으면 따라잡되, 1초 넘게 밀렸으면 지금부터 다시).</summary>
+    private bool AdvanceGif(long now)
+    {
+        if (!_gifPlaying || _anim == null || _anim.Frames.Count < 2) return false;
+        if (now - _gifDue > System.Diagnostics.Stopwatch.Frequency) _gifDue = now;
+        bool changed = false;
+        int guard = _anim.Frames.Count;
+        while (now >= _gifDue && guard-- > 0)
+        {
+            _frame = (_frame + 1) % _anim.Frames.Count;
+            _gifDue += DelayTicks(_frame);
+            GifFramesAdvanced++;
+            changed = true;
+        }
+        return changed;
     }
 
     private void ApplyStyles()
@@ -453,14 +500,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
         switch (msg)
         {
             case WM_TIMER:
-                if ((nuint)wParam == TIMER_FRAME && _anim != null && _anim.Frames.Count > 1)
-                {
-                    _frame = (_frame + 1) % _anim.Frames.Count;
-                    if (NeedsFrames) _dirty = true; // 다음 프레임에 위치·효과와 함께 그림
-                    else Render();
-                    StartTimer();
-                }
-                else if ((nuint)wParam == TIMER_HOLD)
+                if ((nuint)wParam == TIMER_HOLD)
                 {
                     KillTimer(Hwnd, TIMER_HOLD);
                     if (_press == Press.Waiting) BeginGrab(_ptX, _ptY, System.Diagnostics.Stopwatch.GetTimestamp());
@@ -716,6 +756,12 @@ internal sealed unsafe class OverlayWindow : IDisposable
         WindowHeight = _dibH,
         Sprites = _fx.SpriteCount,
         FramesPerSecond = FramesPerSecond,
+        GifFrames = GifFramesAdvanced,
+        PushedArea = LastPushedArea,
+        GlowBuilds = _fx.GlowBuilds,
+        GlowHits = _fx.GlowHits,
+        AnimWidth = _anim?.Width ?? 0,
+        AnimKey = AnimKey,
     };
 
     private Drag HitTest(int x, int y)
@@ -755,7 +801,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
         }
         else
         {
-            double baseW = _anim.Width, baseH = _anim.Height;
+            double baseW = _anim.SourceWidth, baseH = _anim.SourceHeight;
             double startW = baseW * _sScale, startH = baseH * _sScale;
             double wc, hc;
             switch (_drag)
@@ -800,7 +846,8 @@ internal sealed unsafe class OverlayWindow : IDisposable
     private (int w, int h) ContentSize(double scale)
     {
         if (_anim == null) return (1, 1);
-        return (Math.Max(1, (int)Math.Round(_anim.Width * scale)), Math.Max(1, (int)Math.Round(_anim.Height * scale)));
+        // 디코딩은 줄여서 했을 수 있으므로 화면 크기는 원본 크기 기준
+        return (Math.Max(1, (int)Math.Round(_anim.SourceWidth * scale)), Math.Max(1, (int)Math.Round(_anim.SourceHeight * scale)));
     }
 
     private void Render()
@@ -813,7 +860,18 @@ internal sealed unsafe class OverlayWindow : IDisposable
         EnsureSurface(ww, wh);
 
         var c = _surface!.Canvas;
-        c.Clear(SKColors.Transparent);
+        // 효과 화면은 지난번에 그린 영역만 지우고, 이번에 그린 영역과 합친 부분만 화면에 보낸다 (큰 여백 전체를 매번 복사하지 않음)
+        bool partial = !_editMode && !_surfaceFresh && !_lastDrawn.IsEmpty;
+        if (partial)
+        {
+            c.Save();
+            c.ClipRect(_lastDrawn);
+            c.Clear(SKColors.Transparent);
+            c.Restore();
+        }
+        else c.Clear(SKColors.Transparent);
+        _surfaceFresh = false;
+        var drawn = SKRect.Empty;
         // 움직이는 중에는 소수점 위치까지 반영 (창은 정수 픽셀로만 움직일 수 있으므로 그 차이를 안쪽에서 보정)
         float sx = _editMode ? 0 : (float)_subX, sy = _editMode ? 0 : (float)_subY;
         var content = new SKRect(_pads.Left + sx, _pads.Top + sy, _pads.Left + sx + w, _pads.Top + sy + h);
@@ -833,21 +891,32 @@ internal sealed unsafe class OverlayWindow : IDisposable
             double originX = Item.X - _pads.Left, originY = Item.Y - _pads.Top;
             double ground = Motion.Normalize(Item.MotionMode) is Motion.Walk or Motion.Fall ? _motion.GroundDistance : 0;
             var bounds = new SKRect(0, 0, ww, wh);
-            _fx.DrawBehind(c, Item, content, originX, originY, frame, flip, ground, bounds);
+            drawn = _fx.DrawBehind(c, Item, content, originX, originY, frame, flip, ground, bounds);
 
             c.Save();
             _fx.ApplyTransform(c, Item, content);
             if (flip) c.Scale(-1, 1, content.MidX, 0);
             byte alpha = _fx.FrameAlpha(Item);
-            var glow = _fx.GlowFilter(Item);
+            var main = content;
+            // 외곽 빛: 장면별로 한 번 만든 그림을 재사용하고 밝기(두근두근·깜빡임)는 투명도로만 조절
+            var glow = _fx.GlowLayer(Item, frame, _frame, w, h);
+            if (glow is { } g)
+            {
+                var gr = new SKRect(content.Left - g.margin, content.Top - g.margin, content.Right + g.margin, content.Bottom + g.margin);
+                _glowPaint.Color = new SKColor(255, 255, 255, (byte)(g.alpha * alpha / 255));
+                c.DrawBitmap(g.bmp, gr, _glowPaint);
+                main = gr;
+            }
             _framePaint.Color = new SKColor(255, 255, 255, alpha);
-            _framePaint.ImageFilter = glow;
             c.DrawBitmap(frame, content, _framePaint);
-            _framePaint.ImageFilter = null;
             _framePaint.Color = SKColors.White;
+            var mapped = c.TotalMatrix.MapRect(main); // 둥실·흔들림·회전·크기 변형이 적용된 실제 영역
+            mapped.Inflate(2, 2);
+            drawn = drawn.IsEmpty ? mapped : SKRect.Union(drawn, mapped);
             c.Restore();
 
-            _fx.DrawFront(c, Item, content, originX, originY, bounds);
+            var front = _fx.DrawFront(c, Item, content, originX, originY, bounds);
+            if (!front.IsEmpty) drawn = SKRect.Union(drawn, front);
         }
 
         if (_editMode)
@@ -887,6 +956,13 @@ internal sealed unsafe class OverlayWindow : IDisposable
         }
         c.Flush();
 
+        var full = new SKRect(0, 0, ww, wh);
+        if (_editMode || drawn.IsEmpty) drawn = full; // 편집 화면 등은 전체
+        drawn.Intersect(full);
+        // 화면에 보낼 영역 = 지난번 그림(지워야 함) + 이번 그림
+        var dirty = partial ? SKRect.Union(_lastDrawn, drawn) : full;
+        _lastDrawn = drawn;
+
         var dst = new POINT(Item.X - _pads.Left, Item.Y - _pads.Top);
         var size = new SIZE(ww, wh);
         var src = new POINT(0, 0);
@@ -894,14 +970,53 @@ internal sealed unsafe class OverlayWindow : IDisposable
         if (_editMode) op = Math.Max(op, 0.6);
         var blend = new BLENDFUNCTION { BlendOp = AC_SRC_OVER, SourceConstantAlpha = (byte)Math.Round(op * 255), AlphaFormat = AC_SRC_ALPHA };
         IntPtr screenDc = GetDC(IntPtr.Zero);
-        try { UpdateLayeredWindow(Hwnd, screenDc, &dst, &size, _memDc, &src, 0, &blend, ULW_ALPHA); }
+        try
+        {
+            bool done = false;
+            if (partial && _partialPushOk)
+            {
+                var rc = new RECT
+                {
+                    Left = Math.Max(0, (int)Math.Floor(dirty.Left)), Top = Math.Max(0, (int)Math.Floor(dirty.Top)),
+                    Right = Math.Min(ww, (int)Math.Ceiling(dirty.Right)), Bottom = Math.Min(wh, (int)Math.Ceiling(dirty.Bottom)),
+                };
+                LastPushedArea = Math.Max(0, rc.Right - rc.Left) * Math.Max(0, rc.Bottom - rc.Top);
+                var info = new UPDATELAYEREDWINDOWINFO
+                {
+                    cbSize = (uint)sizeof(UPDATELAYEREDWINDOWINFO),
+                    hdcDst = screenDc, pptDst = &dst, psize = &size, hdcSrc = _memDc, pptSrc = &src,
+                    pblend = &blend, dwFlags = ULW_ALPHA, prcDirty = &rc,
+                };
+                done = UpdateLayeredWindowIndirect(Hwnd, &info);
+                if (!done)
+                {
+                    _partialPushOk = false; // 이 PC에서 안 되면 늘 전체로
+                    Log.Warn($"Partial layered update failed (error {Marshal.GetLastWin32Error()}); using full updates");
+                }
+            }
+            if (!done)
+            {
+                LastPushedArea = ww * wh;
+                UpdateLayeredWindow(Hwnd, screenDc, &dst, &size, _memDc, &src, 0, &blend, ULW_ALPHA);
+            }
+        }
         finally { ReleaseDC(IntPtr.Zero, screenDc); }
     }
+
+    // 바뀐 부분만 화면에 보내기
+    private SKRect _lastDrawn = SKRect.Empty;  // 지난번에 실제로 그린 영역 (그 밖은 모두 투명)
+    private bool _surfaceFresh = true;        // 새로 만든 표면 → 처음엔 전체를 보냄
+    private static bool _partialPushOk = true;
+    /// <summary>마지막으로 화면에 보낸 픽셀 수 (점검용).</summary>
+    public int LastPushedArea { get; private set; }
+    private readonly SKPaint _glowPaint = new() { FilterQuality = SKFilterQuality.Medium, IsAntialias = true };
 
     private void EnsureSurface(int w, int h)
     {
         if (_surface != null && w == _dibW && h == _dibH) return;
         FreeSurface();
+        _surfaceFresh = true;
+        _lastDrawn = SKRect.Empty;
 
         IntPtr screenDc = GetDC(IntPtr.Zero);
         _memDc = CreateCompatibleDC(screenDc);
@@ -944,16 +1059,15 @@ internal sealed unsafe class OverlayWindow : IDisposable
 
     public void Dispose()
     {
-        KillTimer(Hwnd, TIMER_FRAME);
         KillTimer(Hwnd, TIMER_FLASH);
         DestroyWindow(Hwnd);
         _fx.Dispose();
         if (_sprites != null) foreach (var s in _sprites) s.Dispose();
         _sprites = null;
         FreeSurface();
-        _anim?.Dispose();
-        _anim = null;
+        _anim = null; // 공유 GIF는 엔진이 참조 수로 해제
         _framePaint.Dispose();
+        _glowPaint.Dispose();
         _editFill.Dispose();
         _dashed.Dispose();
         _solid.Dispose();

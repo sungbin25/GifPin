@@ -102,6 +102,8 @@ public static class SmokeTest
 
         report.Append(RunPhysics()).Append(" · ");
         report.Append(RunEffects()).Append(" · ");
+        report.Append(RunDecodePlan()).Append(" · ");
+        report.Append(RunScaledDecode(Path.Combine(assetsDir, "sample.gif"), apng)).Append(" · ");
 
         // 내 이미지 · GIF 파티클: 실제로 그려서 확인
         report.Append(RunImageParticles(Path.Combine(assetsDir, "sample.gif"))).Append(" · ");
@@ -315,6 +317,52 @@ public static class SmokeTest
         if (fx.ParticleCount > EffectState.MaxAnimatedParticles) throw new Exception($"GIF particles exceeded the cap: {fx.ParticleCount}");
         fx.SetSprites(null);
         return $"image particles ok ({sprite.Frames.Count} frames, {drawn} px drawn)";
+    }
+
+    /// <summary>디코딩 계획: 원하는 크기, 메모리 예산, 너무 큰 캔버스 거절.</summary>
+    public static string RunDecodePlan()
+    {
+        const long MB = 1024 * 1024;
+        var a = GifAnimation.Plan(400, 200, 10, 200, 200, 384 * MB);
+        if (a.w != 200 || a.h != 100 || a.step != 1) throw new Exception($"plan resize: {a}");
+        var b = GifAnimation.Plan(1920, 1080, 60, 0, 0, 384 * MB); // 원본이면 약 475MB → 예산에 맞게 줄임
+        if (b.step != 1 || (long)b.w * b.h * 4 * 60 > 384 * MB || b.w < 1500) throw new Exception($"plan budget: {b}");
+        var c = GifAnimation.Plan(512, 512, 100_000, 0, 0, 384 * MB); // 64px까지 줄여도 넘침 → 건너뛰기
+        if (c.step < 2 || Math.Max(c.w, c.h) < 64 || (long)c.w * c.h * 4 * (100_000 / c.step) > 400 * MB) throw new Exception($"plan step: {c}");
+        try { GifAnimation.Plan(20000, 20000, 1, 0, 0, 384 * MB); throw new Exception("huge canvas was accepted"); }
+        catch (InvalidDataException) { }
+        return $"decode plan ok (1080p x60 -> {b.w}x{b.h}, 100k frames -> step {c.step})";
+    }
+
+    /// <summary>작게 디코딩한 프레임이 원본을 줄인 것과 같은지, 건너뛸 때 시간이 보존되는지.</summary>
+    public static string RunScaledDecode(string gifPath, string apngPath)
+    {
+        using var full = GifAnimation.Load(gifPath);
+        using var small = GifAnimation.Load(gifPath, full.Width / 2);
+        if (small.Width != full.Width / 2 || small.SourceWidth != full.Width || small.Frames.Count != full.Frames.Count)
+            throw new Exception($"scaled decode: {small.Width}px of {small.SourceWidth}, {small.Frames.Count}/{full.Frames.Count} frames");
+        // 프레임마다 합성이 맞는지: 원본 프레임을 줄인 것과 비교 (투명도 차이가 작아야 함)
+        var info = new SkiaSharp.SKImageInfo(small.Width, small.Height, SkiaSharp.SKColorType.Bgra8888, SkiaSharp.SKAlphaType.Premul);
+        int worst = 0;
+        for (int i = 0; i < full.Frames.Count; i++)
+        {
+            using var reference = full.Frames[i].Resize(info, SkiaSharp.SKFilterQuality.Medium);
+            for (int y = 2; y < small.Height - 2; y += 3)
+                for (int x = 2; x < small.Width - 2; x += 3)
+                    worst = Math.Max(worst, Math.Abs(reference.GetPixel(x, y).Alpha - small.Frames[i].GetPixel(x, y).Alpha));
+        }
+        if (worst > 40) throw new Exception($"scaled frames differ from the full decode (alpha diff {worst})");
+
+        using var skipped = GifAnimation.LoadPlanned(gifPath, full.Width, full.Height, 3);
+        int expectFrames = (full.Frames.Count + 2) / 3;
+        if (skipped.Frames.Count != expectFrames || skipped.DelaysMs.Sum() != full.DelaysMs.Sum())
+            throw new Exception($"frame skip: {skipped.Frames.Count} frames, {skipped.DelaysMs.Sum()} ms vs {full.DelaysMs.Sum()} ms");
+
+        using var apFull = GifAnimation.Load(apngPath);
+        using var apSmall = GifAnimation.LoadPlanned(apngPath, apFull.Width / 2, apFull.Height / 2, 2);
+        if (apSmall.Width != apFull.Width / 2 || apSmall.Frames.Count != (apFull.Frames.Count + 1) / 2 || apSmall.DelaysMs.Sum() != apFull.DelaysMs.Sum())
+            throw new Exception($"apng scaled/skip: {apSmall.Width}px {apSmall.Frames.Count} frames {apSmall.DelaysMs.Sum()} ms");
+        return $"scaled decode ok (alpha diff {worst}, {full.ByteSize / 1024} KB -> {small.ByteSize / 1024} KB)";
     }
 
     /// <summary>효과 계산 점검 (그리기 제외): 여백, 파티클 양, 충돌 반응, 잔상, 클릭 터뜨리기.</summary>

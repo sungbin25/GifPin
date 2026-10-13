@@ -132,8 +132,6 @@ internal sealed class EffectState : IDisposable
     private double _squashT = 99, _squashStrength;
     private MotionState.Impact _squashKind;
 
-    private SKImageFilter? _glowFilter;
-    private (uint color, float sigma) _glowKey;
     private readonly SKPaint _shadowPaint = new() { IsAntialias = true };
     private readonly SKPaint _particlePaint = new() { IsAntialias = true };
     private readonly SKPaint _ghostPaint = new() { FilterQuality = SKFilterQuality.Medium, IsAntialias = true };
@@ -473,9 +471,11 @@ internal sealed class EffectState : IDisposable
         return Math.Clamp(d / Math.Max(1, margin), 0, 1);
     }
 
-    public void DrawBehind(SKCanvas c, ActiveItem a, SKRect content, double originX, double originY,
+    /// <summary>GIF 뒤에 그리는 것 (그림자, 잔상). 실제로 그린 영역을 돌려줌 (바뀐 부분만 화면에 보내기 위해).</summary>
+    public SKRect DrawBehind(SKCanvas c, ActiveItem a, SKRect content, double originX, double originY,
         SKBitmap frame, bool flip, double groundDistance, SKRect bounds)
     {
+        var drawn = SKRect.Empty;
         if (a.FxShadow)
         {
             double dist = Math.Clamp(groundDistance - FloatOffset(a), 0, 400);
@@ -484,9 +484,10 @@ internal sealed class EffectState : IDisposable
             float ry = Math.Max(3, rx * 0.2f);
             float cy = (float)(content.Bottom + dist) - ry * 0.3f;
             _shadowPaint.Color = new SKColor(0, 0, 0, (byte)(255 * a.FxShadowOpacity / 100 * (0.35 + 0.65 * near)));
-            _shadowPaint.MaskFilter?.Dispose();
-            _shadowPaint.MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, Math.Max(1.5f, ry * 0.6f));
+            float sigma = Math.Max(1.5f, ry * 0.6f);
+            _shadowPaint.MaskFilter = ShadowBlur(sigma);
             c.DrawOval(content.MidX, cy, rx, ry, _shadowPaint);
+            Union(ref drawn, new SKRect(content.MidX - rx, cy - ry, content.MidX + rx, cy + ry), sigma * 3);
         }
 
         if (a.FxTrail && _trail.Count > 0)
@@ -504,8 +505,82 @@ internal sealed class EffectState : IDisposable
                 if (flip) c.Scale(-1, 1, r.MidX, 0);
                 c.DrawBitmap(frame, r, _ghostPaint);
                 c.Restore();
+                Union(ref drawn, r, 1);
             }
         }
+        return drawn;
+    }
+
+    private static void Union(ref SKRect acc, SKRect r, float inflate)
+    {
+        r.Inflate(inflate, inflate);
+        acc = acc.IsEmpty ? r : SKRect.Union(acc, r);
+    }
+
+    // 그림자 흐림 필터: 크기를 0.5px 단위로 묶어 재사용 (매 프레임 새로 만들지 않음)
+    private readonly Dictionary<int, SKMaskFilter> _shadowBlurs = new();
+    private SKMaskFilter ShadowBlur(float sigma)
+    {
+        int q = (int)Math.Round(sigma * 2);
+        if (!_shadowBlurs.TryGetValue(q, out var f))
+        {
+            if (_shadowBlurs.Count > 64) { foreach (var old in _shadowBlurs.Values) old.Dispose(); _shadowBlurs.Clear(); }
+            f = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, q / 2f);
+            _shadowBlurs[q] = f;
+        }
+        return f;
+    }
+
+    // ── 외곽 빛 캐시 ──
+    // 빛(흐림)은 비싼 계산이라 GIF 장면·크기·색이 같으면 한 번 만든 것을 재사용한다.
+    // 두근두근(맥동)과 깜빡임은 그릴 때 투명도만 바꾼다.
+    private const long GlowCacheBudget = 48L * 1024 * 1024;
+    private readonly Dictionary<(int frame, int w, int h, uint color, int sigma), SKBitmap> _glows = new();
+    private readonly LinkedList<(int frame, int w, int h, uint color, int sigma)> _glowOrder = new();
+    private long _glowBytes;
+    public int GlowBuilds { get; private set; }
+    public int GlowHits { get; private set; }
+
+    /// <summary>외곽 빛 그림 (frameIndex 장면, w×h 크기). margin = 빛이 GIF 밖으로 퍼지는 폭.</summary>
+    public (SKBitmap bmp, float margin, byte alpha)? GlowLayer(ActiveItem a, SKBitmap frame, int frameIndex, int w, int h)
+    {
+        if (!a.FxGlow) return null;
+        Fx.TryParseColor(a.FxGlowColor, out var col);
+        double strength = a.FxGlowStrength / 100;
+        if (a.FxGlowPulse) strength *= 0.55 + 0.45 * (0.5 + 0.5 * Wave(1.6));
+        byte alpha = (byte)Math.Round(255 * Math.Clamp(strength, 0, 1));
+        int sigma = (int)Math.Round(a.FxGlowSize);
+        int margin = sigma * 3;
+        var key = (frameIndex, w, h, (uint)col.WithAlpha(255), sigma);
+        if (_glows.TryGetValue(key, out var bmp))
+        {
+            GlowHits++;
+            _glowOrder.Remove(key);
+            _glowOrder.AddFirst(key);
+            return (bmp, margin, alpha);
+        }
+
+        long bytes = (long)(w + 2 * margin) * (h + 2 * margin) * 4;
+        while (_glowOrder.Count > 0 && _glowBytes + bytes > GlowCacheBudget)
+        {
+            var oldest = _glowOrder.Last!.Value;
+            _glowOrder.RemoveLast();
+            if (_glows.Remove(oldest, out var old)) { _glowBytes -= (long)old.Width * old.Height * 4; old.Dispose(); }
+        }
+        bmp = new SKBitmap(new SKImageInfo(w + 2 * margin, h + 2 * margin, SKColorType.Bgra8888, SKAlphaType.Premul));
+        bmp.Erase(SKColors.Transparent);
+        using (var cv = new SKCanvas(bmp))
+        using (var glow = SKImageFilter.CreateDropShadowOnly(0, 0, sigma, sigma, col.WithAlpha(255)))
+        using (var paint = new SKPaint { ImageFilter = glow, FilterQuality = SKFilterQuality.Medium, IsAntialias = true })
+        {
+            cv.DrawBitmap(frame, SKRect.Create(margin, margin, w, h), paint);
+            cv.Flush();
+        }
+        GlowBuilds++;
+        _glows[key] = bmp;
+        _glowOrder.AddFirst(key);
+        _glowBytes += bytes;
+        return (bmp, margin, alpha);
     }
 
     /// <summary>GIF 자체에 적용할 변형 (둥실·찌그러짐·숨쉬기·회전/흔들림).</summary>
@@ -549,28 +624,10 @@ internal sealed class EffectState : IDisposable
         return (byte)Math.Round(255 * (min + (1 - min) * k));
     }
 
-    /// <summary>외곽 발광 필터 (없으면 null). 같은 설정이면 다시 만들지 않음.</summary>
-    public SKImageFilter? GlowFilter(ActiveItem a)
-    {
-        if (!a.FxGlow) return null;
-        Fx.TryParseColor(a.FxGlowColor, out var col);
-        double strength = a.FxGlowStrength / 100;
-        if (a.FxGlowPulse) strength *= 0.55 + 0.45 * (0.5 + 0.5 * Wave(1.6));
-        var color = col.WithAlpha((byte)Math.Round(255 * Math.Clamp(strength, 0, 1)));
-        float sigma = (float)a.FxGlowSize;
-        var key = ((uint)color, sigma);
-        if (_glowFilter == null || key != _glowKey)
-        {
-            _glowFilter?.Dispose();
-            _glowFilter = SKImageFilter.CreateDropShadow(0, 0, sigma, sigma, color);
-            _glowKey = key;
-        }
-        return _glowFilter;
-    }
-
     /// <summary>GIF 앞에 그리는 것: 파티클.</summary>
-    public void DrawFront(SKCanvas c, ActiveItem a, SKRect content, double originX, double originY, SKRect bounds)
+    public SKRect DrawFront(SKCanvas c, ActiveItem a, SKRect content, double originX, double originY, SKRect bounds)
     {
+        var drawn = SKRect.Empty;
         foreach (var p in _particles)
         {
             double t = p.Age / p.Life;
@@ -583,6 +640,8 @@ internal sealed class EffectState : IDisposable
             if (alpha <= 0.003) continue;
             byte alphaByte = (byte)Math.Round(255 * Math.Clamp(alpha, 0, 1) * (p.Dust ? 0.7 : 1));
             _particlePaint.Color = p.Color.WithAlpha(alphaByte);
+            float reach = p.Kind == Fx.Image ? r * 1.5f : r * 1.2f; // 회전해도 들어가는 반경
+            Union(ref drawn, new SKRect(px - reach, py - reach, px + reach, py + reach), 2);
             switch (p.Kind)
             {
                 case Fx.Image when p.Sprite < _sprites.Count:
@@ -623,6 +682,7 @@ internal sealed class EffectState : IDisposable
                     break;
             }
         }
+        return drawn;
     }
 
     // 반지름 1 기준 모양 (그릴 때 크기만큼 늘림)
@@ -667,8 +727,12 @@ internal sealed class EffectState : IDisposable
 
     public void Dispose()
     {
-        _glowFilter?.Dispose();
-        _shadowPaint.MaskFilter?.Dispose();
+        _shadowPaint.MaskFilter = null;
+        foreach (var f in _shadowBlurs.Values) f.Dispose();
+        _shadowBlurs.Clear();
+        foreach (var b in _glows.Values) b.Dispose();
+        _glows.Clear();
+        _glowOrder.Clear();
         _shadowPaint.Dispose();
         _particlePaint.Dispose();
         _ghostPaint.Dispose();

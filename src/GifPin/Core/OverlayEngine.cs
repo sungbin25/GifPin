@@ -24,6 +24,8 @@ public sealed class OverlayEngine : IDisposable
 
     /// <summary>드래그·휠·방향키로 위치·크기가 확정됨 (사본 전달).</summary>
     public event Action<ActiveItem>? Changed;
+    /// <summary>움직임으로 위치가 바뀜 (자주 옴 → 바로 저장하지 않아도 됨).</summary>
+    public event Action<ActiveItem>? Moved;
     /// <summary>드래그 중 실시간 위치·크기 (편집 툴바 표시용).</summary>
     public event Action<ActiveItem>? LiveChanged;
     /// <summary>편집 모드에서 GIF를 클릭해 선택함.</summary>
@@ -163,7 +165,12 @@ public sealed class OverlayEngine : IDisposable
         foreach (var w in _byId.Values.ToList())
         {
             if (!w.NeedsFrames) continue;
-            w.OnFrame(now);
+            try { w.OnFrame(now); }
+            catch (Exception ex)
+            {
+                // 한 GIF의 오류가 다른 GIF를 멈추지 않게. 같은 오류가 매 프레임 쌓이지 않도록 로그는 한 번만
+                if (w.FrameErrors++ == 0) Log.Error($"Frame update failed for overlay {w.Item.Id}", ex);
+            }
             any |= w.NeedsFrames;
         }
         if (!any) _framesWanted = false;
@@ -219,6 +226,8 @@ public sealed class OverlayEngine : IDisposable
 
         foreach (var w in _byId.Values) w.Dispose();
         _byId.Clear();
+        foreach (var e in _anims.Values) e.Anim?.Dispose();
+        _anims.Clear();
         _byHwnd.Clear();
         if (_winEventHook != IntPtr.Zero) UnhookWinEvent(_winEventHook);
     }
@@ -257,7 +266,12 @@ public sealed class OverlayEngine : IDisposable
             switch (msg)
             {
                 case WM_RUN:
-                    while (_queue.TryDequeue(out var action)) action();
+                    // 작업 하나가 실패해도 나머지는 계속 처리
+                    while (_queue.TryDequeue(out var action))
+                    {
+                        try { action(); }
+                        catch (Exception ex) { Log.Error("Overlay task failed", ex); }
+                    }
                     return IntPtr.Zero;
                 case WM_FRAME:
                     OnFrame();
@@ -290,7 +304,8 @@ public sealed class OverlayEngine : IDisposable
     // ── 공개 API (아무 스레드) ─────────────────────────────────
 
     /// <summary>화면의 GIF를 만들거나 설정을 바꾼다. filePath가 바뀌면 새로 디코딩한다.</summary>
-    public void Sync(ActiveItem item, string filePath, bool pixelated = false, IReadOnlyList<string>? particlePaths = null)
+    public void Sync(ActiveItem item, string filePath, bool pixelated = false, IReadOnlyList<string>? particlePaths = null,
+        int srcWidth = 0, int srcHeight = 0)
     {
         var snapshot = item.Clone();
         var spritePaths = particlePaths?.ToList() ?? new List<string>();
@@ -332,25 +347,133 @@ public sealed class OverlayEngine : IDisposable
                     }));
             }
 
-            if (w.AnimPath != filePath && w.PendingPath != filePath)
-            {
-                w.PendingPath = filePath;
-                Task.Run(() => GifAnimation.Load(filePath)).ContinueWith(t => Post(() =>
-                {
-                    bool current = _byId.TryGetValue(snapshot.Id, out var target) && target.PendingPath == filePath;
-                    if (t.IsFaulted)
-                    {
-                        if (current) target!.PendingPath = null;
-                        Log.Error($"Failed to load {filePath}", t.Exception?.GetBaseException());
-                        LoadFailed?.Invoke(snapshot.Id, t.Exception?.GetBaseException().Message ?? "unknown error");
-                        return;
-                    }
-                    if (!current) { t.Result.Dispose(); return; }
-                    target!.PendingPath = null;
-                    target.SetAnimation(t.Result, filePath);
-                }));
-            }
+            // GIF 본체: 화면에 보이는 크기에 맞춰 디코딩 (같은 파일·같은 크기는 다른 창과 공유)
+            var (tw, th) = AnimTarget(srcWidth, srcHeight, snapshot.Scale, pixelated);
+            string want = AnimKey(filePath, tw, th);
+            if (w.PendingKey == want) { } // 바로 그것을 불러오는 중
+            else if (w.AnimKey == want || KeepCurrent(w, filePath, tw))
+                w.PendingKey = null; // 지금 것으로 충분 → 다른 사진을 불러오던 중이었다면 취소 (A→B→A로 빨리 바꿀 때)
+            else LoadFor(w, filePath, tw, th);
         });
+    }
+
+    // ── 디코딩한 GIF 공유 ───────────────────────────────────
+    // 같은 파일을 같은 크기로 띄운 창들은 디코딩 결과 하나를 함께 쓰고(참조 수), 아무도 안 쓰면 해제한다.
+
+    private sealed class SharedAnim
+    {
+        public GifAnimation? Anim;
+        public Task<GifAnimation>? Loading;
+        public int Refs;
+    }
+
+    private readonly Dictionary<string, SharedAnim> _anims = new();
+
+    private static string AnimKey(string path, int w, int h) => $"{path}|{w}x{h}";
+
+    /// <summary>
+    /// 창에 필요한 디코딩 크기. 화면에 보이는 크기를 64×1.25ⁿ 단계로 올림 → 크기 슬라이더를 끌 때마다 다시 디코딩하지 않음.
+    /// 도트 그래픽은 원본 그대로 (확대할 때 픽셀이 선명해야 하므로).
+    /// </summary>
+    internal static (int w, int h) AnimTarget(int srcW, int srcH, double scale, bool pixelated)
+    {
+        if (srcW <= 0 || srcH <= 0) return (0, 0);
+        if (pixelated || scale >= 1) return (srcW, srcH);
+        int srcLong = Math.Max(srcW, srcH);
+        double desired = srcLong * Math.Max(0.01, scale);
+        double bucket = 64;
+        while (bucket < desired) bucket *= 1.25;
+        int longSide = (int)Math.Min(srcLong, Math.Ceiling(bucket));
+        if (longSide >= srcLong) return (srcW, srcH);
+        double k = (double)longSide / srcLong;
+        return (Math.Max(1, (int)Math.Round(srcW * k)), Math.Max(1, (int)Math.Round(srcH * k)));
+    }
+
+    /// <summary>지금 디코딩된 것을 그대로 써도 되나: 같은 파일이고, 너무 작지(흐려짐) 않고 2배 넘게 크지(메모리 낭비) 않음.</summary>
+    private static bool KeepCurrent(OverlayWindow w, string path, int tw)
+    {
+        if (w.AnimPath != path || w.Anim == null) return false;
+        if (tw <= 0) return true; // 원본 크기를 모름 → 지금 것 유지
+        return w.Anim.Width >= tw * 0.98 && w.Anim.Width <= tw * 2.0;
+    }
+
+    private void LoadFor(OverlayWindow w, string path, int tw, int th)
+    {
+        string key = AnimKey(path, tw, th);
+        w.PendingKey = key;
+        if (_anims.TryGetValue(key, out var e) && e.Anim != null) { Attach(w, key, path, e); return; }
+        if (e == null)
+        {
+            e = new SharedAnim();
+            _anims[key] = e;
+        }
+        e.Loading ??= Task.Run(() => GifAnimation.Load(path, tw, th, GifAnimation.DefaultBudget));
+        string id = w.Item.Id;
+        e.Loading.ContinueWith(t => Post(() => OnLoaded(key, path, id, t)));
+    }
+
+    private void OnLoaded(string key, string path, string windowId, Task<GifAnimation> t)
+    {
+        _byId.TryGetValue(windowId, out var w);
+        bool current = w != null && w.PendingKey == key;
+        _anims.TryGetValue(key, out var e);
+
+        if (t.IsFaulted)
+        {
+            if (e != null && e.Refs == 0) _anims.Remove(key);
+            if (!current) return; // 이미 다른 사진으로 바뀜 → 알릴 필요 없음
+            w!.PendingKey = null;
+            var err = t.Exception?.GetBaseException();
+            Log.Error($"Failed to load {path}", err);
+            LoadFailed?.Invoke(windowId, err?.Message ?? "unknown error");
+            return;
+        }
+
+        if (e == null)
+        {
+            // 아무도 안 써서 이미 정리됨 → 기다리던 창이 있으면 다시 불러옴
+            if (current) { w!.PendingKey = null; LoadFor(w, path, t.Result.Width, t.Result.Height); }
+            return;
+        }
+        if (e.Anim == null)
+        {
+            e.Anim = t.Result;
+            e.Loading = null;
+            if (e.Anim.FrameStep > 1 || e.Anim.Width < e.Anim.SourceWidth)
+                Log.Info($"Decoded {System.IO.Path.GetFileName(path)} at {e.Anim.Width}x{e.Anim.Height} (source {e.Anim.SourceWidth}x{e.Anim.SourceHeight}), " +
+                         $"{e.Anim.Frames.Count} frames, step {e.Anim.FrameStep}, {e.Anim.ByteSize / (1024 * 1024)} MB");
+        }
+        if (current) Attach(w!, key, path, e);
+        else if (e.Refs == 0 && !_byId.Values.Any(x => x.PendingKey == key))
+        {
+            e.Anim.Dispose();
+            _anims.Remove(key);
+        }
+    }
+
+    private void Attach(OverlayWindow w, string key, string path, SharedAnim e)
+    {
+        e.Refs++;
+        string? old = w.AnimKey;
+        w.PendingKey = null;
+        w.SetAnimation(e.Anim!, path, key);
+        if (old != null && old != key) ReleaseAnim(old);
+    }
+
+    private void ReleaseAnim(string key)
+    {
+        if (!_anims.TryGetValue(key, out var e)) return;
+        if (--e.Refs > 0 || e.Loading != null) return;
+        e.Anim?.Dispose();
+        _anims.Remove(key);
+    }
+
+    /// <summary>점검용: 디코딩해 둔 GIF 수와 전체 메모리.</summary>
+    public Task<(int count, long bytes)> AnimStatsAsync()
+    {
+        var tcs = new TaskCompletionSource<(int, long)>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Post(() => tcs.TrySetResult((_anims.Count(kv => kv.Value.Anim != null), _anims.Values.Sum(v => v.Anim?.ByteSize ?? 0))));
+        return tcs.Task;
     }
 
     public void Remove(string id) => Post(() =>
@@ -358,7 +481,9 @@ public sealed class OverlayEngine : IDisposable
         if (_byId.Remove(id, out var w))
         {
             _byHwnd.Remove(w.Hwnd);
+            string? key = w.AnimKey;
             w.Dispose();
+            if (key != null) ReleaseAnim(key);
         }
         if (_selectedId == id) _selectedId = null;
     });
@@ -476,6 +601,7 @@ public sealed class OverlayEngine : IDisposable
     // ── OverlayWindow → 엔진 → UI ────────────────────────────
 
     internal void RaiseChanged(ActiveItem item) => Changed?.Invoke(item.Clone());
+    internal void RaiseMoved(ActiveItem item) => Moved?.Invoke(item.Clone());
     internal void RaiseLive(ActiveItem item) => LiveChanged?.Invoke(item.Clone());
 
     internal void RaiseClicked(string id)
@@ -511,4 +637,10 @@ public sealed record OverlayProbe(ActiveItem Item, bool MotionRunning, bool Held
     public int WindowHeight { get; init; }
     public int Sprites { get; init; }
     public int FramesPerSecond { get; init; }
+    public long GifFrames { get; init; }
+    public int AnimWidth { get; init; }
+    public string? AnimKey { get; init; }
+    public int PushedArea { get; init; }
+    public int GlowBuilds { get; init; }
+    public int GlowHits { get; init; }
 }

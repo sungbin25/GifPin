@@ -323,7 +323,57 @@ public partial class App : Application
         if (p.FxRunning || p.WindowWidth != w || p.WindowHeight != h) throw new Exception($"effects off: running={p.FxRunning} window {p.WindowWidth}x{p.WindowHeight} vs {w}x{h}");
         sb.Append($" effects ok ({fxParticles} particles, {fxSquashes} squashes, {fxFps} fps via {eng.FramePacing}, burst) ·");
 
-        // 7) 표시 층: 바탕화면이면 항상 위(topmost)가 아니고, 맨 위로 되돌리면 다시 topmost
+        // 7) 성능: 화면 크기로 디코딩, 같은 GIF 공유, 정확한 재생 속도, 슬라이더 중 재생 유지, 빛 캐시, 바뀐 부분만 보내기
+        app.UpdateActive(id, a => { a.Scale = 0.5; a.MotionMode = Motion.None; a.Speed = 1; });
+        await Wait(1200);
+        p = await P();
+        var src = app.State.FindPhoto(app.State.Active[0].PhotoId)!;
+        if (p.AnimWidth >= src.Width) throw new Exception($"half-size GIF was decoded at {p.AnimWidth}px (source {src.Width}px)");
+        int halfWidth = p.AnimWidth;
+        app.UpdateActive(id, a => a.Scale = 1.5);
+        await Wait(1200);
+        p = await P();
+        if (p.AnimWidth != src.Width) throw new Exception($"enlarged GIF stayed at {p.AnimWidth}px");
+
+        // 같은 사진을 하나 더 띄우면 디코딩은 하나를 함께 씀
+        var before2 = await eng.AnimStatsAsync();
+        app.AddToScreen(src.Id);
+        var second = app.State.Active[^1];
+        app.UpdateActive(second.Id, a => a.Scale = 1.5);
+        await Wait(1200);
+        var shared = await eng.AnimStatsAsync();
+        app.RemoveActive(second.Id);
+        if (shared.count != before2.count) throw new Exception($"same GIF decoded twice ({before2.count} -> {shared.count})");
+
+        // 재생 속도: 장면 간격대로 (샘플은 90ms → 2초에 약 22장)
+        long g0 = (await P()).GifFrames;
+        await Wait(2000);
+        long g1 = (await P()).GifFrames;
+        int perSecond = (int)((g1 - g0) / 2);
+        if (g1 - g0 < 18 || g1 - g0 > 26) throw new Exception($"GIF advanced {g1 - g0} frames in 2 s (expected about 22)");
+
+        // 슬라이더를 끄는 동안(설정이 계속 바뀜)에도 멈추지 않음
+        long s0 = (await P()).GifFrames;
+        for (int i = 0; i < 20; i++) { app.UpdateActive(id, a => a.Opacity = 0.5 + i * 0.02); await Wait(50); }
+        long s1 = (await P()).GifFrames;
+        app.UpdateActive(id, a => a.Opacity = 1);
+        if (s1 - s0 < 8) throw new Exception($"GIF stalled while settings changed ({s1 - s0} frames in 1 s)");
+
+        // 외곽 빛은 장면별로 한 번만 만들고 재사용, 효과 창은 바뀐 부분만 화면에 보냄
+        app.UpdateActive(id, a =>
+        {
+            a.FxGlow = true; a.FxGlowPulse = true; a.FxTrail = true; a.FxTrailCount = 10; a.FxTrailSpacing = 40;
+            a.FxParticles = true; a.FxParticleMode = Fx.Always; a.FxParticleRate = 2; a.FxParticleKind = Fx.Dot;
+        });
+        await Wait(2500);
+        p = await P();
+        if (p.GlowHits < p.GlowBuilds * 3 || p.GlowBuilds > 12) throw new Exception($"glow cache: {p.GlowBuilds} builds, {p.GlowHits} hits");
+        long fullArea = (long)p.WindowWidth * p.WindowHeight;
+        if (p.PushedArea <= 0 || p.PushedArea > fullArea * 0.6) throw new Exception($"pushed {p.PushedArea} of {fullArea} pixels");
+        app.UpdateActive(id, a => { a.FxGlow = false; a.FxTrail = false; a.FxParticles = false; });
+        sb.Append($" perf ok (half-size {halfWidth}px, shared, {perSecond} frames/s, glow {p.GlowBuilds}/{p.GlowHits}, pushed {p.PushedArea * 100 / Math.Max(1, fullArea)}%) ·");
+
+        // 8) 표시 층: 바탕화면이면 항상 위(topmost)가 아니고, 맨 위로 되돌리면 다시 topmost
         app.UpdateActive(id, a => { a.MotionMode = Motion.None; a.MotionGravity = true; a.Layer = Layers.Desktop; });
         await Wait(400);
         p = await P();

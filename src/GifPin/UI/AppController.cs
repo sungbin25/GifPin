@@ -63,6 +63,9 @@ public sealed class AppController
         _ui = Dispatcher.CurrentDispatcher;
 
         Engine.Changed += a => _ui.InvokeAsync(() => OnEngineChanged(a, commit: true));
+        Engine.Moved += a => _ui.InvokeAsync(() => { OnEngineChanged(a, commit: false); SaveLazy(); });
+        _lazySave = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
+        _lazySave.Tick += (_, _) => { _lazySave.Stop(); Save(); };
         Engine.LiveChanged += a => _ui.InvokeAsync(() => OnEngineChanged(a, commit: false));
         Engine.Clicked += id => _ui.InvokeAsync(() => SelectActive(id, flash: false));
         Engine.HotkeyPressed += id => _ui.InvokeAsync(() => OnHotkey(id));
@@ -162,7 +165,19 @@ public sealed class AppController
         Application.Current.Shutdown();
     }
 
-    public void Save() => Store.SaveSoon(State);
+    public void Save()
+    {
+        _lazySave?.Stop(); // 지금 전체를 저장하므로 미뤄 둔 저장은 필요 없음
+        Store.SaveSoon(State);
+    }
+
+    private System.Windows.Threading.DispatcherTimer? _lazySave;
+
+    /// <summary>움직이는 GIF의 위치처럼 자주 바뀌는 값: 최대 60초 모아서 저장 (종료할 때는 항상 저장됨).</summary>
+    private void SaveLazy()
+    {
+        if (_lazySave != null && !_lazySave.IsEnabled) _lazySave.Start();
+    }
 
     // ── 라이브러리 ───────────────────────────────────────────
 
@@ -561,7 +576,7 @@ public sealed class AppController
     private void SyncToEngine(ActiveItem a)
     {
         var p = State.FindPhoto(a.PhotoId);
-        if (p != null) Engine.Sync(a, Store.ResolvePath(p), p.Pixelated, ParticleImagePaths(a));
+        if (p != null) Engine.Sync(a, Store.ResolvePath(p), p.Pixelated, ParticleImagePaths(a), p.Width, p.Height);
     }
 
     /// <summary>내 이미지 파티클로 고른 사진들의 파일 경로 (파티클을 안 쓰면 빈 목록 → 메모리 해제).</summary>

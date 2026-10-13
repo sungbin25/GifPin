@@ -162,6 +162,24 @@ internal static unsafe class Native
 
     // ── 프레임 박자 (화면 갱신 동기화 / 고정밀 타이머) ──────────
     [DllImport("dwmapi.dll")] public static extern int DwmFlush();
+
+    /// <summary>UpdateLayeredWindowIndirect: 바뀐 영역(prcDirty)만 화면에 보낼 수 있음.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public unsafe struct UPDATELAYEREDWINDOWINFO
+    {
+        public uint cbSize;
+        public IntPtr hdcDst;
+        public POINT* pptDst;
+        public SIZE* psize;
+        public IntPtr hdcSrc;
+        public POINT* pptSrc;
+        public uint crKey;
+        public BLENDFUNCTION* pblend;
+        public uint dwFlags;
+        public RECT* prcDirty;
+    }
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern unsafe bool UpdateLayeredWindowIndirect(IntPtr hWnd, UPDATELAYEREDWINDOWINFO* info);
     public const uint CREATE_WAITABLE_TIMER_HIGH_RESOLUTION = 0x00000002;
     public const uint TIMER_ALL_ACCESS = 0x001F0003;
     public const uint INFINITE = 0xFFFFFFFF;

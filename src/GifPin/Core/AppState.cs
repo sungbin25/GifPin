@@ -281,16 +281,26 @@ public static class Store
     public static string NewId(string prefix) => prefix + Guid.NewGuid().ToString("N")[..10];
 
     /// <summary>UI 스레드에서 호출: 지금 상태를 직렬화해 두고 1초 뒤 디스크에 쓴다.</summary>
+    /// <summary>
+    /// 1초 동안 변경이 없으면 저장. 변경이 계속 이어져도 첫 변경 후 5초 안에는 반드시 저장
+    /// (계속 미뤄지다가 비정상 종료 때 잃어버리지 않게).
+    /// </summary>
     public static void SaveSoon(AppState state)
     {
         string json = JsonSerializer.Serialize(state, JsonOptions);
         lock (Gate)
         {
+            long now = Environment.TickCount64;
+            if (_pending == null) _firstPendingAt = now;
             _pending = json;
             _timer ??= new Timer(_ => Flush(), null, Timeout.Infinite, Timeout.Infinite);
-            _timer.Change(1000, Timeout.Infinite);
+            long wait = Math.Clamp(5000 - (now - _firstPendingAt), 0, 1000);
+            _timer.Change(wait, Timeout.Infinite);
         }
     }
+
+    private static long _firstPendingAt;
+    private static readonly object WriteGate = new();
 
     public static void SaveNow(AppState state)
     {
@@ -307,15 +317,22 @@ public static class Store
             _pending = null;
         }
         if (json == null) return;
-        try
+        lock (WriteGate) // 타이머 저장과 종료 저장이 겹쳐도 파일을 한 번에 하나씩
         {
-            Directory.CreateDirectory(DataDir);
-            var tmp = StateFile + ".tmp";
-            System.IO.File.WriteAllText(tmp, json);
-            if (System.IO.File.Exists(StateFile)) System.IO.File.Copy(StateFile, BackupFile, overwrite: true);
-            System.IO.File.Move(tmp, StateFile, overwrite: true);
+            try
+            {
+                Directory.CreateDirectory(DataDir);
+                var tmp = StateFile + ".tmp";
+                System.IO.File.WriteAllText(tmp, json);
+                if (System.IO.File.Exists(StateFile)) System.IO.File.Copy(StateFile, BackupFile, overwrite: true);
+                System.IO.File.Move(tmp, StateFile, overwrite: true);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("Saving settings failed; will retry", ex);
+                lock (Gate) _pending ??= json; // 더 새 내용이 없으면 다시 시도할 수 있게 돌려놓음
+            }
         }
-        catch { /* 다음 저장 때 다시 시도 */ }
     }
 }
 
