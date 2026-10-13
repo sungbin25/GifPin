@@ -139,7 +139,7 @@ public partial class SpriteImportWindow : Window
 
     private void Fps_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (FpsText == null) return;
+        if (_updating || FpsText == null) return; // InitializeComponent 중에는 타이머가 아직 없음
         FpsText.Text = $"{e.NewValue:0} fps";
         RestartPlayback();
     }
@@ -210,6 +210,7 @@ public partial class SpriteImportWindow : Window
 
     private void RestartPlayback()
     {
+        if (_play == null) return;
         _play.Stop();
         if (_preview.Length == 0) return;
         PreviewImage.Source = _preview[Math.Min(_index, _preview.Length - 1)];
