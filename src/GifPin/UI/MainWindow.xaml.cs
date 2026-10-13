@@ -432,12 +432,21 @@ public partial class MainWindow : Window
         MotionWalk.IsChecked = mode == Motion.Walk;
         MotionBounce.IsChecked = mode == Motion.Bounce;
         MotionFall.IsChecked = mode == Motion.Fall;
-        MotionOptions.Visibility = mode == Motion.None ? Visibility.Collapsed : Visibility.Visible;
+        MotionSlide.IsChecked = mode == Motion.Slide;
+        UpdateMotionOptions(mode);
         MotionSpeedSlider.Value = a.MotionSpeed;
         MotionSpeedText.Text = $"{a.MotionSpeed:0} px/s";
         FaceDirToggle.IsChecked = a.MotionFaceDirection;
-        bool moving = mode != Motion.None;
-        XBox.IsEnabled = YBox.IsEnabled = !moving; // 움직이는 중에는 위치 직접 입력 대신 9분할·모니터 이동만
+        JumpToggle.IsChecked = a.JumpEnabled;
+        JumpSliders.Visibility = a.JumpEnabled ? Visibility.Visible : Visibility.Collapsed;
+        JumpHeightSlider.Value = a.JumpHeight;
+        JumpHeightText.Text = $"{a.JumpHeight:0} px";
+        JumpIntervalSlider.Value = a.JumpInterval;
+        JumpIntervalText.Text = SecondsText(a.JumpInterval);
+        JumpAngleSlider.Value = a.JumpAngle;
+        JumpAngleText.Text = AngleText(a.JumpAngle);
+        FrictionSlider.Value = a.SlideFriction;
+        FrictionText.Text = $"{a.SlideFriction:0} / 10";
 
         var monitors = _app.MonitorList;
         MonitorRow.Visibility = monitors.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
@@ -574,9 +583,94 @@ public partial class MainWindow : Window
 
     private void Motion_Checked(object sender, RoutedEventArgs e)
     {
-        if (sender is not RadioButton rb || rb.Tag is not string mode || MotionOptions == null) return;
+        if (sender is not RadioButton rb || rb.Tag is not string mode || SlideOptions == null) return;
+        UpdateMotionOptions(mode);
+        if (_updating) return;
+        // 미끄러짐은 마우스로 던져야 하므로 클릭 통과를 끈다
+        bool turnOffClickThrough = mode == Motion.Slide && _app.SelectedActive is { ClickThrough: true };
+        WithSelected(a =>
+        {
+            a.MotionMode = mode;
+            if (turnOffClickThrough) a.ClickThrough = false;
+        });
+        if (turnOffClickThrough)
+        {
+            ClickThroughToggle.IsChecked = false;
+            ShowToast(Loc.T("notice.slideClickThroughOff"));
+        }
+    }
+
+    /// <summary>움직임 모드에 맞는 옵션만 보이기.</summary>
+    private void UpdateMotionOptions(string mode)
+    {
+        mode = Motion.Normalize(mode);
         MotionOptions.Visibility = mode == Motion.None ? Visibility.Collapsed : Visibility.Visible;
-        WithSelected(a => a.MotionMode = mode);
+        MotionSpeedRow.Visibility = mode == Motion.Slide ? Visibility.Collapsed : Visibility.Visible;
+        JumpOptions.Visibility = mode == Motion.Fall ? Visibility.Visible : Visibility.Collapsed;
+        SlideOptions.Visibility = mode == Motion.Slide ? Visibility.Visible : Visibility.Collapsed;
+        // 스스로 움직이는 중에는 위치 직접 입력 대신 9분할·모니터 이동만
+        XBox.IsEnabled = YBox.IsEnabled = !Motion.IsAutonomous(mode);
+    }
+
+    private static string SecondsText(double seconds) => Loc.F("unit.seconds", seconds.ToString("0.0#", CultureInfo.CurrentCulture));
+
+    private static string AngleText(double deg) =>
+        Math.Abs(deg) < 0.5 ? Loc.T("panel.angleVertical") : deg > 0 ? $"{deg:0}° →" : $"← {-deg:0}°";
+
+    private void Jump_Click(object sender, RoutedEventArgs e)
+    {
+        bool on = JumpToggle.IsChecked == true;
+        JumpSliders.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        WithSelected(a => a.JumpEnabled = on);
+    }
+
+    private void JumpHeight_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (JumpHeightText == null) return;
+        double v = Math.Round(e.NewValue / 10) * 10;
+        JumpHeightText.Text = $"{v:0} px";
+        WithSelected(a => a.JumpHeight = v);
+    }
+
+    private void JumpInterval_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (JumpIntervalText == null) return;
+        double v = Math.Round(e.NewValue * 2) / 2;
+        JumpIntervalText.Text = SecondsText(v);
+        WithSelected(a => a.JumpInterval = v);
+    }
+
+    private void JumpAngle_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (JumpAngleText == null) return;
+        double v = Math.Round(e.NewValue);
+        JumpAngleText.Text = AngleText(v);
+        WithSelected(a => a.JumpAngle = v);
+    }
+
+    private void Friction_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (FrictionText == null) return;
+        double v = Math.Round(e.NewValue);
+        FrictionText.Text = $"{v:0} / 10";
+        WithSelected(a => a.SlideFriction = v);
+    }
+
+    private static string DelayText(double ms) =>
+        ms < 1 ? Loc.T("set.immediately") : Loc.F("unit.seconds", (ms / 1000).ToString("0.0#", CultureInfo.CurrentCulture));
+
+    private void HoldSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (HoldText == null) return;
+        HoldText.Text = DelayText(e.NewValue);
+        if (!_updating && ResumeSlider != null) _app.SetPointerTiming((int)e.NewValue, (int)ResumeSlider.Value);
+    }
+
+    private void ResumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (ResumeText == null) return;
+        ResumeText.Text = DelayText(e.NewValue);
+        if (!_updating && HoldSlider != null) _app.SetPointerTiming((int)HoldSlider.Value, (int)e.NewValue);
     }
 
     private void MotionSpeed_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -626,6 +720,10 @@ public partial class MainWindow : Window
         StartWithWindowsToggle.IsChecked = s.StartWithWindows;
         OpenOnStartToggle.IsChecked = s.OpenWindowOnStart;
         CopyOnAddToggle.IsChecked = s.CopyOnAdd;
+        HoldSlider.Value = s.HoldToGrabMs;
+        HoldText.Text = DelayText(s.HoldToGrabMs);
+        ResumeSlider.Value = s.ResumeDelayMs;
+        ResumeText.Text = DelayText(s.ResumeDelayMs);
         DataFolderText.Text = Store.DataDir;
         VersionText.Text = Loc.F("set.version", AppController.AppVersion);
         RefreshDiagnostics();

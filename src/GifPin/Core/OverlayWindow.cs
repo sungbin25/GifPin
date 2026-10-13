@@ -19,12 +19,15 @@ internal sealed unsafe class OverlayWindow : IDisposable
     private const int HandleHit = 18;
     private const int SnapPx = 8;
     private const int KeepVisiblePx = 20;
-    private const nuint TIMER_FRAME = 1, TIMER_FLASH = 2, TIMER_MOTION = 3;
+    private const nuint TIMER_FRAME = 1, TIMER_FLASH = 2, TIMER_MOTION = 3, TIMER_HOLD = 4, TIMER_RESUME = 5;
+    private const double ThrowWindowSec = 0.1; // 놓기 직전 이 시간 동안의 마우스 속도로 던짐
     private const uint MotionIntervalMs = 15;
     private const long MotionReportMs = 3000; // 움직이는 중 위치를 UI에 알리는 간격
     private const double MinScale = 0.1, MaxScale = 4.0;
 
     private enum Drag { None, Move, TopLeft, TopRight, BottomLeft, BottomRight }
+    /// <summary>편집 모드가 아닐 때의 마우스: 누르고 기다리는 중(움직이는 GIF) / 잡고 끄는 중.</summary>
+    private enum Press { None, Waiting, Grab }
 
     private readonly OverlayEngine _engine;
     public IntPtr Hwnd { get; }
@@ -40,6 +43,12 @@ internal sealed unsafe class OverlayWindow : IDisposable
     private readonly System.Diagnostics.Stopwatch _motionClock = new();
     private long _lastMotionReport;
     private bool _motionRunning, _facingLeft;
+
+    private Press _press;
+    private bool _held;              // 손으로 잡아서 움직임을 멈춤 (놓은 뒤 다시 출발하기 전까지 포함)
+    private int _grabDx, _grabDy;    // 잡은 지점 (GIF 안쪽 좌표)
+    private int _ptX, _ptY;          // 마지막 마우스 위치 (화면 좌표)
+    private readonly System.Collections.Generic.List<(long t, int x, int y)> _samples = new();
 
     private Drag _drag;
     private POINT _dragStart;
@@ -95,7 +104,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
         var prev = Item;
         bool prevMoving = Motion.IsMoving(prev.MotionMode);
         // 드래그 중이거나 움직이는 중에는 위치를 엔진 쪽 값으로 유지 (위치를 강제로 바꿀 때는 Relocate)
-        if (_drag != Drag.None || prevMoving)
+        if (_drag != Drag.None || _press == Press.Grab || prevMoving)
         {
             item.X = prev.X;
             item.Y = prev.Y;
@@ -103,7 +112,13 @@ internal sealed unsafe class OverlayWindow : IDisposable
         if (_drag != Drag.None) item.Scale = prev.Scale;
         Item = item;
         ApplyStyles();
-        if (prev.MotionMode != item.MotionMode || Math.Abs(prev.MotionSpeed - item.MotionSpeed) > 0.01) ResetMotion();
+        if (prev.MotionMode != item.MotionMode || Math.Abs(prev.MotionSpeed - item.MotionSpeed) > 0.01)
+        {
+            ResetMotion();
+            if (_press != Press.Grab) CancelHold();
+        }
+        else _motion.Configure(MotionParams.From(item));
+        UpdateFacing();
         Refresh();
         if (prevMoving && !Motion.IsMoving(item.MotionMode)) _engine.RaiseChanged(Item); // 멈춘 위치 저장
     }
@@ -114,7 +129,9 @@ internal sealed unsafe class OverlayWindow : IDisposable
         Item.X = x;
         Item.Y = y;
         ResetMotion();
+        if (_press != Press.Grab) CancelHold();
         Render();
+        UpdateMotionTimer();
         _engine.RaiseChanged(Item);
     }
 
@@ -129,11 +146,29 @@ internal sealed unsafe class OverlayWindow : IDisposable
 
     private void ResetMotion()
     {
-        _motion.Reset(Item.MotionMode, Item.MotionSpeed, Item.X, Item.Y);
-        _facingLeft = false;
+        _motion.Reset(Item.MotionMode, MotionParams.From(Item), Item.X, Item.Y);
+        UpdateFacing();
     }
 
-    private bool MotionShouldRun => Motion.IsMoving(Item.MotionMode) && !_editMode && _drag == Drag.None && IsShown;
+    private bool UpdateFacing()
+    {
+        bool facing = Item.MotionFaceDirection && Motion.IsMoving(Item.MotionMode) && _motion.FacingLeft;
+        if (facing == _facingLeft) return false;
+        _facingLeft = facing;
+        return true;
+    }
+
+    /// <summary>잡기·재출발 대기를 모두 취소 (움직임은 다시 돌 수 있게).</summary>
+    private void CancelHold()
+    {
+        KillTimer(Hwnd, TIMER_HOLD);
+        KillTimer(Hwnd, TIMER_RESUME);
+        _held = false;
+    }
+
+    private bool MotionShouldRun =>
+        Motion.IsMoving(Item.MotionMode) && !_editMode && _drag == Drag.None && _press != Press.Grab && !_held && IsShown
+        && (Motion.IsAutonomous(Item.MotionMode) || _motion.IsSliding);
 
     private void UpdateMotionTimer()
     {
@@ -167,11 +202,9 @@ internal sealed unsafe class OverlayWindow : IDisposable
         var work = WorkAreaAt(Item.X + w / 2, Item.Y + h / 2);
         _motion.Step(dt, w, h, work.Left, work.Top, work.Right, work.Bottom);
         int nx = (int)Math.Round(_motion.X), ny = (int)Math.Round(_motion.Y);
-        bool facing = Item.MotionFaceDirection && _motion.FacingLeft;
 
-        if (facing != _facingLeft)
+        if (UpdateFacing())
         {
-            _facingLeft = facing;
             Item.X = nx;
             Item.Y = ny;
             Render(); // 방향이 바뀌면 다시 그림 (위치도 함께 반영)
@@ -183,7 +216,13 @@ internal sealed unsafe class OverlayWindow : IDisposable
             SetWindowPos(Hwnd, IntPtr.Zero, nx, ny, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
         }
 
-        if (_lastMotionReport >= MotionReportMs)
+        if (!MotionShouldRun)
+        {
+            // 미끄러짐이 멈춤 → 멈춘 자리 저장
+            UpdateMotionTimer();
+            _engine.RaiseChanged(Item);
+        }
+        else if (_lastMotionReport >= MotionReportMs)
         {
             _lastMotionReport = 0;
             _engine.RaiseChanged(Item);
@@ -194,6 +233,8 @@ internal sealed unsafe class OverlayWindow : IDisposable
     {
         if (_editMode == edit) return;
         if (!edit && _drag != Drag.None) EndDrag(notify: true);
+        if (_press != Press.None) EndPress(notify: true, throwIt: false);
+        CancelHold();
         _editMode = edit;
         ApplyStyles();
         Refresh();
@@ -294,6 +335,16 @@ internal sealed unsafe class OverlayWindow : IDisposable
                 {
                     OnMotionTick();
                 }
+                else if ((nuint)wParam == TIMER_HOLD)
+                {
+                    KillTimer(Hwnd, TIMER_HOLD);
+                    if (_press == Press.Waiting) BeginGrab(_ptX, _ptY, System.Diagnostics.Stopwatch.GetTimestamp());
+                }
+                else if ((nuint)wParam == TIMER_RESUME)
+                {
+                    KillTimer(Hwnd, TIMER_RESUME);
+                    if (_press == Press.None) Resume();
+                }
                 else if ((nuint)wParam == TIMER_FLASH)
                 {
                     KillTimer(Hwnd, TIMER_FLASH);
@@ -316,8 +367,15 @@ internal sealed unsafe class OverlayWindow : IDisposable
                 SetCursor(LoadCursorW(IntPtr.Zero, new IntPtr(cursor)));
                 return new IntPtr(1);
 
+            case WM_LBUTTONDOWN when !_editMode:
+                if (_anim == null) break;
+                {
+                    GetCursorPos(out var pd);
+                    PointerDown(pd.X, pd.Y, System.Diagnostics.Stopwatch.GetTimestamp());
+                }
+                return IntPtr.Zero;
+
             case WM_LBUTTONDOWN:
-                if (!_editMode) break;
                 {
                     int x = (short)((long)lParam & 0xFFFF), y = (short)(((long)lParam >> 16) & 0xFFFF);
                     var h = HitTest(x, y);
@@ -335,11 +393,23 @@ internal sealed unsafe class OverlayWindow : IDisposable
                 return IntPtr.Zero;
 
             case WM_MOUSEMOVE:
+                if (_press != Press.None)
+                {
+                    GetCursorPos(out var pm);
+                    PointerMove(pm.X, pm.Y, System.Diagnostics.Stopwatch.GetTimestamp());
+                    return IntPtr.Zero;
+                }
                 if (_drag == Drag.None) break;
                 OnDrag();
                 return IntPtr.Zero;
 
             case WM_LBUTTONUP:
+                if (_press != Press.None)
+                {
+                    GetCursorPos(out var pu);
+                    PointerUp(pu.X, pu.Y, System.Diagnostics.Stopwatch.GetTimestamp());
+                    return IntPtr.Zero;
+                }
                 if (_drag == Drag.None) break;
                 ReleaseCapture(); // → WM_CAPTURECHANGED에서 마무리
                 if (_drag != Drag.None) EndDrag(notify: true);
@@ -347,6 +417,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
 
             case WM_CAPTURECHANGED:
                 if (_drag != Drag.None) EndDrag(notify: true);
+                if (_press != Press.None) EndPress(notify: true, throwIt: false); // 다른 창이 마우스를 가져감
                 return IntPtr.Zero;
 
             case WM_MOUSEWHEEL:
@@ -368,6 +439,143 @@ internal sealed unsafe class OverlayWindow : IDisposable
         }
         return null;
     }
+
+    // ── 표시 모드 마우스: 끌어서 옮기기 / 움직이는 GIF 잡기 / 던지기 ─────────
+
+    /// <summary>클릭 통과가 꺼진 GIF를 눌렀을 때. 움직이는 중이면 일정 시간 눌러야 잡힌다.</summary>
+    internal void PointerDown(int x, int y, long ts)
+    {
+        if (_editMode || _anim == null || _press != Press.None) return;
+        _ptX = x;
+        _ptY = y;
+        SetCapture(Hwnd);
+        KillTimer(Hwnd, TIMER_RESUME); // 다시 출발하기 전에 또 잡음
+        int hold = _engine.HoldToGrabMs;
+        if (_motionRunning && hold > 0)
+        {
+            _press = Press.Waiting;
+            SetTimer(Hwnd, TIMER_HOLD, (uint)hold, IntPtr.Zero);
+        }
+        else BeginGrab(x, y, ts);
+    }
+
+    internal void PointerMove(int x, int y, long ts)
+    {
+        _ptX = x;
+        _ptY = y;
+        if (_press != Press.Grab) return;
+        AddSample(ts, x, y);
+        MoveTo(x - _grabDx, y - _grabDy);
+        _engine.RaiseLive(Item);
+    }
+
+    internal void PointerUp(int x, int y, long ts)
+    {
+        if (_press == Press.None) return;
+        _ptX = x;
+        _ptY = y;
+        if (_press == Press.Grab)
+        {
+            AddSample(ts, x, y);
+            MoveTo(x - _grabDx, y - _grabDy);
+        }
+        EndPress(notify: true, throwIt: true, ts);
+    }
+
+    private void BeginGrab(int x, int y, long ts)
+    {
+        KillTimer(Hwnd, TIMER_HOLD);
+        _press = Press.Grab;
+        _held = Motion.IsMoving(Item.MotionMode);
+        UpdateMotionTimer(); // 움직임 멈춤
+        var (w, h) = ContentSize(Item.Scale);
+        // 움직이는 GIF는 기다리는 동안 마우스에서 멀어졌을 수 있음 → 잡은 점이 GIF 안에 오도록
+        _grabDx = Math.Clamp(x - Item.X, 0, w - 1);
+        _grabDy = Math.Clamp(y - Item.Y, 0, h - 1);
+        _samples.Clear();
+        AddSample(ts, x, y);
+        MoveTo(x - _grabDx, y - _grabDy);
+    }
+
+    private void EndPress(bool notify, bool throwIt, long ts = 0)
+    {
+        var was = _press;
+        _press = Press.None; // ReleaseCapture → WM_CAPTURECHANGED 에서 다시 들어오지 않게 먼저 비움
+        KillTimer(Hwnd, TIMER_HOLD);
+        if (GetCapture() == Hwnd) ReleaseCapture();
+        if (was != Press.Grab) return; // 짧게 눌렀다 뗌 → 아무 일 없음
+
+        int bx = Item.X, by = Item.Y;
+        ClampToScreen();
+        if (Item.X != bx || Item.Y != by) MoveTo(Item.X, Item.Y);
+        var (vx, vy) = throwIt && !_editMode ? ThrowVelocity(ts) : (0.0, 0.0);
+        _samples.Clear();
+
+        string mode = Motion.Normalize(Item.MotionMode);
+        if (mode == Motion.Slide)
+        {
+            _held = false;
+            _motion.Release(Item.X, Item.Y, vx, vy);
+            UpdateFacing();
+            Render();
+        }
+        else if (Motion.IsAutonomous(mode) && !_editMode)
+        {
+            _motion.Release(Item.X, Item.Y, 0, 0);
+            int delay = _engine.ResumeDelayMs;
+            if (delay <= 0) _held = false;
+            else
+            {
+                _held = true;
+                SetTimer(Hwnd, TIMER_RESUME, (uint)delay, IntPtr.Zero);
+            }
+        }
+        else _held = false;
+
+        UpdateMotionTimer();
+        if (notify) _engine.RaiseChanged(Item);
+    }
+
+    private void Resume()
+    {
+        _held = false;
+        UpdateMotionTimer();
+    }
+
+    private void AddSample(long ts, int x, int y)
+    {
+        _samples.Add((ts, x, y));
+        long keep = ts - (long)(System.Diagnostics.Stopwatch.Frequency * ThrowWindowSec * 2);
+        int drop = 0;
+        while (drop < _samples.Count - 2 && _samples[drop].t < keep) drop++;
+        if (drop > 0) _samples.RemoveRange(0, drop);
+    }
+
+    /// <summary>놓기 직전 ThrowWindowSec 동안의 평균 마우스 속도 (px/s). 멈췄다 놓으면 0.</summary>
+    private (double vx, double vy) ThrowVelocity(long ts)
+    {
+        if (_samples.Count < 2) return (0, 0);
+        long from = ts - (long)(System.Diagnostics.Stopwatch.Frequency * ThrowWindowSec);
+        var last = _samples[^1];
+        int i = _samples.Count - 1;
+        while (i > 0 && _samples[i - 1].t >= from) i--;
+        var first = _samples[i];
+        double dt = (double)(last.t - first.t) / System.Diagnostics.Stopwatch.Frequency;
+        if (dt < 0.01) return (0, 0);
+        return ((last.x - first.x) / dt, (last.y - first.y) / dt);
+    }
+
+    private void MoveTo(int x, int y)
+    {
+        Item.X = x;
+        Item.Y = y;
+        _motion.X = x;
+        _motion.Y = y;
+        SetWindowPos(Hwnd, IntPtr.Zero, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+
+    /// <summary>점검용 상태.</summary>
+    internal OverlayProbe Probe() => new(Item.Clone(), _motionRunning, _held, _press != Press.None, _motion.IsSliding, _motion.Jumps);
 
     private Drag HitTest(int x, int y)
     {
@@ -468,7 +676,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
 
         if (_editMode) c.DrawRect(content, _editFill);
 
-        bool flip = Item.FlipX ^ (_motionRunning && _facingLeft);
+        bool flip = Item.FlipX ^ (_facingLeft && !_editMode);
         if (flip)
         {
             c.Save();

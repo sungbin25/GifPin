@@ -58,6 +58,16 @@ public sealed class ActiveItem
     public double MotionSpeed { get; set; } = Motion.DefaultSpeed;
     /// <summary>움직이는 방향을 바라보도록 좌우 자동 반전</summary>
     public bool MotionFaceDirection { get; set; } = true;
+    /// <summary>떨어지기: 바닥에 멈춘 뒤 주기적으로 뛰어오름</summary>
+    public bool JumpEnabled { get; set; } = true;
+    /// <summary>점프 높이 (px)</summary>
+    public double JumpHeight { get; set; } = Motion.DefaultJumpHeight;
+    /// <summary>바닥에 내려온 뒤 다음 점프까지 (초)</summary>
+    public double JumpInterval { get; set; } = Motion.DefaultJumpInterval;
+    /// <summary>점프 각도 (도). 0 = 수직, + 오른쪽 / − 왼쪽. 벽에 부딪히면 방향을 바꿈</summary>
+    public double JumpAngle { get; set; } = Motion.DefaultJumpAngle;
+    /// <summary>미끄러짐 마찰 (1~10). 높을수록 빨리 멈춤</summary>
+    public double SlideFriction { get; set; } = Motion.DefaultFriction;
 
     public ActiveItem Clone() => (ActiveItem)MemberwiseClone();
 }
@@ -78,6 +88,10 @@ public sealed class AppSettings
     public bool OpenWindowOnStart { get; set; }
     public bool CopyOnAdd { get; set; } = true;
     public bool AllHidden { get; set; }
+    /// <summary>움직이는 GIF를 이만큼(ms) 누르고 있으면 멈추고 잡음</summary>
+    public int HoldToGrabMs { get; set; } = 200;
+    /// <summary>잡았다 놓은 뒤 이만큼(ms) 지나면 다시 움직임</summary>
+    public int ResumeDelayMs { get; set; } = 500;
     public bool TrayNoticeShown { get; set; }
     public WindowBounds? Window { get; set; }
 }

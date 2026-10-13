@@ -138,6 +138,7 @@ internal static unsafe class Native
     [DllImport("user32.dll")] public static extern IntPtr SetCursor(IntPtr cursor);
     [DllImport("user32.dll")] public static extern IntPtr SetCapture(IntPtr hWnd);
     [DllImport("user32.dll")] public static extern bool ReleaseCapture();
+    [DllImport("user32.dll")] public static extern IntPtr GetCapture();
     [DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT pt);
     [DllImport("user32.dll")] public static extern bool ScreenToClient(IntPtr hWnd, ref POINT pt);
     [DllImport("user32.dll")] public static extern short GetKeyState(int vk);

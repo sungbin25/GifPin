@@ -98,28 +98,98 @@ public static class SmokeTest
             report.Append("asset pack ok · ");
         }
 
-        // 움직임: 걷기는 바닥에 서서 오른쪽 벽에 닿으면 방향을 바꾼다
-        var m = new MotionState();
-        m.Reset(Motion.Walk, 600, 0, 0);
-        bool turned = false;
-        for (int i = 0; i < 200; i++)
-        {
-            m.Step(0.05, 50, 50, 0, 0, 400, 300);
-            turned |= m.FacingLeft;
-            if (m.X < -0.5 || m.X > 350.5) throw new Exception($"walk left the screen: x={m.X}");
-        }
-        if (Math.Abs(m.Y - 250) > 0.5) throw new Exception($"walk not on floor: y={m.Y}");
-        if (!turned) throw new Exception("walk never turned");
-        var fall = new MotionState();
-        fall.Reset(Motion.Fall, 100, 0, 0);
-        for (int i = 0; i < 400; i++) fall.Step(0.02, 50, 50, 0, 0, 400, 300);
-        if (Math.Abs(fall.Y - 250) > 0.5 || fall.Vy != 0) throw new Exception($"fall did not settle: y={fall.Y} vy={fall.Vy}");
-        report.Append("motion ok · ");
+        report.Append(RunPhysics()).Append(" · ");
 
         // 번역 사전: 모든 키에 영어·한국어가 있어야 함
         var missing = Strings.All.Where(kv => string.IsNullOrWhiteSpace(kv.Value.en) || string.IsNullOrWhiteSpace(kv.Value.ko)).Select(kv => kv.Key).ToList();
         if (missing.Count > 0) throw new Exception("untranslated: " + string.Join(", ", missing));
         report.Append($"strings {Strings.All.Count} ok");
         return report.ToString();
+    }
+
+    private static MotionParams Params(double speed = Motion.DefaultSpeed, bool jump = false, double height = 100, double interval = 0.5, double angle = 0, double friction = Motion.DefaultFriction)
+        => new(speed, jump, height, interval, angle, friction);
+
+    /// <summary>움직임 계산 점검 (화면 400×300, GIF 50×50 → 바닥 y=250, 오른쪽 끝 x=350).</summary>
+    public static string RunPhysics()
+    {
+        const int W = 50, H = 50, R = 400, B = 300, Floor = 250, MaxX = 350;
+
+        // 걷기: 공중에서 시작해도 바닥으로 내려와 걷고, 벽에서 돌아선다
+        var m = new MotionState();
+        m.Reset(Motion.Walk, Params(600), 0, 0);
+        bool turned = false;
+        for (int i = 0; i < 200; i++)
+        {
+            m.Step(0.05, W, H, 0, 0, R, B);
+            turned |= m.FacingLeft;
+            if (m.X < -0.5 || m.X > MaxX + 0.5) throw new Exception($"walk left the screen: x={m.X}");
+        }
+        if (Math.Abs(m.Y - Floor) > 0.5) throw new Exception($"walk not on floor: y={m.Y}");
+        if (!turned) throw new Exception("walk never turned");
+
+        // 떨어지기 (점프 끔): 바닥에 멈춤
+        var f = new MotionState();
+        f.Reset(Motion.Fall, Params(100), 0, 0);
+        for (int i = 0; i < 400; i++) f.Step(0.02, W, H, 0, 0, R, B);
+        if (Math.Abs(f.Y - Floor) > 0.5 || f.Vy != 0) throw new Exception($"fall did not settle: y={f.Y} vy={f.Vy}");
+        if (f.Jumps != 0) throw new Exception("fall jumped while jumping is off");
+
+        // 떨어지기 + 수직 점프: 높이 100 → 최고점 y≈150, 좌우로는 거의 안 움직임
+        var j = new MotionState();
+        j.Reset(Motion.Fall, Params(20, jump: true, height: 100, interval: 0.5), 200, 0);
+        double minY = double.MaxValue, landedX = -1;
+        for (int i = 0; i < 400; i++)
+        {
+            j.Step(0.01, W, H, 0, 0, R, B);
+            if (j.Jumps > 0) minY = Math.Min(minY, j.Y);
+            if (j.Jumps == 0 && j.Vy == 0 && Math.Abs(j.Y - Floor) < 0.5) landedX = j.X;
+        }
+        if (j.Jumps < 1) throw new Exception("fall never jumped");
+        if (Math.Abs(minY - (Floor - 100)) > 8) throw new Exception($"jump height wrong: top y={minY:0.0}, expected ~{Floor - 100}");
+
+        // 비스듬히 점프 (+40°): 오른쪽으로 가다가 벽에서 방향을 바꾸고, 화면 밖으로 나가지 않음
+        var a = new MotionState();
+        a.Reset(Motion.Fall, Params(20, jump: true, height: 120, interval: 0.3, angle: 40), 100, Floor);
+        double maxX = 0; bool wentLeft = false;
+        for (int i = 0; i < 2000; i++)
+        {
+            a.Step(0.01, W, H, 0, 0, R, B);
+            maxX = Math.Max(maxX, a.X);
+            if (a.Vx < -1) wentLeft = true;
+            if (a.X < -0.5 || a.X > MaxX + 0.5 || a.Y < -0.5 || a.Y > Floor + 0.5) throw new Exception($"angled jump left the screen: {a.X:0},{a.Y:0}");
+        }
+        if (a.Jumps < 3 || maxX < MaxX - 1 || !wentLeft) throw new Exception($"angled jump: jumps={a.Jumps} maxX={maxX:0} turned={wentLeft}");
+
+        // 미끄러짐: 빠르게 던지면 벽에 여러 번 튕기다 멈춤, 느리게 던지면 금방 멈춤
+        var sFast = Slide(2500, 900, out int fastBounces, out double fastTime);
+        var sSlow = Slide(150, 0, out int slowBounces, out double slowTime);
+        if (fastBounces < 2) throw new Exception($"fast throw bounced {fastBounces} times");
+        if (slowBounces != 0 || slowTime >= fastTime) throw new Exception($"slow throw: bounces={slowBounces} time={slowTime:0.00} vs fast {fastTime:0.00}");
+        var still = new MotionState();
+        still.Reset(Motion.Slide, Params(), 100, 100);
+        still.Release(100, 100, 3, 0);
+        if (still.IsSliding) throw new Exception("tiny throw should not slide");
+
+        return $"motion ok (jump top {minY:0}, fast slide {fastBounces} bounces/{fastTime:0.0}s, slow {slowTime:0.0}s)";
+
+        static MotionState Slide(double vx, double vy, out int bounces, out double time)
+        {
+            var s = new MotionState();
+            s.Reset(Motion.Slide, Params(friction: Motion.DefaultFriction), 100, 100);
+            s.Release(100, 100, vx, vy);
+            bounces = 0; time = 0;
+            double px = s.Vx, py = s.Vy;
+            while (s.IsSliding && time < 30)
+            {
+                s.Step(0.01, W, H, 0, 0, R, B);
+                time += 0.01;
+                if (Math.Sign(s.Vx) != Math.Sign(px) && s.Vx != 0 || Math.Sign(s.Vy) != Math.Sign(py) && s.Vy != 0) bounces++;
+                px = s.Vx; py = s.Vy;
+                if (s.X < -0.5 || s.X > MaxX + 0.5 || s.Y < -0.5 || s.Y > Floor + 0.5) throw new Exception($"slide left the screen: {s.X:0},{s.Y:0}");
+            }
+            if (s.IsSliding) throw new Exception("slide never stopped");
+            return s;
+        }
     }
 }

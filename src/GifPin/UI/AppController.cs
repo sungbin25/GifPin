@@ -74,6 +74,7 @@ public sealed class AppController
     public void Start(bool showWindow)
     {
         Log.Info($"GifPin {AppVersion} starting · {Environment.OSVersion} · {State.Library.Count} photos, {State.Active.Count} on screen");
+        Engine.SetPointerTiming(State.Settings.HoldToGrabMs, State.Settings.ResumeDelayMs);
         Engine.Start();
         Engine.SetAllHidden(State.Settings.AllHidden);
         foreach (var f in Engine.HotkeyFailures) Log.Warn($"Hotkey unavailable: {f}");
@@ -470,6 +471,10 @@ public sealed class AppController
         a.Opacity = Math.Clamp(a.Opacity, 0.1, 1.0);
         a.MotionMode = Motion.Normalize(a.MotionMode);
         a.MotionSpeed = Math.Clamp(a.MotionSpeed, Motion.MinSpeed, Motion.MaxSpeed);
+        a.JumpHeight = Math.Clamp(a.JumpHeight, Motion.MinJumpHeight, Motion.MaxJumpHeight);
+        a.JumpInterval = Math.Clamp(a.JumpInterval, Motion.MinJumpInterval, Motion.MaxJumpInterval);
+        a.JumpAngle = Math.Clamp(a.JumpAngle, -Motion.MaxJumpAngle, Motion.MaxJumpAngle);
+        a.SlideFriction = Math.Clamp(a.SlideFriction, Motion.MinFriction, Motion.MaxFriction);
         SyncToEngine(a);
         RefreshActiveVM(a);
         GeometryChanged?.Invoke(a.Clone());
@@ -769,7 +774,7 @@ public sealed class AppController
         double s = Math.Round(Math.Clamp(scale, 0.1, 4.0), 3);
         if (Math.Abs(s - a.Scale) < 0.0005) return;
         UpdateActive(a.Id, x => x.Scale = s);
-        if (!Motion.IsMoving(a.MotionMode))
+        if (!Motion.IsAutonomous(a.MotionMode))
             Relocate(a.Id, (int)Math.Round(cx - p.Width * s / 2), (int)Math.Round(cy - p.Height * s / 2));
     }
 
@@ -783,6 +788,15 @@ public sealed class AppController
             case OverlayEngine.HotkeyHide: SetAllHidden(!State.Settings.AllHidden); break;
             case OverlayEngine.HotkeyQuit: Quit(); break;
         }
+    }
+
+    /// <summary>움직이는 GIF 잡기: 눌러야 하는 시간 / 놓은 뒤 다시 움직이기까지 (ms).</summary>
+    public void SetPointerTiming(int holdMs, int resumeMs)
+    {
+        State.Settings.HoldToGrabMs = Math.Clamp(holdMs, 0, 5000);
+        State.Settings.ResumeDelayMs = Math.Clamp(resumeMs, 0, 10000);
+        Engine.SetPointerTiming(State.Settings.HoldToGrabMs, State.Settings.ResumeDelayMs);
+        Save();
     }
 
     public void SetStartWithWindows(bool on)

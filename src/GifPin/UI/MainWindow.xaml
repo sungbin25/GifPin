@@ -417,19 +417,58 @@
                   <!-- 움직임 -->
                   <TextBlock Text="{DynamicResource s.panel.motion}" Style="{StaticResource SectionLabel}" Margin="0,16,0,0"/>
                   <Border Style="{StaticResource SegmentBox}" Margin="0,6,0,0" Padding="2">
-                    <UniformGrid Columns="4">
+                    <UniformGrid Columns="5">
                       <RadioButton x:Name="MotionNone" Style="{StaticResource Segment}" GroupName="motion" Tag="none" Padding="4,0" Content="{DynamicResource s.motion.none}" Checked="Motion_Checked"/>
                       <RadioButton x:Name="MotionWalk" Style="{StaticResource Segment}" GroupName="motion" Tag="walk" Padding="4,0" Content="{DynamicResource s.motion.walk}" Checked="Motion_Checked"/>
                       <RadioButton x:Name="MotionBounce" Style="{StaticResource Segment}" GroupName="motion" Tag="bounce" Padding="4,0" Content="{DynamicResource s.motion.bounce}" Checked="Motion_Checked"/>
                       <RadioButton x:Name="MotionFall" Style="{StaticResource Segment}" GroupName="motion" Tag="fall" Padding="4,0" Content="{DynamicResource s.motion.fall}" Checked="Motion_Checked"/>
+                      <RadioButton x:Name="MotionSlide" Style="{StaticResource Segment}" GroupName="motion" Tag="slide" Padding="4,0" Content="{DynamicResource s.motion.slide}" Checked="Motion_Checked"
+                                   ToolTip="{DynamicResource s.panel.slideTip}"/>
                     </UniformGrid>
                   </Border>
                   <StackPanel x:Name="MotionOptions">
-                    <DockPanel Margin="0,10,0,0">
-                      <TextBlock x:Name="MotionSpeedText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
-                      <TextBlock Text="{DynamicResource s.panel.motionSpeed}" Style="{StaticResource SectionLabel}"/>
-                    </DockPanel>
-                    <Slider x:Name="MotionSpeedSlider" Minimum="20" Maximum="600" Margin="0,4,0,0" ValueChanged="MotionSpeed_ValueChanged"/>
+                    <StackPanel x:Name="MotionSpeedRow">
+                      <DockPanel Margin="0,10,0,0">
+                        <TextBlock x:Name="MotionSpeedText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock Text="{DynamicResource s.panel.motionSpeed}" Style="{StaticResource SectionLabel}"/>
+                      </DockPanel>
+                      <Slider x:Name="MotionSpeedSlider" Minimum="20" Maximum="600" Margin="0,4,0,0" ValueChanged="MotionSpeed_ValueChanged"/>
+                    </StackPanel>
+
+                    <!-- 떨어지기: 점프 -->
+                    <StackPanel x:Name="JumpOptions">
+                      <ToggleButton x:Name="JumpToggle" Style="{StaticResource SwitchBox}" Margin="0,10,0,0" Content="{DynamicResource s.panel.jump}"
+                                    Click="Jump_Click" ToolTip="{DynamicResource s.panel.jumpTip}"/>
+                      <StackPanel x:Name="JumpSliders">
+                        <DockPanel Margin="0,10,0,0">
+                          <TextBlock x:Name="JumpHeightText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                          <TextBlock Text="{DynamicResource s.panel.jumpHeight}" Style="{StaticResource SectionLabel}"/>
+                        </DockPanel>
+                        <Slider x:Name="JumpHeightSlider" Minimum="20" Maximum="800" SmallChange="10" LargeChange="50" Margin="0,4,0,0" ValueChanged="JumpHeight_ValueChanged"/>
+                        <DockPanel Margin="0,10,0,0">
+                          <TextBlock x:Name="JumpIntervalText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                          <TextBlock Text="{DynamicResource s.panel.jumpInterval}" Style="{StaticResource SectionLabel}"/>
+                        </DockPanel>
+                        <Slider x:Name="JumpIntervalSlider" Minimum="0.5" Maximum="10" TickFrequency="0.5" IsSnapToTickEnabled="True" Margin="0,4,0,0" ValueChanged="JumpInterval_ValueChanged"/>
+                        <DockPanel Margin="0,10,0,0">
+                          <TextBlock x:Name="JumpAngleText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                          <TextBlock Text="{DynamicResource s.panel.jumpAngle}" Style="{StaticResource SectionLabel}"/>
+                        </DockPanel>
+                        <Slider x:Name="JumpAngleSlider" Minimum="-75" Maximum="75" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,4,0,0" ValueChanged="JumpAngle_ValueChanged"/>
+                        <TextBlock Text="{DynamicResource s.panel.jumpAngleHint}" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                      </StackPanel>
+                    </StackPanel>
+
+                    <!-- 미끄러짐 -->
+                    <StackPanel x:Name="SlideOptions">
+                      <DockPanel Margin="0,10,0,0">
+                        <TextBlock x:Name="FrictionText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock Text="{DynamicResource s.panel.friction}" Style="{StaticResource SectionLabel}"/>
+                      </DockPanel>
+                      <Slider x:Name="FrictionSlider" Minimum="1" Maximum="10" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,4,0,0" ValueChanged="Friction_ValueChanged"/>
+                      <TextBlock Text="{DynamicResource s.panel.slideHint}" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                    </StackPanel>
+
                     <ToggleButton x:Name="FaceDirToggle" Style="{StaticResource SwitchBox}" Margin="0,8,0,0" Content="{DynamicResource s.panel.faceDirection}"
                                   Click="FaceDir_Click" ToolTip="{DynamicResource s.panel.faceDirectionTip}"/>
                   </StackPanel>
@@ -477,6 +516,34 @@
                 <TextBlock Text="{DynamicResource s.set.openOnStartDesc}" Style="{StaticResource Hint}" FontSize="12" Margin="0,2,0,0"/>
               </StackPanel>
             </ToggleButton>
+          </StackPanel>
+        </Border>
+
+        <TextBlock Text="{DynamicResource s.set.mouse}" Style="{StaticResource SettingsHeader}"/>
+        <Border Style="{StaticResource SettingsCard}">
+          <StackPanel>
+            <TextBlock Text="{DynamicResource s.set.mouseHint}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="18,14,18,0"/>
+            <DockPanel Margin="18,12,18,14">
+              <StackPanel DockPanel.Dock="Right" Width="240" Margin="16,0,0,0" VerticalAlignment="Center">
+                <TextBlock x:Name="HoldText" HorizontalAlignment="Right" FontFamily="{StaticResource MonoFont}"/>
+                <Slider x:Name="HoldSlider" Minimum="0" Maximum="1000" TickFrequency="50" IsSnapToTickEnabled="True" Margin="0,4,0,0" ValueChanged="HoldSlider_ValueChanged"/>
+              </StackPanel>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{DynamicResource s.set.holdTitle}" FontSize="14"/>
+                <TextBlock Text="{DynamicResource s.set.holdDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
+              </StackPanel>
+            </DockPanel>
+            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <DockPanel Margin="18,14">
+              <StackPanel DockPanel.Dock="Right" Width="240" Margin="16,0,0,0" VerticalAlignment="Center">
+                <TextBlock x:Name="ResumeText" HorizontalAlignment="Right" FontFamily="{StaticResource MonoFont}"/>
+                <Slider x:Name="ResumeSlider" Minimum="0" Maximum="3000" TickFrequency="100" IsSnapToTickEnabled="True" Margin="0,4,0,0" ValueChanged="ResumeSlider_ValueChanged"/>
+              </StackPanel>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{DynamicResource s.set.resumeTitle}" FontSize="14"/>
+                <TextBlock Text="{DynamicResource s.set.resumeDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
+              </StackPanel>
+            </DockPanel>
           </StackPanel>
         </Border>
 

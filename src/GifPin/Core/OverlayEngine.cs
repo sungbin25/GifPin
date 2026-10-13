@@ -39,6 +39,9 @@ public sealed class OverlayEngine : IDisposable
     private string? _selectedId;
     private readonly List<string> _hotkeyFailures = new();
 
+    /// <summary>움직이는 GIF를 잡기까지 눌러야 하는 시간 / 놓은 뒤 다시 출발하기까지 (ms). 엔진 스레드에서 읽음.</summary>
+    internal volatile int HoldToGrabMs = 200, ResumeDelayMs = 500;
+
     // 네이티브 콜백은 GC 수거 방지를 위해 필드로 보관
     private readonly WndProc _overlayProc, _msgProc;
     private readonly WinEventProc _winEventProc;
@@ -230,6 +233,36 @@ public sealed class OverlayEngine : IDisposable
         if (_byId.TryGetValue(id, out var w)) w.Relocate(x, y);
     });
 
+    public void SetPointerTiming(int holdMs, int resumeMs)
+    {
+        HoldToGrabMs = Math.Clamp(holdMs, 0, 5000);
+        ResumeDelayMs = Math.Clamp(resumeMs, 0, 10000);
+    }
+
+    // ── 점검용 (스모크 테스트) ──────────────────────────────
+
+    public enum PointerAction { Down, Move, Up }
+
+    /// <summary>마우스 동작을 흉내 냄. atMs = 기준 시각(baseTs)으로부터의 가상 시각.</summary>
+    public void SimulatePointer(string id, PointerAction action, int x, int y, long baseTs, double atMs) => Post(() =>
+    {
+        if (!_byId.TryGetValue(id, out var w)) return;
+        long ts = baseTs + (long)(atMs * System.Diagnostics.Stopwatch.Frequency / 1000);
+        switch (action)
+        {
+            case PointerAction.Down: w.PointerDown(x, y, ts); break;
+            case PointerAction.Move: w.PointerMove(x, y, ts); break;
+            default: w.PointerUp(x, y, ts); break;
+        }
+    });
+
+    public Task<OverlayProbe?> ProbeAsync(string id)
+    {
+        var tcs = new TaskCompletionSource<OverlayProbe?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Post(() => tcs.TrySetResult(_byId.TryGetValue(id, out var w) ? w.Probe() : null));
+        return tcs.Task;
+    }
+
     public void Nudge(string id, int dx, int dy) => Post(() =>
     {
         if (_byId.TryGetValue(id, out var w)) w.Nudge(dx, dy);
@@ -258,3 +291,6 @@ public sealed class OverlayEngine : IDisposable
         _thread = null;
     }
 }
+
+/// <summary>오버레이 상태 (점검용).</summary>
+public sealed record OverlayProbe(ActiveItem Item, bool MotionRunning, bool Held, bool Pressed, bool Sliding, int Jumps);
