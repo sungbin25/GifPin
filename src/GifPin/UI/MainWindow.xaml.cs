@@ -433,7 +433,12 @@ public partial class MainWindow : Window
         MotionBounce.IsChecked = mode == Motion.Bounce;
         MotionFall.IsChecked = mode == Motion.Fall;
         MotionSlide.IsChecked = mode == Motion.Slide;
+        GravityToggle.IsChecked = a.MotionGravity;
         UpdateMotionOptions(mode);
+        bool desktop = Layers.Normalize(a.Layer) == Layers.Desktop;
+        LayerTop.IsChecked = !desktop;
+        LayerDesktop.IsChecked = desktop;
+        LayerHint.Text = Loc.T(desktop ? "panel.layerDesktopHint" : "panel.layerTopHint");
         MotionSpeedSlider.Value = a.MotionSpeed;
         MotionSpeedText.Text = $"{a.MotionSpeed:0} px/s";
         FaceDirToggle.IsChecked = a.MotionFaceDirection;
@@ -607,9 +612,26 @@ public partial class MainWindow : Window
         MotionOptions.Visibility = mode == Motion.None ? Visibility.Collapsed : Visibility.Visible;
         MotionSpeedRow.Visibility = mode == Motion.Slide ? Visibility.Collapsed : Visibility.Visible;
         JumpOptions.Visibility = mode == Motion.Fall ? Visibility.Visible : Visibility.Collapsed;
+        GravityRow.Visibility = mode is Motion.Walk or Motion.Fall ? Visibility.Visible : Visibility.Collapsed;
+        bool gravity = GravityToggle.IsChecked != false;
+        GravityHint.Text = Loc.T(gravity ? "panel.gravityOnHint" : (mode == Motion.Fall ? "panel.gravityOffJumpHint" : "panel.gravityOffWalkHint"));
         SlideOptions.Visibility = mode == Motion.Slide ? Visibility.Visible : Visibility.Collapsed;
         // 스스로 움직이는 중에는 위치 직접 입력 대신 9분할·모니터 이동만
         XBox.IsEnabled = YBox.IsEnabled = !Motion.IsAutonomous(mode);
+    }
+
+    private void Gravity_Click(object sender, RoutedEventArgs e)
+    {
+        bool on = GravityToggle.IsChecked == true;
+        if (_app.SelectedActive is ActiveItem a) UpdateMotionOptions(a.MotionMode);
+        WithSelected(x => x.MotionGravity = on);
+    }
+
+    private void Layer_Checked(object sender, RoutedEventArgs e)
+    {
+        if (sender is not RadioButton rb || rb.Tag is not string layer || LayerHint == null) return;
+        LayerHint.Text = Loc.T(layer == Layers.Desktop ? "panel.layerDesktopHint" : "panel.layerTopHint");
+        WithSelected(a => a.Layer = Layers.Normalize(layer));
     }
 
     private static string SecondsText(double seconds) => Loc.F("unit.seconds", seconds.ToString("0.0#", CultureInfo.CurrentCulture));

@@ -94,6 +94,7 @@ public sealed class ActiveVM : Observable
     public string Name => Photo?.Name ?? Loc.T("active.noPhoto");
     public string Meta => Loc.F("active.meta", Index, Math.Round(Item.Scale * 100))
         + (Motion.IsMoving(Item.MotionMode) ? " · " + Loc.T("motion." + Item.MotionMode) : "")
+        + (Layers.Normalize(Item.Layer) == Layers.Desktop ? " · " + Loc.T("layer.desktop") : "")
         + (Item.Visible ? "" : " · " + Loc.T("active.hidden"));
     public double TileOpacity => Item.Visible ? 1.0 : 0.4;
     public string EyeTip => Item.Visible ? Loc.T("active.hide") : Loc.T("active.show");

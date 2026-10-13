@@ -414,6 +414,16 @@
                                   Click="ClickThroughToggle_Click" ToolTip="{DynamicResource s.panel.clickThroughTip}"/>
                   </Grid>
 
+                  <!-- 표시 층 -->
+                  <TextBlock Text="{DynamicResource s.panel.layer}" Style="{StaticResource SectionLabel}" Margin="0,16,0,0"/>
+                  <Border Style="{StaticResource SegmentBox}" Margin="0,6,0,0" Padding="2" ToolTip="{DynamicResource s.panel.layerTip}">
+                    <UniformGrid Columns="2">
+                      <RadioButton x:Name="LayerTop" Style="{StaticResource Segment}" GroupName="layer" Tag="top" Padding="4,0" Content="{DynamicResource s.layer.top}" Checked="Layer_Checked"/>
+                      <RadioButton x:Name="LayerDesktop" Style="{StaticResource Segment}" GroupName="layer" Tag="desktop" Padding="4,0" Content="{DynamicResource s.layer.desktop}" Checked="Layer_Checked"/>
+                    </UniformGrid>
+                  </Border>
+                  <TextBlock x:Name="LayerHint" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+
                   <!-- 움직임 -->
                   <TextBlock Text="{DynamicResource s.panel.motion}" Style="{StaticResource SectionLabel}" Margin="0,16,0,0"/>
                   <Border Style="{StaticResource SegmentBox}" Margin="0,6,0,0" Padding="2">
@@ -433,6 +443,13 @@
                         <TextBlock Text="{DynamicResource s.panel.motionSpeed}" Style="{StaticResource SectionLabel}"/>
                       </DockPanel>
                       <Slider x:Name="MotionSpeedSlider" Minimum="20" Maximum="600" Margin="0,4,0,0" ValueChanged="MotionSpeed_ValueChanged"/>
+                    </StackPanel>
+
+                    <!-- 걷기·떨어지기: 중력 -->
+                    <StackPanel x:Name="GravityRow">
+                      <ToggleButton x:Name="GravityToggle" Style="{StaticResource SwitchBox}" Margin="0,10,0,0" Content="{DynamicResource s.panel.gravity}"
+                                    Click="Gravity_Click" ToolTip="{DynamicResource s.panel.gravityTip}"/>
+                      <TextBlock x:Name="GravityHint" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,4,0,0"/>
                     </StackPanel>
 
                     <!-- 떨어지기: 점프 -->

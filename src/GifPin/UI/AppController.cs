@@ -475,6 +475,7 @@ public sealed class AppController
         a.JumpInterval = Math.Clamp(a.JumpInterval, Motion.MinJumpInterval, Motion.MaxJumpInterval);
         a.JumpAngle = Math.Clamp(a.JumpAngle, -Motion.MaxJumpAngle, Motion.MaxJumpAngle);
         a.SlideFriction = Math.Clamp(a.SlideFriction, Motion.MinFriction, Motion.MaxFriction);
+        a.Layer = Layers.Normalize(a.Layer);
         SyncToEngine(a);
         RefreshActiveVM(a);
         GeometryChanged?.Invoke(a.Clone());

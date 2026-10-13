@@ -107,8 +107,8 @@ public static class SmokeTest
         return report.ToString();
     }
 
-    private static MotionParams Params(double speed = Motion.DefaultSpeed, bool jump = false, double height = 100, double interval = 0.5, double angle = 0, double friction = Motion.DefaultFriction)
-        => new(speed, jump, height, interval, angle, friction);
+    private static MotionParams Params(double speed = Motion.DefaultSpeed, bool jump = false, double height = 100, double interval = 0.5, double angle = 0, double friction = Motion.DefaultFriction, bool gravity = true)
+        => new(speed, jump, height, interval, angle, friction, gravity);
 
     /// <summary>움직임 계산 점검 (화면 400×300, GIF 50×50 → 바닥 y=250, 오른쪽 끝 x=350).</summary>
     public static string RunPhysics()
@@ -160,6 +160,35 @@ public static class SmokeTest
             if (a.X < -0.5 || a.X > MaxX + 0.5 || a.Y < -0.5 || a.Y > Floor + 0.5) throw new Exception($"angled jump left the screen: {a.X:0},{a.Y:0}");
         }
         if (a.Jumps < 3 || maxX < MaxX - 1 || !wentLeft) throw new Exception($"angled jump: jumps={a.Jumps} maxX={maxX:0} turned={wentLeft}");
+
+        // 중력 끔 + 걷기: 배치한 높이(y=100)에서 수평으로만 이동
+        var wg = new MotionState();
+        wg.Reset(Motion.Walk, Params(300, gravity: false), 50, 100);
+        double wMinX = double.MaxValue, wMaxX = 0;
+        for (int i = 0; i < 300; i++)
+        {
+            wg.Step(0.02, W, H, 0, 0, R, B);
+            if (Math.Abs(wg.Y - 100) > 0.01) throw new Exception($"walk without gravity changed height: y={wg.Y}");
+            wMinX = Math.Min(wMinX, wg.X); wMaxX = Math.Max(wMaxX, wg.X);
+        }
+        if (wMaxX < MaxX - 1 || wMinX > 1) throw new Exception($"walk without gravity did not cross the screen: {wMinX:0}..{wMaxX:0}");
+
+        // 중력 끔 + 점프: y=120을 땅으로 삼아 뛰었다가 다시 120으로 내려옴 (바닥 250까지 떨어지지 않음)
+        var jg = new MotionState();
+        jg.Reset(Motion.Fall, Params(20, jump: true, height: 80, interval: 0.4, gravity: false), 200, 120);
+        double jTop = double.MaxValue, jLow = 0;
+        for (int i = 0; i < 400; i++)
+        {
+            jg.Step(0.01, W, H, 0, 0, R, B);
+            jTop = Math.Min(jTop, jg.Y); jLow = Math.Max(jLow, jg.Y);
+        }
+        if (jg.Jumps < 2) throw new Exception($"jump without gravity: only {jg.Jumps} jumps");
+        if (jLow > 120.5) throw new Exception($"jump without gravity fell below its ground: y={jLow:0.0}");
+        if (Math.Abs(jTop - 40) > 8) throw new Exception($"jump without gravity: top y={jTop:0.0}, expected ~40");
+        // 떨어뜨린 높이가 새 땅
+        jg.Release(200, 60, 0, 0);
+        for (int i = 0; i < 30; i++) jg.Step(0.01, W, H, 0, 0, R, B);
+        if (jg.Y > 60.5) throw new Exception($"released GIF fell below the new ground: y={jg.Y:0.0}");
 
         // 미끄러짐: 빠르게 던지면 벽에 여러 번 튕기다 멈춤, 느리게 던지면 금방 멈춤
         var sFast = Slide(2500, 900, out int fastBounces, out double fastTime);

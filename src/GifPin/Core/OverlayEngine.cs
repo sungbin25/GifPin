@@ -268,6 +268,25 @@ public sealed class OverlayEngine : IDisposable
         if (_byId.TryGetValue(id, out var w)) w.Nudge(dx, dy);
     });
 
+    // ── 바탕화면 층 ─────────────────────────────────────────
+
+    private IntPtr _desktopHost;
+
+    /// <summary>바탕화면 아이콘을 품은 최상위 창 (Progman 또는 WorkerW). 탐색기가 다시 시작되면 다시 찾는다.</summary>
+    internal IntPtr DesktopHost()
+    {
+        if (_desktopHost != IntPtr.Zero && IsWindow(_desktopHost)) return _desktopHost;
+        IntPtr progman = FindWindowW("Progman", null);
+        IntPtr host = IntPtr.Zero;
+        if (progman != IntPtr.Zero && FindWindowExW(progman, IntPtr.Zero, "SHELLDLL_DefView", null) != IntPtr.Zero) host = progman;
+        for (IntPtr w = IntPtr.Zero; host == IntPtr.Zero && (w = FindWindowExW(IntPtr.Zero, w, "WorkerW", null)) != IntPtr.Zero;)
+            if (FindWindowExW(w, IntPtr.Zero, "SHELLDLL_DefView", null) != IntPtr.Zero) host = w;
+        _desktopHost = host != IntPtr.Zero ? host : progman;
+        return _desktopHost;
+    }
+
+    internal bool IsOverlay(IntPtr hwnd) => _byHwnd.ContainsKey(hwnd);
+
     // ── OverlayWindow → 엔진 → UI ────────────────────────────
 
     internal void RaiseChanged(ActiveItem item) => Changed?.Invoke(item.Clone());
@@ -293,4 +312,4 @@ public sealed class OverlayEngine : IDisposable
 }
 
 /// <summary>오버레이 상태 (점검용).</summary>
-public sealed record OverlayProbe(ActiveItem Item, bool MotionRunning, bool Held, bool Pressed, bool Sliding, int Jumps);
+public sealed record OverlayProbe(ActiveItem Item, bool MotionRunning, bool Held, bool Pressed, bool Sliding, int Jumps, bool Topmost);

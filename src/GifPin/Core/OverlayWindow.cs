@@ -80,7 +80,8 @@ internal sealed unsafe class OverlayWindow : IDisposable
     {
         _engine = engine;
         Item = item;
-        long ex = WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST;
+        long ex = WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
+        if (Layers.Normalize(item.Layer) == Layers.Top) ex |= WS_EX_TOPMOST;
         if (item.ClickThrough) ex |= WS_EX_TRANSPARENT;
         Hwnd = CreateWindowExW((uint)ex, ClassName, "GifPin overlay", WS_POPUP,
             item.X, item.Y, 1, 1, IntPtr.Zero, IntPtr.Zero, GetModuleHandleW(null), IntPtr.Zero);
@@ -271,11 +272,41 @@ internal sealed unsafe class OverlayWindow : IDisposable
         _engine.RaiseChanged(Item);
     }
 
+    /// <summary>바탕화면 층: 편집 중에는 다루기 쉽게 잠시 맨 위로 올린다.</summary>
+    private bool OnDesktopLayer => Layers.Normalize(Item.Layer) == Layers.Desktop && !_editMode;
+
+    /// <summary>층에 맞게 z-순서를 다시 맞춤: 맨 위 층은 항상 위, 바탕화면 층은 바탕화면 바로 위(다른 프로그램 아래).</summary>
     public void BringToTop()
     {
-        if (IsShown)
-            SetWindowPos(Hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+        if (!IsShown) return;
+        const uint flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER;
+        if (!OnDesktopLayer)
+        {
+            SetWindowPos(Hwnd, HWND_TOPMOST, 0, 0, 0, 0, flags);
+            return;
+        }
+
+        if ((GetWindowLongPtrW(Hwnd, GWL_EXSTYLE).ToInt64() & WS_EX_TOPMOST) != 0)
+            SetWindowPos(Hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, flags);
+        IntPtr desktop = _engine.DesktopHost();
+        if (desktop == IntPtr.Zero)
+        {
+            SetWindowPos(Hwnd, HWND_BOTTOM, 0, 0, 0, 0, flags); // 탐색기가 없으면 그냥 맨 아래
+            return;
+        }
+        // 이미 바탕화면 바로 위(사이에 GifPin 창만 있음)면 그대로
+        for (IntPtr n = GetWindow(Hwnd, GW_HWNDNEXT); n != IntPtr.Zero; n = GetWindow(n, GW_HWNDNEXT))
+        {
+            if (n == desktop) return;
+            if (!_engine.IsOverlay(n)) break;
+        }
+        // 바탕화면 바로 위에 있는 (GifPin이 아닌) 창 아래로 넣는다 = 바탕화면 바로 위
+        IntPtr above = GetWindow(desktop, GW_HWNDPREV);
+        while (above != IntPtr.Zero && _engine.IsOverlay(above)) above = GetWindow(above, GW_HWNDPREV);
+        SetWindowPos(Hwnd, above == IntPtr.Zero ? HWND_TOP : above, 0, 0, 0, 0, flags);
     }
+
+    internal bool IsTopmost => (GetWindowLongPtrW(Hwnd, GWL_EXSTYLE).ToInt64() & WS_EX_TOPMOST) != 0;
 
     private bool IsShown => _anim != null && (_editMode || (Item.Visible && !_globalHidden));
 
@@ -575,7 +606,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
     }
 
     /// <summary>점검용 상태.</summary>
-    internal OverlayProbe Probe() => new(Item.Clone(), _motionRunning, _held, _press != Press.None, _motion.IsSliding, _motion.Jumps);
+    internal OverlayProbe Probe() => new(Item.Clone(), _motionRunning, _held, _press != Press.None, _motion.IsSliding, _motion.Jumps, IsTopmost);
 
     private Drag HitTest(int x, int y)
     {

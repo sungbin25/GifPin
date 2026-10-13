@@ -35,10 +35,10 @@ public static class Motion
 
 /// <summary>움직임 설정값 (ActiveItem에서 복사).</summary>
 internal readonly record struct MotionParams(
-    double Speed, bool JumpEnabled, double JumpHeight, double JumpInterval, double JumpAngle, double Friction)
+    double Speed, bool JumpEnabled, double JumpHeight, double JumpInterval, double JumpAngle, double Friction, bool Gravity = true)
 {
     public static MotionParams From(ActiveItem a) => new(
-        a.MotionSpeed, a.JumpEnabled, a.JumpHeight, a.JumpInterval, a.JumpAngle, a.SlideFriction);
+        a.MotionSpeed, a.JumpEnabled, a.JumpHeight, a.JumpInterval, a.JumpAngle, a.SlideFriction, a.MotionGravity);
 }
 
 /// <summary>
@@ -63,6 +63,7 @@ internal sealed class MotionState
     private string _mode = Motion.None;
     private MotionParams _p = new(Motion.DefaultSpeed, true, Motion.DefaultJumpHeight, Motion.DefaultJumpInterval, 0, Motion.DefaultFriction);
     private double _restTime;
+    private double _groundY; // 중력을 끈 경우의 땅 높이 = 놓은(배치한) 위치
     private int _jumpDir = 1;
 
     public string Mode => _mode;
@@ -72,7 +73,9 @@ internal sealed class MotionState
         _mode = Motion.Normalize(mode);
         X = x;
         Y = y;
+        _groundY = y;
         _restTime = 0;
+        _p = p;
         Configure(p);
         double speed = Math.Clamp(p.Speed, Motion.MinSpeed, Motion.MaxSpeed);
         switch (_mode)
@@ -90,6 +93,7 @@ internal sealed class MotionState
     public void Configure(MotionParams p)
     {
         bool angleSignChanged = Math.Sign(p.JumpAngle) != Math.Sign(_p.JumpAngle);
+        if (p.Gravity != _p.Gravity) { _groundY = Y; Vy = 0; _restTime = 0; } // 중력을 끄면 지금 높이가 땅
         _p = p;
         if (angleSignChanged && p.JumpAngle != 0) _jumpDir = p.JumpAngle < 0 ? -1 : 1;
     }
@@ -99,6 +103,7 @@ internal sealed class MotionState
     {
         X = x;
         Y = y;
+        _groundY = y; // 중력이 꺼져 있으면 놓은 높이가 새 땅
         _restTime = 0;
         switch (_mode)
         {
@@ -123,21 +128,23 @@ internal sealed class MotionState
     {
         dt = Math.Clamp(dt, 0, 0.1); // 잠깐 멈췄다 돌아와도 순간이동하지 않게
         int maxX = Math.Max(left, right - w), maxY = Math.Max(top, bottom - h);
+        // 땅: 중력이 켜져 있으면 작업 영역 바닥(작업표시줄 위), 꺼져 있으면 배치한 높이
+        double floor = _p.Gravity ? maxY : Math.Clamp(_groundY, top, maxY);
         bool hitWall = false;
 
         switch (_mode)
         {
             case Motion.Walk:
-                if (Y < maxY - 0.5)
+                if (_p.Gravity && Y < floor - 0.5)
                 {
                     // 공중에서 놓으면 먼저 바닥까지 떨어진 뒤 걷는다
                     Vy += Gravity * dt;
                     Y += Vy * dt;
-                    if (Y >= maxY) { Y = maxY; Vy = 0; }
+                    if (Y >= floor) { Y = floor; Vy = 0; }
                 }
                 else
                 {
-                    Y = maxY; // 작업표시줄(바닥) 위에 서 있음
+                    Y = floor; // 바닥(또는 중력을 끈 경우 배치한 높이)에서 수평으로 걷기
                     Vy = 0;
                 }
                 X += Vx * dt;
@@ -151,7 +158,7 @@ internal sealed class MotionState
                 break;
 
             case Motion.Fall:
-                StepFall(dt, top, maxY);
+                StepFall(dt, top, floor);
                 break;
 
             case Motion.Slide:
@@ -182,7 +189,7 @@ internal sealed class MotionState
         else if (_mode == Motion.Fall && _p.JumpAngle != 0 && Vy == 0) FacingLeft = _jumpDir < 0; // 다음에 뛸 방향을 바라봄
     }
 
-    private void StepFall(double dt, int top, int maxY)
+    private void StepFall(double dt, int top, double maxY)
     {
         bool onFloor = Y >= maxY - 0.5 && Vy == 0;
         if (onFloor)

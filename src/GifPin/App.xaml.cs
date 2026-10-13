@@ -217,7 +217,26 @@ public partial class App : Application
         await Wait(700);
         p = await P();
         if (!p.MotionRunning || p.Held) throw new Exception("walk did not restart after the resume delay");
-        sb.Append(" hold/resume ok");
+        sb.Append(" hold/resume ok ·");
+
+        // 4) 중력 끔: 놓은 높이(y0)에서 수평으로 걷기
+        app.UpdateActive(id, a => { a.MotionMode = Motion.Walk; a.MotionGravity = false; });
+        app.Relocate(id, x0, y0);
+        await Wait(600);
+        p = await P();
+        if (!p.MotionRunning || p.Item.Y != y0 || p.Item.X == x0) throw new Exception($"walk without gravity: at {p.Item.X},{p.Item.Y}, expected y={y0} and moving");
+        sb.Append(" no-gravity walk ok ·");
+
+        // 5) 표시 층: 바탕화면이면 항상 위(topmost)가 아니고, 맨 위로 되돌리면 다시 topmost
+        app.UpdateActive(id, a => { a.MotionMode = Motion.None; a.MotionGravity = true; a.Layer = Layers.Desktop; });
+        await Wait(400);
+        p = await P();
+        if (p.Topmost) throw new Exception("desktop layer is still topmost");
+        app.UpdateActive(id, a => a.Layer = Layers.Top);
+        await Wait(400);
+        p = await P();
+        if (!p.Topmost) throw new Exception("top layer is not topmost");
+        sb.Append(" layers ok");
 
         app.UpdateActive(id, a => { a.MotionMode = Motion.None; a.ClickThrough = true; });
         return sb.ToString();

@@ -61,6 +61,14 @@ public static class AssetPack
         public bool ClickThrough { get; set; } = true;
         public string MotionMode { get; set; } = "none";
         public double MotionSpeed { get; set; } = 120;
+        public bool MotionFaceDirection { get; set; } = true;
+        public bool MotionGravity { get; set; } = true;
+        public bool JumpEnabled { get; set; } = true;
+        public double JumpHeight { get; set; } = Motion.DefaultJumpHeight;
+        public double JumpInterval { get; set; } = Motion.DefaultJumpInterval;
+        public double JumpAngle { get; set; } = Motion.DefaultJumpAngle;
+        public double SlideFriction { get; set; } = Motion.DefaultFriction;
+        public string Layer { get; set; } = Layers.Top;
     }
 
     /// <summary>가져오기 결과: 임시 폴더에 풀린 파일과 메타데이터. 다 쓰면 Dispose로 임시 폴더 삭제.</summary>
@@ -119,6 +127,9 @@ public static class AssetPack
                         Fy = Math.Round(Math.Clamp((a.Y + h / 2.0 - mon.WorkTop) / wh, 0, 1), 4),
                         Scale = a.Scale, Opacity = a.Opacity, Speed = a.Speed, FlipX = a.FlipX,
                         ClickThrough = a.ClickThrough, MotionMode = a.MotionMode, MotionSpeed = a.MotionSpeed,
+                        MotionFaceDirection = a.MotionFaceDirection, MotionGravity = a.MotionGravity,
+                        JumpEnabled = a.JumpEnabled, JumpHeight = a.JumpHeight, JumpInterval = a.JumpInterval, JumpAngle = a.JumpAngle,
+                        SlideFriction = a.SlideFriction, Layer = Layers.Normalize(a.Layer),
                     });
                 }
             }
@@ -243,6 +254,14 @@ public static class AssetPack
             ClickThrough = l.ClickThrough,
             MotionMode = Motion.Normalize(l.MotionMode),
             MotionSpeed = Math.Clamp(l.MotionSpeed, Motion.MinSpeed, Motion.MaxSpeed),
+            MotionFaceDirection = l.MotionFaceDirection,
+            MotionGravity = l.MotionGravity,
+            JumpEnabled = l.JumpEnabled,
+            JumpHeight = Math.Clamp(l.JumpHeight, Motion.MinJumpHeight, Motion.MaxJumpHeight),
+            JumpInterval = Math.Clamp(l.JumpInterval, Motion.MinJumpInterval, Motion.MaxJumpInterval),
+            JumpAngle = Math.Clamp(l.JumpAngle, -Motion.MaxJumpAngle, Motion.MaxJumpAngle),
+            SlideFriction = Math.Clamp(l.SlideFriction, Motion.MinFriction, Motion.MaxFriction),
+            Layer = Layers.Normalize(l.Layer),
         };
     }
 }

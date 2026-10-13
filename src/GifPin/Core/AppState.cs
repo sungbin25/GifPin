@@ -58,6 +58,10 @@ public sealed class ActiveItem
     public double MotionSpeed { get; set; } = Motion.DefaultSpeed;
     /// <summary>움직이는 방향을 바라보도록 좌우 자동 반전</summary>
     public bool MotionFaceDirection { get; set; } = true;
+    /// <summary>걷기·떨어지기: 켜면 작업표시줄 위가 바닥, 끄면 배치한 높이가 땅 (그 높이에서 수평 이동·점프)</summary>
+    public bool MotionGravity { get; set; } = true;
+    /// <summary>표시 위치: top = 모든 프로그램 위, desktop = 바탕화면 (모든 프로그램 아래)</summary>
+    public string Layer { get; set; } = Layers.Top;
     /// <summary>떨어지기: 바닥에 멈춘 뒤 주기적으로 뛰어오름</summary>
     public bool JumpEnabled { get; set; } = true;
     /// <summary>점프 높이 (px)</summary>
@@ -221,4 +225,12 @@ public static class Store
         }
         catch { /* 다음 저장 때 다시 시도 */ }
     }
+}
+
+/// <summary>GIF를 그리는 층.</summary>
+public static class Layers
+{
+    public const string Top = "top";         // 모든 프로그램 위 (게임 포함)
+    public const string Desktop = "desktop"; // 바탕화면 바로 위, 모든 프로그램 아래
+    public static string Normalize(string? layer) => layer == Desktop ? Desktop : Top;
 }

@@ -33,6 +33,14 @@ internal static unsafe class Native
 
     // ── SetWindowPos ─────────────────────────────────────────
     public static readonly IntPtr HWND_TOPMOST = new(-1);
+    public static readonly IntPtr HWND_NOTOPMOST = new(-2);
+    public static readonly IntPtr HWND_TOP = IntPtr.Zero;
+    public static readonly IntPtr HWND_BOTTOM = new(1);
+    public const uint GW_HWNDNEXT = 2, GW_HWNDPREV = 3;
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr FindWindowW(string? className, string? windowName);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr FindWindowExW(IntPtr parent, IntPtr childAfter, string? className, string? windowName);
+    [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr hWnd, uint cmd);
+    [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hWnd);
     public static readonly IntPtr HWND_MESSAGE = new(-3);
     public const uint SWP_NOSIZE = 0x0001;
     public const uint SWP_NOMOVE = 0x0002;
