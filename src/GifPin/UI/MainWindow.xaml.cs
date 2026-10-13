@@ -371,7 +371,7 @@ public partial class MainWindow : Window
             + (photo.FrameCount > 1 ? Loc.F("panel.frames", photo.FrameCount) : Loc.T("kind.still"))
             + " · " + Library.FormatSize(photo.FileSize);
         PixelToggle.IsChecked = photo.Pixelated;
-        RenderOptions.SetBitmapScalingMode(PreviewImage, photo.Pixelated ? System.Windows.Media.BitmapScalingMode.NearestNeighbor : System.Windows.Media.BitmapScalingMode.HighQuality);
+        System.Windows.Media.RenderOptions.SetBitmapScalingMode(PreviewImage, photo.Pixelated ? System.Windows.Media.BitmapScalingMode.NearestNeighbor : System.Windows.Media.BitmapScalingMode.HighQuality);
 
         if (active != null)
         {
