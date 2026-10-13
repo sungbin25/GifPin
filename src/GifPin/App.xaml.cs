@@ -223,6 +223,18 @@ public partial class App : Application
         if (!p.MotionRunning || p.Held) throw new Exception("walk did not restart after the resume delay");
         sb.Append(" hold/resume ok ·");
 
+        // 3-1) 다시 실행한 경우: 저장된 "걷기"로 GIF 창을 새로 만들면 바로 걸어야 함 (예전엔 모드를 한 번 바꿔야 움직였음)
+        eng.Remove(id);
+        await Wait(200);
+        app.UpdateActive(id, a => { }); // 저장된 설정 그대로 창을 다시 만듦 (앱 시작과 같은 경로)
+        await Wait(1200);
+        p = await P();
+        int restartX = p.Item.X;
+        await Wait(500);
+        p = await P();
+        if (!p.MotionRunning || p.Item.X == restartX) throw new Exception($"walk did not start after re-creating the overlay (running={p.MotionRunning}, x {restartX} -> {p.Item.X})");
+        sb.Append(" walk after restart ok ·");
+
         // 4) 중력 끔: 놓은 높이(y0)에서 수평으로 걷기
         app.UpdateActive(id, a => { a.MotionMode = Motion.Walk; a.MotionGravity = false; });
         app.Relocate(id, x0, y0);

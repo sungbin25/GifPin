@@ -128,6 +128,9 @@ internal sealed unsafe class OverlayWindow : IDisposable
             item.X, item.Y, 1, 1, IntPtr.Zero, IntPtr.Zero, GetModuleHandleW(null), IntPtr.Zero);
         if (Hwnd == IntPtr.Zero)
             throw new InvalidOperationException($"CreateWindowEx 실패 (오류 {Marshal.GetLastWin32Error()})");
+        // 저장된 움직임(걷기 등)으로 바로 시작. 움직임 계산은 "모드가 바뀔 때" 초기화되는데,
+        // 처음 만들 때는 바뀐 게 없어서 초기화되지 않아 걷기로 표시돼도 움직이지 않던 문제
+        ResetMotion();
     }
 
     // ── 엔진에서 호출 ─────────────────────────────────────────
@@ -235,6 +238,8 @@ internal sealed unsafe class OverlayWindow : IDisposable
         _motionRunning = run;
         if (run)
         {
+            // 움직임 계산이 지금 모드로 준비돼 있지 않으면 여기서 준비 (어떤 순서로 불려도 안전하게)
+            if (_motion.Mode != Motion.Normalize(Item.MotionMode)) ResetMotion();
             _motion.X = Item.X; // 편집·숨김 뒤 다시 출발할 때 현재 위치에서
             _motion.Y = Item.Y;
             _reportAcc = 0;
