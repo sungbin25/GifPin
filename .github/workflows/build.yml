@@ -57,9 +57,21 @@ jobs:
           $p = Start-Process -FilePath publish\GifPin.exe -PassThru
           if (-not $p.WaitForExit(90000)) { Stop-Process -Id $p.Id -Force; Write-Error "GifPin did not exit within 90s"; exit 1 }
           $err = Join-Path $data 'smoke.err'
-          if (Test-Path $err) { Get-Content $err; Write-Error "GifPin smoke test failed"; exit 1 }
+          if (Test-Path $err) {
+            $msg = (Get-Content $err -Raw) -replace '%','%25' -replace "`r",'' -replace "`n",'%0A'
+            Write-Host "::error title=Smoke test::$msg"
+            $log = Join-Path $data 'logs\gifpin.log'
+            if (Test-Path $log) { $tail = ((Get-Content $log -Tail 30) -join "`n") -replace '%','%25' -replace "`r",'' -replace "`n",'%0A'; Write-Host "::error title=gifpin.log::$tail" }
+            exit 1
+          }
           $ok = Join-Path $data 'smoke.ok'
-          if (-not (Test-Path $ok)) { Write-Error "GifPin exited (code $($p.ExitCode)) without finishing startup"; exit 1 }
+          if (-not (Test-Path $ok)) {
+            Write-Host "::error title=Smoke test::GifPin exited (code $($p.ExitCode)) without finishing startup"
+            $log = Join-Path $data 'logs\gifpin.log'
+            if (Test-Path $log) { $tail = ((Get-Content $log -Tail 30) -join "`n") -replace '%','%25' -replace "`r",'' -replace "`n",'%0A'; Write-Host "::error title=gifpin.log::$tail" }
+            exit 1
+          }
+          Write-Host "::notice title=Smoke test::$((Get-Content $ok -Raw) -replace "`r",'' -replace "`n",' | ')"
           Get-Content $ok
           Write-Host "Smoke test passed"
 

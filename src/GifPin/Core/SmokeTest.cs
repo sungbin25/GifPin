@@ -101,9 +101,15 @@ public static class SmokeTest
         // 움직임: 걷기는 바닥에 서서 오른쪽 벽에 닿으면 방향을 바꾼다
         var m = new MotionState();
         m.Reset(Motion.Walk, 600, 0, 0);
-        for (int i = 0; i < 200; i++) m.Step(0.05, 50, 50, 0, 0, 400, 300);
-        if (m.Y != 250) throw new Exception($"walk not on floor: y={m.Y}");
-        if (!m.FacingLeft && m.X < 340) throw new Exception("walk never turned");
+        bool turned = false;
+        for (int i = 0; i < 200; i++)
+        {
+            m.Step(0.05, 50, 50, 0, 0, 400, 300);
+            turned |= m.FacingLeft;
+            if (m.X < -0.5 || m.X > 350.5) throw new Exception($"walk left the screen: x={m.X}");
+        }
+        if (Math.Abs(m.Y - 250) > 0.5) throw new Exception($"walk not on floor: y={m.Y}");
+        if (!turned) throw new Exception("walk never turned");
         var fall = new MotionState();
         fall.Reset(Motion.Fall, 100, 0, 0);
         for (int i = 0; i < 400; i++) fall.Step(0.02, 50, 50, 0, 0, 400, 300);

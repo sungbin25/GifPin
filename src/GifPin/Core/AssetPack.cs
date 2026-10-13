@@ -83,7 +83,7 @@ public static class AssetPack
     public static void Export(string zipPath, string name, IReadOnlyList<PhotoItem> photos, IReadOnlyList<ActiveItem>? layout)
     {
         var manifest = new Manifest { Name = name, CreatedAt = DateTimeOffset.Now, App = "GifPin " + typeof(AssetPack).Assembly.GetName().Version?.ToString(3) };
-        var monitors = Monitors.List();
+        var monitors = layout is { Count: > 0 } ? Monitors.List() : new List<MonitorInfo>();
         var tmp = zipPath + ".tmp";
 
         using (var fs = File.Create(tmp))
