@@ -118,10 +118,12 @@ internal sealed class MotionState
     private void Hit(Impact kind, double speed)
     {
         speed = Math.Abs(speed);
-        if (speed < 120) return; // 느린 접촉은 무시
+        // 아주 느린 접촉(바닥에 멈춰 가는 중 등)만 무시. 예전 기준(120px/s)은 튕기기의 위아래 속도(84px/s)보다 높아
+        // 위·아래 충돌에서 말랑말랑이 빠졌음
+        if (speed < 40) return;
         ImpactSeq++;
         LastImpact = kind;
-        ImpactStrength = Math.Clamp(speed / 1500, 0.15, 1);
+        ImpactStrength = Math.Clamp(speed / 800, 0.25, 1); // 느린 충돌도 눈에 보이게
     }
 
     private readonly Random _rng;

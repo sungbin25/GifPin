@@ -82,7 +82,7 @@ public static class Fx
         a.FxSpinSpeed = Math.Clamp(a.FxSpinSpeed, 10, 720);
         a.FxBlinkMin = Math.Clamp(a.FxBlinkMin, 0, 90);
         a.FxBlinkPeriod = Math.Clamp(a.FxBlinkPeriod, 0.3, 10);
-        a.FxSquashAmount = Math.Clamp(a.FxSquashAmount, 5, 50);
+        a.FxSquashAmount = Math.Clamp(a.FxSquashAmount, 5, 100);
         a.FxTrailCount = Math.Round(Math.Clamp(a.FxTrailCount, 2, 10));
         a.FxTrailOpacity = Math.Clamp(a.FxTrailOpacity, 10, 80);
         a.FxTrailSpacing = Math.Clamp(a.FxTrailSpacing, 4, 120);
@@ -279,7 +279,7 @@ internal sealed class EffectState : IDisposable
                     _squashStrength = m.ImpactStrength;
                     Squashes++;
                 }
-                if (a.FxDust && m.LastImpact == MotionState.Impact.Land && m.ImpactStrength >= 0.2) SpawnDust(x, y, w, h, m.ImpactStrength);
+                if (a.FxDust && m.LastImpact == MotionState.Impact.Land && m.ImpactStrength >= 0.375) SpawnDust(x, y, w, h, m.ImpactStrength);
             }
         }
         _squashT += dt;
@@ -493,7 +493,8 @@ internal sealed class EffectState : IDisposable
     /// <summary>찌그러짐 정도: 감쇠 진동 (0이면 원래 모양).</summary>
     private double SquashValue(ActiveItem a) =>
         !a.FxSquash || !SquashActive ? 0
-        : _squashStrength * a.FxSquashAmount / 100 * Math.Exp(-7 * _squashT) * Math.Cos(22 * _squashT);
+        : Math.Min(0.8, _squashStrength * a.FxSquashAmount / 100) * Math.Exp(-7 * _squashT) * Math.Cos(22 * _squashT);
+    // 100%에서도 납작해져 사라지지 않게 최대 80%까지만 찌그러짐 (늘어날 때는 최대 1.8배)
 
     /// <summary>GIF 뒤에 그리는 것: 바닥 그림자, 잔상.</summary>
     /// <summary>창 가장자리에 가까울수록 투명하게 (여백 끝에서 뚝 잘려 보이지 않게).</summary>

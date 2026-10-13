@@ -687,7 +687,7 @@
                         <TextBlock x:Name="FxSquashAmountText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.fx.amount}" Style="{StaticResource Hint}"/>
                       </DockPanel>
-                      <Slider Tag="FxSquashAmount" Minimum="5" Maximum="50" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                      <Slider Tag="FxSquashAmount" Minimum="5" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
                     </StackPanel>
                     <ToggleButton Style="{StaticResource SwitchBox}" Margin="0,8,0,0" Tag="FxDust" Content="{DynamicResource s.fx.dust}"
                                   ToolTip="{DynamicResource s.fx.dustTip}" Click="FxToggle_Click"/>

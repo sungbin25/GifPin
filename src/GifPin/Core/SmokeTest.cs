@@ -414,6 +414,26 @@ public static class SmokeTest
         for (int i = 0; i < 150; i++) { m.Step(0.01, 50, 50, 0, 0, 400, 300); sq.Advance(0.01, a, m.X, m.Y, 50, 50, m); }
         if (sq.SquashActive) throw new Exception("squash never settled");
 
+        // 튕기기(기본 속도): 위·아래 벽에 부딪혀도 말랑말랑 (예전엔 좌우만)
+        var bm = new MotionState();
+        bm.Reset(Motion.Bounce, new MotionParams { Speed = Motion.DefaultSpeed }, 100, 100);
+        var bsq = new EffectState(seed: 30);
+        var kindsSeen = new HashSet<MotionState.Impact>();
+        int lastSeq = bm.ImpactSeq;
+        for (int i = 0; i < 2000; i++)
+        {
+            bm.Step(0.01, 50, 50, 0, 0, 400, 300);
+            bsq.Advance(0.01, a, bm.X, bm.Y, 50, 50, bm);
+            if (bm.ImpactSeq != lastSeq) { kindsSeen.Add(bm.LastImpact); lastSeq = bm.ImpactSeq; }
+        }
+        if (!kindsSeen.Contains(MotionState.Impact.Land) || !kindsSeen.Contains(MotionState.Impact.Ceiling)
+            || !kindsSeen.Contains(MotionState.Impact.WallLeft) || !kindsSeen.Contains(MotionState.Impact.WallRight))
+            throw new Exception("bounce impacts seen: " + string.Join(",", kindsSeen));
+        if (bsq.Squashes < 4) throw new Exception($"bounce squashes: {bsq.Squashes}");
+        var big = new ActiveItem { FxSquashAmount = 100 };
+        Fx.Normalize(big);
+        if (big.FxSquashAmount != 100) throw new Exception("squash amount is still capped below 100%");
+
         // 잔상: 움직이는 동안 개수만큼 쌓이고 멈추면 사라짐
         a.FxTrail = true; a.FxTrailCount = 5;
         var tr = new EffectState(seed: 9);
