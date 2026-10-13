@@ -227,7 +227,33 @@ public partial class App : Application
         if (!p.MotionRunning || p.Item.Y != y0 || p.Item.X == x0) throw new Exception($"walk without gravity: at {p.Item.X},{p.Item.Y}, expected y={y0} and moving");
         sb.Append(" no-gravity walk ok ·");
 
-        // 5) 표시 층: 바탕화면이면 항상 위(topmost)가 아니고, 맨 위로 되돌리면 다시 topmost
+        // 5) 미끄러짐 자동 밀기: 0.5초마다 랜덤 방향으로 밀리고, 멈춰 있을 때는 누르자마자 잡힘
+        app.UpdateActive(id, a =>
+        {
+            a.MotionMode = Motion.Slide; a.MotionGravity = true; a.SlideAuto = true;
+            a.PushDirRandom = true; a.PushForceRandom = true; a.PushForceMin = 400; a.PushForceMax = 800;
+            a.PushIntervalRandom = false; a.PushInterval = 0.5;
+        });
+        app.Relocate(id, x0, y0);
+        await Wait(3000);
+        p = await P();
+        if (p.Pushes < 2 || !p.MotionRunning) throw new Exception($"auto push: {p.Pushes} pushes, running={p.MotionRunning}");
+        if (p.Item.X < mon.WorkLeft - 1 || p.Item.X + w > mon.WorkRight + 1 || p.Item.Y < mon.WorkTop - 1 || p.Item.Y + h > mon.WorkBottom + 1)
+            throw new Exception($"auto push went off screen: {p.Item.X},{p.Item.Y}");
+        sw.Restart();
+        while (p.Sliding && sw.ElapsedMilliseconds < 5000) { await Wait(20); p = await P(); }
+        if (!p.Sliding)
+        {
+            eng.SimulatePointer(id, OverlayEngine.PointerAction.Down, p.Item.X + 5, p.Item.Y + 5, Now(), 0);
+            await Wait(60);
+            var g = await P();
+            eng.SimulatePointer(id, OverlayEngine.PointerAction.Up, p.Item.X + 5, p.Item.Y + 5, Now(), 0);
+            if (!g.Pressed || g.MotionRunning) throw new Exception("resting auto-slide GIF was not grabbed right away");
+        }
+        app.UpdateActive(id, a => { a.SlideAuto = false; a.MotionMode = Motion.None; });
+        sb.Append($" auto push x{p.Pushes} ·");
+
+        // 6) 표시 층: 바탕화면이면 항상 위(topmost)가 아니고, 맨 위로 되돌리면 다시 topmost
         app.UpdateActive(id, a => { a.MotionMode = Motion.None; a.MotionGravity = true; a.Layer = Layers.Desktop; });
         await Wait(400);
         p = await P();

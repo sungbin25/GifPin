@@ -70,6 +70,30 @@ public sealed class ActiveItem
     public double JumpInterval { get; set; } = Motion.DefaultJumpInterval;
     /// <summary>점프 각도 (도). 0 = 수직, + 오른쪽 / − 왼쪽. 벽에 부딪히면 방향을 바꿈</summary>
     public double JumpAngle { get; set; } = Motion.DefaultJumpAngle;
+    /// <summary>점프 방향을 매번 랜덤으로 (−JumpAngleRange ~ +JumpAngleRange)</summary>
+    public bool JumpAngleRandom { get; set; }
+    public double JumpAngleRange { get; set; } = Motion.DefaultJumpAngleRange;
+    /// <summary>점프 높이를 매번 랜덤으로 (JumpHeightMin ~ JumpHeightMax)</summary>
+    public bool JumpHeightRandom { get; set; }
+    public double JumpHeightMin { get; set; } = Motion.DefaultJumpHeightMin;
+    public double JumpHeightMax { get; set; } = Motion.DefaultJumpHeightMax;
+
+    /// <summary>미끄러짐: 멈춰 있으면 일정(또는 랜덤) 간격으로 저절로 밀려남</summary>
+    public bool SlideAuto { get; set; }
+    /// <summary>미는 방향: 랜덤 또는 PushAngle (0° 오른쪽, 90° 위, 180° 왼쪽, 270° 아래)</summary>
+    public bool PushDirRandom { get; set; } = true;
+    public double PushAngle { get; set; }
+    /// <summary>미는 힘(처음 속도 px/s): 랜덤(PushForceMin~Max) 또는 PushForce</summary>
+    public bool PushForceRandom { get; set; } = true;
+    public double PushForce { get; set; } = Motion.DefaultPushForce;
+    public double PushForceMin { get; set; } = Motion.DefaultPushForceMin;
+    public double PushForceMax { get; set; } = Motion.DefaultPushForceMax;
+    /// <summary>멈춘 뒤 다시 밀기까지(초): 랜덤(PushIntervalMin~Max) 또는 PushInterval</summary>
+    public bool PushIntervalRandom { get; set; } = true;
+    public double PushInterval { get; set; } = Motion.DefaultPushInterval;
+    public double PushIntervalMin { get; set; } = Motion.DefaultPushIntervalMin;
+    public double PushIntervalMax { get; set; } = Motion.DefaultPushIntervalMax;
+
     /// <summary>미끄러짐 마찰 (1~10). 높을수록 빨리 멈춤</summary>
     public double SlideFriction { get; set; } = Motion.DefaultFriction;
 

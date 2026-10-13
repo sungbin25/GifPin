@@ -69,6 +69,22 @@ public static class AssetPack
         public double JumpAngle { get; set; } = Motion.DefaultJumpAngle;
         public double SlideFriction { get; set; } = Motion.DefaultFriction;
         public string Layer { get; set; } = Layers.Top;
+        public bool JumpAngleRandom { get; set; }
+        public double JumpAngleRange { get; set; } = Motion.DefaultJumpAngleRange;
+        public bool JumpHeightRandom { get; set; }
+        public double JumpHeightMin { get; set; } = Motion.DefaultJumpHeightMin;
+        public double JumpHeightMax { get; set; } = Motion.DefaultJumpHeightMax;
+        public bool SlideAuto { get; set; }
+        public bool PushDirRandom { get; set; } = true;
+        public double PushAngle { get; set; }
+        public bool PushForceRandom { get; set; } = true;
+        public double PushForce { get; set; } = Motion.DefaultPushForce;
+        public double PushForceMin { get; set; } = Motion.DefaultPushForceMin;
+        public double PushForceMax { get; set; } = Motion.DefaultPushForceMax;
+        public bool PushIntervalRandom { get; set; } = true;
+        public double PushInterval { get; set; } = Motion.DefaultPushInterval;
+        public double PushIntervalMin { get; set; } = Motion.DefaultPushIntervalMin;
+        public double PushIntervalMax { get; set; } = Motion.DefaultPushIntervalMax;
     }
 
     /// <summary>가져오기 결과: 임시 폴더에 풀린 파일과 메타데이터. 다 쓰면 Dispose로 임시 폴더 삭제.</summary>
@@ -130,6 +146,11 @@ public static class AssetPack
                         MotionFaceDirection = a.MotionFaceDirection, MotionGravity = a.MotionGravity,
                         JumpEnabled = a.JumpEnabled, JumpHeight = a.JumpHeight, JumpInterval = a.JumpInterval, JumpAngle = a.JumpAngle,
                         SlideFriction = a.SlideFriction, Layer = Layers.Normalize(a.Layer),
+                        JumpAngleRandom = a.JumpAngleRandom, JumpAngleRange = a.JumpAngleRange,
+                        JumpHeightRandom = a.JumpHeightRandom, JumpHeightMin = a.JumpHeightMin, JumpHeightMax = a.JumpHeightMax,
+                        SlideAuto = a.SlideAuto, PushDirRandom = a.PushDirRandom, PushAngle = a.PushAngle,
+                        PushForceRandom = a.PushForceRandom, PushForce = a.PushForce, PushForceMin = a.PushForceMin, PushForceMax = a.PushForceMax,
+                        PushIntervalRandom = a.PushIntervalRandom, PushInterval = a.PushInterval, PushIntervalMin = a.PushIntervalMin, PushIntervalMax = a.PushIntervalMax,
                     });
                 }
             }
@@ -262,6 +283,22 @@ public static class AssetPack
             JumpAngle = Math.Clamp(l.JumpAngle, -Motion.MaxJumpAngle, Motion.MaxJumpAngle),
             SlideFriction = Math.Clamp(l.SlideFriction, Motion.MinFriction, Motion.MaxFriction),
             Layer = Layers.Normalize(l.Layer),
+            JumpAngleRandom = l.JumpAngleRandom,
+            JumpAngleRange = Math.Clamp(l.JumpAngleRange, 0, Motion.MaxJumpAngle),
+            JumpHeightRandom = l.JumpHeightRandom,
+            JumpHeightMin = Math.Clamp(l.JumpHeightMin, Motion.MinJumpHeight, Motion.MaxJumpHeight),
+            JumpHeightMax = Math.Clamp(l.JumpHeightMax, Motion.MinJumpHeight, Motion.MaxJumpHeight),
+            SlideAuto = l.SlideAuto,
+            PushDirRandom = l.PushDirRandom,
+            PushAngle = ((l.PushAngle % 360) + 360) % 360,
+            PushForceRandom = l.PushForceRandom,
+            PushForce = Math.Clamp(l.PushForce, Motion.MinPushForce, Motion.MaxPushForce),
+            PushForceMin = Math.Clamp(l.PushForceMin, Motion.MinPushForce, Motion.MaxPushForce),
+            PushForceMax = Math.Clamp(l.PushForceMax, Motion.MinPushForce, Motion.MaxPushForce),
+            PushIntervalRandom = l.PushIntervalRandom,
+            PushInterval = Math.Clamp(l.PushInterval, Motion.MinPushInterval, Motion.MaxPushInterval),
+            PushIntervalMin = Math.Clamp(l.PushIntervalMin, Motion.MinPushInterval, Motion.MaxPushInterval),
+            PushIntervalMax = Math.Clamp(l.PushIntervalMax, Motion.MinPushInterval, Motion.MaxPushInterval),
         };
     }
 }

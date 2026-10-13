@@ -46,6 +46,7 @@ public partial class MainWindow : Window
         _app.MonitorsChanged += () => { RefreshPanel(); RefreshDiagnostics(); };
         Loc.Changed += OnLanguageChanged;
 
+        BindMotionSliders();
         BuildAnchorButtons();
         BuildHotkeyRows();
         RestoreSavedBounds();
@@ -453,6 +454,21 @@ public partial class MainWindow : Window
         FrictionSlider.Value = a.SlideFriction;
         FrictionText.Text = $"{a.SlideFriction:0} / 10";
 
+        // 랜덤 / 고정 선택
+        JumpHeightRand.IsChecked = a.JumpHeightRandom;
+        JumpHeightFixed.IsChecked = !a.JumpHeightRandom;
+        JumpDirRand.IsChecked = a.JumpAngleRandom;
+        JumpDirFixed.IsChecked = !a.JumpAngleRandom;
+        SlideAutoToggle.IsChecked = a.SlideAuto;
+        PushDirRand.IsChecked = a.PushDirRandom;
+        PushDirFixed.IsChecked = !a.PushDirRandom;
+        PushForceRand.IsChecked = a.PushForceRandom;
+        PushForceFixed.IsChecked = !a.PushForceRandom;
+        PushIntervalRand.IsChecked = a.PushIntervalRandom;
+        PushIntervalFixed.IsChecked = !a.PushIntervalRandom;
+        foreach (var b in _sliderBindings) b.Load(a);
+        UpdateChoicePanels();
+
         var monitors = _app.MonitorList;
         MonitorRow.Visibility = monitors.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
         var mon = _app.MonitorOf(a);
@@ -618,6 +634,105 @@ public partial class MainWindow : Window
         SlideOptions.Visibility = mode == Motion.Slide ? Visibility.Visible : Visibility.Collapsed;
         // 스스로 움직이는 중에는 위치 직접 입력 대신 9분할·모니터 이동만
         XBox.IsEnabled = YBox.IsEnabled = !Motion.IsAutonomous(mode);
+    }
+
+    // ── 움직임 세부 설정: 슬라이더 묶음 · 랜덤/고정 선택 ─────────────────
+
+    private sealed record SliderBinding(
+        System.Windows.Controls.Slider Slider, TextBlock Text, Func<double, string> Format,
+        Func<ActiveItem, double> Get, Action<ActiveItem, double> Set)
+    {
+        public void Load(ActiveItem a)
+        {
+            Slider.Value = Get(a);
+            Text.Text = Format(Slider.Value);
+        }
+    }
+
+    private readonly List<SliderBinding> _sliderBindings = new();
+
+    private static string Px(double v) => $"{v:0} px";
+    private static string PxPerSec(double v) => $"{v:0} px/s";
+
+    /// <summary>새 슬라이더들을 ActiveItem 값에 연결. min/max 짝은 서로 넘지 않게 맞춘다.</summary>
+    private void BindMotionSliders()
+    {
+        SliderBinding Bind(System.Windows.Controls.Slider slider, TextBlock text, Func<double, string> fmt,
+            Func<ActiveItem, double> get, Action<ActiveItem, double> set,
+            System.Windows.Controls.Slider? keepAtLeast = null, System.Windows.Controls.Slider? keepAtMost = null)
+        {
+            var b = new SliderBinding(slider, text, fmt, get, set);
+            slider.ValueChanged += (_, e) =>
+            {
+                double v = e.NewValue;
+                text.Text = fmt(v);
+                if (_updating) return;
+                // 최소가 최대를 넘거나 최대가 최소보다 작아지면 짝을 같이 움직임
+                if (keepAtLeast != null && keepAtLeast.Value < v) keepAtLeast.Value = v;
+                if (keepAtMost != null && keepAtMost.Value > v) keepAtMost.Value = v;
+                WithSelected(a => set(a, v));
+            };
+            _sliderBindings.Add(b);
+            return b;
+        }
+
+        Bind(JumpHeightMinSlider, JumpHeightMinText, Px, a => a.JumpHeightMin, (a, v) => a.JumpHeightMin = v, keepAtLeast: JumpHeightMaxSlider);
+        Bind(JumpHeightMaxSlider, JumpHeightMaxText, Px, a => a.JumpHeightMax, (a, v) => a.JumpHeightMax = v, keepAtMost: JumpHeightMinSlider);
+        Bind(JumpAngleRangeSlider, JumpAngleRangeText, v => $"± {v:0}°", a => a.JumpAngleRange, (a, v) => a.JumpAngleRange = v);
+        Bind(PushAngleSlider, PushAngleText, PushAngleText_, a => a.PushAngle, (a, v) => a.PushAngle = v);
+        Bind(PushForceSlider, PushForceText, PxPerSec, a => a.PushForce, (a, v) => a.PushForce = v);
+        Bind(PushForceMinSlider, PushForceMinText, PxPerSec, a => a.PushForceMin, (a, v) => a.PushForceMin = v, keepAtLeast: PushForceMaxSlider);
+        Bind(PushForceMaxSlider, PushForceMaxText, PxPerSec, a => a.PushForceMax, (a, v) => a.PushForceMax = v, keepAtMost: PushForceMinSlider);
+        Bind(PushIntervalSlider, PushIntervalText, SecondsText, a => a.PushInterval, (a, v) => a.PushInterval = v);
+        Bind(PushIntervalMinSlider, PushIntervalMinText, SecondsText, a => a.PushIntervalMin, (a, v) => a.PushIntervalMin = v, keepAtLeast: PushIntervalMaxSlider);
+        Bind(PushIntervalMaxSlider, PushIntervalMaxText, SecondsText, a => a.PushIntervalMax, (a, v) => a.PushIntervalMax = v, keepAtMost: PushIntervalMinSlider);
+    }
+
+    /// <summary>0° 오른쪽, 90° 위 … 화살표로 함께 표시.</summary>
+    private static string PushAngleText_(double deg)
+    {
+        string[] arrows = { "→", "↗", "↑", "↖", "←", "↙", "↓", "↘" };
+        int i = (int)Math.Round(((deg % 360) + 360) % 360 / 45.0) % 8;
+        return $"{deg:0}° {arrows[i]}";
+    }
+
+    /// <summary>랜덤/고정 선택에 맞는 슬라이더만 보이기.</summary>
+    private void UpdateChoicePanels()
+    {
+        static Visibility V(bool show) => show ? Visibility.Visible : Visibility.Collapsed;
+        JumpHeightFixedPanel.Visibility = V(JumpHeightRand.IsChecked != true);
+        JumpHeightRandPanel.Visibility = V(JumpHeightRand.IsChecked == true);
+        JumpDirFixedPanel.Visibility = V(JumpDirRand.IsChecked != true);
+        JumpDirRandPanel.Visibility = V(JumpDirRand.IsChecked == true);
+        AutoPushPanel.Visibility = V(SlideAutoToggle.IsChecked == true);
+        PushDirFixedPanel.Visibility = V(PushDirFixed.IsChecked == true);
+        PushForceFixedPanel.Visibility = V(PushForceFixed.IsChecked == true);
+        PushForceRandPanel.Visibility = V(PushForceFixed.IsChecked != true);
+        PushIntervalFixedPanel.Visibility = V(PushIntervalFixed.IsChecked == true);
+        PushIntervalRandPanel.Visibility = V(PushIntervalFixed.IsChecked != true);
+    }
+
+    private void MotionChoice_Checked(object sender, RoutedEventArgs e)
+    {
+        if (sender is not RadioButton rb || rb.Tag is not string tag || PushIntervalRandPanel == null) return;
+        UpdateChoicePanels();
+        var parts = tag.Split(':');
+        bool random = parts[1] == "random";
+        switch (parts[0])
+        {
+            case "jumpHeight": WithSelected(a => a.JumpHeightRandom = random); break;
+            case "jumpDir": WithSelected(a => a.JumpAngleRandom = random); break;
+            case "pushDir": WithSelected(a => a.PushDirRandom = random); break;
+            case "pushForce": WithSelected(a => a.PushForceRandom = random); break;
+            case "pushInterval": WithSelected(a => a.PushIntervalRandom = random); break;
+        }
+    }
+
+    private void SlideAuto_Click(object sender, RoutedEventArgs e)
+    {
+        bool on = SlideAutoToggle.IsChecked == true;
+        UpdateChoicePanels();
+        WithSelected(a => a.SlideAuto = on);
     }
 
     private void Gravity_Click(object sender, RoutedEventArgs e)

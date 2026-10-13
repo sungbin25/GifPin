@@ -476,6 +476,16 @@ public sealed class AppController
         a.JumpAngle = Math.Clamp(a.JumpAngle, -Motion.MaxJumpAngle, Motion.MaxJumpAngle);
         a.SlideFriction = Math.Clamp(a.SlideFriction, Motion.MinFriction, Motion.MaxFriction);
         a.Layer = Layers.Normalize(a.Layer);
+        a.JumpAngleRange = Math.Clamp(a.JumpAngleRange, 0, Motion.MaxJumpAngle);
+        a.JumpHeightMin = Math.Clamp(a.JumpHeightMin, Motion.MinJumpHeight, Motion.MaxJumpHeight);
+        a.JumpHeightMax = Math.Clamp(a.JumpHeightMax, a.JumpHeightMin, Motion.MaxJumpHeight);
+        a.PushAngle = ((a.PushAngle % 360) + 360) % 360;
+        a.PushForce = Math.Clamp(a.PushForce, Motion.MinPushForce, Motion.MaxPushForce);
+        a.PushForceMin = Math.Clamp(a.PushForceMin, Motion.MinPushForce, Motion.MaxPushForce);
+        a.PushForceMax = Math.Clamp(a.PushForceMax, a.PushForceMin, Motion.MaxPushForce);
+        a.PushInterval = Math.Clamp(a.PushInterval, Motion.MinPushInterval, Motion.MaxPushInterval);
+        a.PushIntervalMin = Math.Clamp(a.PushIntervalMin, Motion.MinPushInterval, Motion.MaxPushInterval);
+        a.PushIntervalMax = Math.Clamp(a.PushIntervalMax, a.PushIntervalMin, Motion.MaxPushInterval);
         SyncToEngine(a);
         RefreshActiveVM(a);
         GeometryChanged?.Invoke(a.Clone());

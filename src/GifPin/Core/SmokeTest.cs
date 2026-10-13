@@ -108,7 +108,7 @@ public static class SmokeTest
     }
 
     private static MotionParams Params(double speed = Motion.DefaultSpeed, bool jump = false, double height = 100, double interval = 0.5, double angle = 0, double friction = Motion.DefaultFriction, bool gravity = true)
-        => new(speed, jump, height, interval, angle, friction, gravity);
+        => new() { Speed = speed, JumpEnabled = jump, JumpHeight = height, JumpInterval = interval, JumpAngle = angle, Friction = friction, Gravity = gravity };
 
     /// <summary>움직임 계산 점검 (화면 400×300, GIF 50×50 → 바닥 y=250, 오른쪽 끝 x=350).</summary>
     public static string RunPhysics()
@@ -190,6 +190,63 @@ public static class SmokeTest
         for (int i = 0; i < 30; i++) jg.Step(0.01, W, H, 0, 0, R, B);
         if (jg.Y > 60.5) throw new Exception($"released GIF fell below the new ground: y={jg.Y:0.0}");
 
+        // 랜덤 점프: 방향은 좌우가 섞이고, 높이는 범위 안에서 매번 달라짐
+        var rj = new MotionState(seed: 7);
+        rj.Reset(Motion.Fall, Params(20, jump: true, interval: 0.3) with
+        {
+            JumpAngleRandom = true, JumpAngleRange = 60, JumpHeightRandom = true, JumpHeightMin = 40, JumpHeightMax = 140,
+        }, 175, Floor);
+        int lefts = 0, rights = 0, lastJumps = 0;
+        double peak = Floor, minPeak = double.MaxValue, maxPeak = 0;
+        for (int i = 0; i < 4000; i++)
+        {
+            rj.Step(0.01, W, H, 0, 0, R, B);
+            if (rj.Jumps != lastJumps)
+            {
+                if (lastJumps > 0) { minPeak = Math.Min(minPeak, Floor - peak); maxPeak = Math.Max(maxPeak, Floor - peak); }
+                lastJumps = rj.Jumps; peak = Floor;
+                if (rj.Vx < -1) lefts++; else if (rj.Vx > 1) rights++;
+            }
+            peak = Math.Min(peak, rj.Y);
+            if (rj.X < -0.5 || rj.X > MaxX + 0.5) throw new Exception($"random jump left the screen: x={rj.X:0}");
+        }
+        if (rj.Jumps < 8 || lefts == 0 || rights == 0) throw new Exception($"random jump direction: jumps={rj.Jumps} left={lefts} right={rights}");
+        if (minPeak < 40 - 8 || maxPeak > 140 + 8 || maxPeak - minPeak < 20) throw new Exception($"random jump height {minPeak:0}..{maxPeak:0}, expected varied within 40..140");
+
+        // 미끄러짐 자동 밀기 (고정): 오른쪽(0°)으로 400px/s, 0.5초마다
+        var ap = new MotionState(seed: 1);
+        ap.Reset(Motion.Slide, Params() with
+        {
+            SlideAuto = true, PushDirRandom = false, PushAngle = 0, PushForceRandom = false, PushForce = 400,
+            PushIntervalRandom = false, PushInterval = 0.5,
+        }, 100, 100);
+        double t = 0;
+        while (ap.Pushes == 0 && t < 2) { ap.Step(0.01, W, H, 0, 0, R, B); t += 0.01; }
+        if (ap.Pushes != 1 || Math.Abs(t - 0.5) > 0.03) throw new Exception($"fixed push came at {t:0.00}s (pushes={ap.Pushes})");
+        if (ap.Vx < 300 || Math.Abs(ap.Vy) > 0.001) throw new Exception($"fixed push direction/force wrong: vx={ap.Vx:0} vy={ap.Vy:0}");
+
+        // 미끄러짐 자동 밀기 (랜덤): 여러 번 밀리고, 방향이 섞이고, 화면 밖으로 나가지 않음
+        var ar = new MotionState(seed: 3);
+        ar.Reset(Motion.Slide, Params() with
+        {
+            SlideAuto = true, PushForceMin = 300, PushForceMax = 900, PushIntervalMin = 0.5, PushIntervalMax = 1.0,
+        }, 150, 120);
+        bool anyLeft = false, anyRight = false, anyUp = false, anyDown = false;
+        int lastPushes = 0;
+        for (int i = 0; i < 3000; i++)
+        {
+            ar.Step(0.01, W, H, 0, 0, R, B);
+            if (ar.Pushes != lastPushes)
+            {
+                lastPushes = ar.Pushes;
+                double force = Math.Sqrt(ar.Vx * ar.Vx + ar.Vy * ar.Vy);
+                if (force < 290 || force > 910) throw new Exception($"random push force {force:0} outside 300..900");
+                anyLeft |= ar.Vx < 0; anyRight |= ar.Vx > 0; anyUp |= ar.Vy < 0; anyDown |= ar.Vy > 0;
+            }
+            if (ar.X < -0.5 || ar.X > MaxX + 0.5 || ar.Y < -0.5 || ar.Y > Floor + 0.5) throw new Exception($"auto slide left the screen: {ar.X:0},{ar.Y:0}");
+        }
+        if (ar.Pushes < 5 || !(anyLeft && anyRight && anyUp && anyDown)) throw new Exception($"random pushes: {ar.Pushes}, dirs L{anyLeft} R{anyRight} U{anyUp} D{anyDown}");
+
         // 미끄러짐: 빠르게 던지면 벽에 여러 번 튕기다 멈춤, 느리게 던지면 금방 멈춤
         var sFast = Slide(2500, 900, out int fastBounces, out double fastTime);
         var sSlow = Slide(150, 0, out int slowBounces, out double slowTime);
@@ -200,7 +257,7 @@ public static class SmokeTest
         still.Release(100, 100, 3, 0);
         if (still.IsSliding) throw new Exception("tiny throw should not slide");
 
-        return $"motion ok (jump top {minY:0}, fast slide {fastBounces} bounces/{fastTime:0.0}s, slow {slowTime:0.0}s)";
+        return $"motion ok (jump top {minY:0}, random jumps {minPeak:0}-{maxPeak:0}px L{lefts}/R{rights}, auto pushes {ar.Pushes}, fast slide {fastBounces} bounces/{fastTime:0.0}s, slow {slowTime:0.0}s)";
 
         static MotionState Slide(double vx, double vy, out int bounces, out double time)
         {

@@ -13,7 +13,7 @@
     <AssemblyName>GifPin</AssemblyName>
     <ApplicationIcon>Assets\GifPin.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>0.3.2</Version>
+    <Version>0.3.3</Version>
     <Product>GifPin</Product>
     <Description>화면 위에 투명 GIF를 띄우는 프로그램</Description>
   </PropertyGroup>

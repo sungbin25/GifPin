@@ -457,22 +457,60 @@
                       <ToggleButton x:Name="JumpToggle" Style="{StaticResource SwitchBox}" Margin="0,10,0,0" Content="{DynamicResource s.panel.jump}"
                                     Click="Jump_Click" ToolTip="{DynamicResource s.panel.jumpTip}"/>
                       <StackPanel x:Name="JumpSliders">
-                        <DockPanel Margin="0,10,0,0">
-                          <TextBlock x:Name="JumpHeightText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
-                          <TextBlock Text="{DynamicResource s.panel.jumpHeight}" Style="{StaticResource SectionLabel}"/>
-                        </DockPanel>
-                        <Slider x:Name="JumpHeightSlider" Minimum="20" Maximum="800" SmallChange="10" LargeChange="50" Margin="0,4,0,0" ValueChanged="JumpHeight_ValueChanged"/>
+                        <TextBlock Text="{DynamicResource s.panel.jumpHeight}" Style="{StaticResource SectionLabel}" Margin="0,10,0,0"/>
+                        <Border Style="{StaticResource SegmentBox}" Margin="0,6,0,0" Padding="2">
+                          <UniformGrid Columns="2">
+                            <RadioButton x:Name="JumpHeightFixed" Style="{StaticResource Segment}" GroupName="jumpHeight" Tag="jumpHeight:fixed" Padding="4,0" Height="26" Content="{DynamicResource s.choice.fixed}" Checked="MotionChoice_Checked"/>
+                            <RadioButton x:Name="JumpHeightRand" Style="{StaticResource Segment}" GroupName="jumpHeight" Tag="jumpHeight:random" Padding="4,0" Height="26" Content="{DynamicResource s.choice.random}" Checked="MotionChoice_Checked"/>
+                          </UniformGrid>
+                        </Border>
+                        <StackPanel x:Name="JumpHeightFixedPanel">
+                          <DockPanel Margin="0,6,0,0">
+                            <TextBlock x:Name="JumpHeightText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock Text="{DynamicResource s.panel.height}" Style="{StaticResource Hint}"/>
+                          </DockPanel>
+                          <Slider x:Name="JumpHeightSlider" Minimum="20" Maximum="800" SmallChange="10" LargeChange="50" Margin="0,2,0,0" ValueChanged="JumpHeight_ValueChanged"/>
+                        </StackPanel>
+                        <StackPanel x:Name="JumpHeightRandPanel">
+                          <DockPanel Margin="0,6,0,0">
+                            <TextBlock x:Name="JumpHeightMinText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock Text="{DynamicResource s.range.min}" Style="{StaticResource Hint}"/>
+                          </DockPanel>
+                          <Slider x:Name="JumpHeightMinSlider" Minimum="20" Maximum="800" TickFrequency="10" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                          <DockPanel Margin="0,6,0,0">
+                            <TextBlock x:Name="JumpHeightMaxText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock Text="{DynamicResource s.range.max}" Style="{StaticResource Hint}"/>
+                          </DockPanel>
+                          <Slider x:Name="JumpHeightMaxSlider" Minimum="20" Maximum="800" TickFrequency="10" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                        </StackPanel>
                         <DockPanel Margin="0,10,0,0">
                           <TextBlock x:Name="JumpIntervalText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
                           <TextBlock Text="{DynamicResource s.panel.jumpInterval}" Style="{StaticResource SectionLabel}"/>
                         </DockPanel>
                         <Slider x:Name="JumpIntervalSlider" Minimum="0.5" Maximum="10" TickFrequency="0.5" IsSnapToTickEnabled="True" Margin="0,4,0,0" ValueChanged="JumpInterval_ValueChanged"/>
-                        <DockPanel Margin="0,10,0,0">
-                          <TextBlock x:Name="JumpAngleText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
-                          <TextBlock Text="{DynamicResource s.panel.jumpAngle}" Style="{StaticResource SectionLabel}"/>
-                        </DockPanel>
-                        <Slider x:Name="JumpAngleSlider" Minimum="-75" Maximum="75" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,4,0,0" ValueChanged="JumpAngle_ValueChanged"/>
-                        <TextBlock Text="{DynamicResource s.panel.jumpAngleHint}" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                        <TextBlock Text="{DynamicResource s.panel.jumpAngle}" Style="{StaticResource SectionLabel}" Margin="0,12,0,0"/>
+                        <Border Style="{StaticResource SegmentBox}" Margin="0,6,0,0" Padding="2">
+                          <UniformGrid Columns="2">
+                            <RadioButton x:Name="JumpDirFixed" Style="{StaticResource Segment}" GroupName="jumpDir" Tag="jumpDir:fixed" Padding="4,0" Height="26" Content="{DynamicResource s.choice.fixedDir}" Checked="MotionChoice_Checked"/>
+                            <RadioButton x:Name="JumpDirRand" Style="{StaticResource Segment}" GroupName="jumpDir" Tag="jumpDir:random" Padding="4,0" Height="26" Content="{DynamicResource s.choice.random}" Checked="MotionChoice_Checked"/>
+                          </UniformGrid>
+                        </Border>
+                        <StackPanel x:Name="JumpDirFixedPanel">
+                          <DockPanel Margin="0,6,0,0">
+                            <TextBlock x:Name="JumpAngleText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock Text="{DynamicResource s.panel.angle}" Style="{StaticResource Hint}"/>
+                          </DockPanel>
+                          <Slider x:Name="JumpAngleSlider" Minimum="-75" Maximum="75" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,2,0,0" ValueChanged="JumpAngle_ValueChanged"/>
+                          <TextBlock Text="{DynamicResource s.panel.jumpAngleHint}" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <StackPanel x:Name="JumpDirRandPanel">
+                          <DockPanel Margin="0,6,0,0">
+                            <TextBlock x:Name="JumpAngleRangeText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock Text="{DynamicResource s.panel.angleRange}" Style="{StaticResource Hint}"/>
+                          </DockPanel>
+                          <Slider x:Name="JumpAngleRangeSlider" Minimum="0" Maximum="75" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                          <TextBlock Text="{DynamicResource s.panel.jumpRandomDirHint}" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                        </StackPanel>
                       </StackPanel>
                     </StackPanel>
 
@@ -484,6 +522,78 @@
                       </DockPanel>
                       <Slider x:Name="FrictionSlider" Minimum="1" Maximum="10" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,4,0,0" ValueChanged="Friction_ValueChanged"/>
                       <TextBlock Text="{DynamicResource s.panel.slideHint}" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                      <ToggleButton x:Name="SlideAutoToggle" Style="{StaticResource SwitchBox}" Margin="0,12,0,0" Content="{DynamicResource s.panel.autoPush}"
+                                    Click="SlideAuto_Click" ToolTip="{DynamicResource s.panel.autoPushTip}"/>
+                      <StackPanel x:Name="AutoPushPanel">
+                        <TextBlock Text="{DynamicResource s.panel.pushDir}" Style="{StaticResource SectionLabel}" Margin="0,10,0,0"/>
+                        <Border Style="{StaticResource SegmentBox}" Margin="0,6,0,0" Padding="2">
+                          <UniformGrid Columns="2">
+                            <RadioButton x:Name="PushDirRand" Style="{StaticResource Segment}" GroupName="pushDir" Tag="pushDir:random" Padding="4,0" Height="26" Content="{DynamicResource s.choice.random}" Checked="MotionChoice_Checked"/>
+                            <RadioButton x:Name="PushDirFixed" Style="{StaticResource Segment}" GroupName="pushDir" Tag="pushDir:fixed" Padding="4,0" Height="26" Content="{DynamicResource s.choice.fixedDir}" Checked="MotionChoice_Checked"/>
+                          </UniformGrid>
+                        </Border>
+                        <StackPanel x:Name="PushDirFixedPanel">
+                          <DockPanel Margin="0,6,0,0">
+                            <TextBlock x:Name="PushAngleText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock Text="{DynamicResource s.panel.angle}" Style="{StaticResource Hint}"/>
+                          </DockPanel>
+                          <Slider x:Name="PushAngleSlider" Minimum="0" Maximum="355" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                          <TextBlock Text="{DynamicResource s.panel.pushAngleHint}" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <TextBlock Text="{DynamicResource s.panel.pushForce}" Style="{StaticResource SectionLabel}" Margin="0,12,0,0"/>
+                        <Border Style="{StaticResource SegmentBox}" Margin="0,6,0,0" Padding="2">
+                          <UniformGrid Columns="2">
+                            <RadioButton x:Name="PushForceRand" Style="{StaticResource Segment}" GroupName="pushForce" Tag="pushForce:random" Padding="4,0" Height="26" Content="{DynamicResource s.choice.random}" Checked="MotionChoice_Checked"/>
+                            <RadioButton x:Name="PushForceFixed" Style="{StaticResource Segment}" GroupName="pushForce" Tag="pushForce:fixed" Padding="4,0" Height="26" Content="{DynamicResource s.choice.fixed}" Checked="MotionChoice_Checked"/>
+                          </UniformGrid>
+                        </Border>
+                        <StackPanel x:Name="PushForceFixedPanel">
+                          <DockPanel Margin="0,6,0,0">
+                            <TextBlock x:Name="PushForceText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock Text="{DynamicResource s.panel.force}" Style="{StaticResource Hint}"/>
+                          </DockPanel>
+                          <Slider x:Name="PushForceSlider" Minimum="100" Maximum="5000" TickFrequency="50" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <StackPanel x:Name="PushForceRandPanel">
+                          <DockPanel Margin="0,6,0,0">
+                            <TextBlock x:Name="PushForceMinText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock Text="{DynamicResource s.range.min}" Style="{StaticResource Hint}"/>
+                          </DockPanel>
+                          <Slider x:Name="PushForceMinSlider" Minimum="100" Maximum="5000" TickFrequency="50" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                          <DockPanel Margin="0,6,0,0">
+                            <TextBlock x:Name="PushForceMaxText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock Text="{DynamicResource s.range.max}" Style="{StaticResource Hint}"/>
+                          </DockPanel>
+                          <Slider x:Name="PushForceMaxSlider" Minimum="100" Maximum="5000" TickFrequency="50" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <TextBlock Text="{DynamicResource s.panel.pushInterval}" Style="{StaticResource SectionLabel}" Margin="0,12,0,0"/>
+                        <Border Style="{StaticResource SegmentBox}" Margin="0,6,0,0" Padding="2">
+                          <UniformGrid Columns="2">
+                            <RadioButton x:Name="PushIntervalRand" Style="{StaticResource Segment}" GroupName="pushInterval" Tag="pushInterval:random" Padding="4,0" Height="26" Content="{DynamicResource s.choice.random}" Checked="MotionChoice_Checked"/>
+                            <RadioButton x:Name="PushIntervalFixed" Style="{StaticResource Segment}" GroupName="pushInterval" Tag="pushInterval:fixed" Padding="4,0" Height="26" Content="{DynamicResource s.choice.fixed}" Checked="MotionChoice_Checked"/>
+                          </UniformGrid>
+                        </Border>
+                        <StackPanel x:Name="PushIntervalFixedPanel">
+                          <DockPanel Margin="0,6,0,0">
+                            <TextBlock x:Name="PushIntervalText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock Text="{DynamicResource s.panel.every}" Style="{StaticResource Hint}"/>
+                          </DockPanel>
+                          <Slider x:Name="PushIntervalSlider" Minimum="0.5" Maximum="60" TickFrequency="0.5" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <StackPanel x:Name="PushIntervalRandPanel">
+                          <DockPanel Margin="0,6,0,0">
+                            <TextBlock x:Name="PushIntervalMinText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock Text="{DynamicResource s.range.min}" Style="{StaticResource Hint}"/>
+                          </DockPanel>
+                          <Slider x:Name="PushIntervalMinSlider" Minimum="0.5" Maximum="60" TickFrequency="0.5" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                          <DockPanel Margin="0,6,0,0">
+                            <TextBlock x:Name="PushIntervalMaxText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock Text="{DynamicResource s.range.max}" Style="{StaticResource Hint}"/>
+                          </DockPanel>
+                          <Slider x:Name="PushIntervalMaxSlider" Minimum="0.5" Maximum="60" TickFrequency="0.5" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <TextBlock Text="{DynamicResource s.panel.pushIntervalHint}" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                      </StackPanel>
                     </StackPanel>
 
                     <ToggleButton x:Name="FaceDirToggle" Style="{StaticResource SwitchBox}" Margin="0,8,0,0" Content="{DynamicResource s.panel.faceDirection}"

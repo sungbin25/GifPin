@@ -169,7 +169,10 @@ internal sealed unsafe class OverlayWindow : IDisposable
 
     private bool MotionShouldRun =>
         Motion.IsMoving(Item.MotionMode) && !_editMode && _drag == Drag.None && _press != Press.Grab && !_held && IsShown
-        && (Motion.IsAutonomous(Item.MotionMode) || _motion.IsSliding);
+        && (Motion.IsAutonomous(Item.MotionMode) || _motion.IsSliding || _motion.AutoPush);
+
+    /// <summary>눈에 보이게 움직이는 중 (이때만 길게 눌러야 잡힘). 자동 밀기를 기다리며 멈춰 있는 GIF는 바로 잡힌다.</summary>
+    private bool VisiblyMoving => _motionRunning && (Motion.IsAutonomous(Item.MotionMode) || _motion.IsSliding);
 
     private void UpdateMotionTimer()
     {
@@ -201,6 +204,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
 
         var (w, h) = ContentSize(Item.Scale);
         var work = WorkAreaAt(Item.X + w / 2, Item.Y + h / 2);
+        bool wasSliding = _motion.IsSliding;
         _motion.Step(dt, w, h, work.Left, work.Top, work.Right, work.Bottom);
         int nx = (int)Math.Round(_motion.X), ny = (int)Math.Round(_motion.Y);
 
@@ -221,13 +225,25 @@ internal sealed unsafe class OverlayWindow : IDisposable
         {
             // 미끄러짐이 멈춤 → 멈춘 자리 저장
             UpdateMotionTimer();
-            _engine.RaiseChanged(Item);
+            ReportPosition();
         }
+        else if (wasSliding && !_motion.IsSliding) ReportPosition(); // 자동 밀기 사이에 멈춤
         else if (_lastMotionReport >= MotionReportMs)
         {
             _lastMotionReport = 0;
-            _engine.RaiseChanged(Item);
+            ReportPosition();
         }
+    }
+
+    private int _reportedX = int.MinValue, _reportedY = int.MinValue;
+
+    /// <summary>움직이는 중 위치를 UI에 알림 (제자리면 생략 → 쓸데없는 저장 방지).</summary>
+    private void ReportPosition()
+    {
+        if (Item.X == _reportedX && Item.Y == _reportedY) return;
+        _reportedX = Item.X;
+        _reportedY = Item.Y;
+        _engine.RaiseChanged(Item);
     }
 
     public void SetEditMode(bool edit)
@@ -482,7 +498,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
         SetCapture(Hwnd);
         KillTimer(Hwnd, TIMER_RESUME); // 다시 출발하기 전에 또 잡음
         int hold = _engine.HoldToGrabMs;
-        if (_motionRunning && hold > 0)
+        if (VisiblyMoving && hold > 0)
         {
             _press = Press.Waiting;
             SetTimer(Hwnd, TIMER_HOLD, (uint)hold, IntPtr.Zero);
@@ -606,7 +622,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
     }
 
     /// <summary>점검용 상태.</summary>
-    internal OverlayProbe Probe() => new(Item.Clone(), _motionRunning, _held, _press != Press.None, _motion.IsSliding, _motion.Jumps, IsTopmost);
+    internal OverlayProbe Probe() => new(Item.Clone(), _motionRunning, _held, _press != Press.None, _motion.IsSliding, _motion.Jumps, IsTopmost, _motion.Pushes);
 
     private Drag HitTest(int x, int y)
     {

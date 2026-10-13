@@ -16,10 +16,15 @@ public static class Motion
     public const double MinJumpHeight = 20, MaxJumpHeight = 800, DefaultJumpHeight = 160;
     public const double MinJumpInterval = 0.5, MaxJumpInterval = 10, DefaultJumpInterval = 3;
     public const double MaxJumpAngle = 75, DefaultJumpAngle = 0; // 0 = 수직, + 오른쪽 / − 왼쪽
+    public const double DefaultJumpAngleRange = 45;               // 랜덤 방향: −범위 ~ +범위
+    public const double DefaultJumpHeightMin = 80, DefaultJumpHeightMax = 260;
 
     // 미끄러짐
     public const double MinFriction = 1, MaxFriction = 10, DefaultFriction = 4;
     public const double MaxThrowSpeed = 6000; // px/s
+    // 미끄러짐 자동 밀기: 힘 = 처음 속도(px/s), 방향 = 0° 오른쪽, 90° 위 (시계 반대 방향)
+    public const double MinPushForce = 100, MaxPushForce = 5000, DefaultPushForce = 1200, DefaultPushForceMin = 500, DefaultPushForceMax = 2000;
+    public const double MinPushInterval = 0.5, MaxPushInterval = 60, DefaultPushInterval = 3, DefaultPushIntervalMin = 2, DefaultPushIntervalMax = 6;
 
     public static string Normalize(string? mode) => mode is Walk or Bounce or Fall or Slide ? mode : None;
 
@@ -33,12 +38,47 @@ public static class Motion
     public static double FrictionToDecel(double level) => 150 * Math.Clamp(level, MinFriction, MaxFriction);
 }
 
-/// <summary>움직임 설정값 (ActiveItem에서 복사).</summary>
-internal readonly record struct MotionParams(
-    double Speed, bool JumpEnabled, double JumpHeight, double JumpInterval, double JumpAngle, double Friction, bool Gravity = true)
+/// <summary>움직임 설정값 (ActiveItem에서 복사). "Random"이 켜진 값은 매번 범위 안에서 새로 뽑는다.</summary>
+internal sealed record MotionParams
 {
-    public static MotionParams From(ActiveItem a) => new(
-        a.MotionSpeed, a.JumpEnabled, a.JumpHeight, a.JumpInterval, a.JumpAngle, a.SlideFriction, a.MotionGravity);
+    public double Speed { get; init; } = Motion.DefaultSpeed;
+    public bool Gravity { get; init; } = true;
+    public double Friction { get; init; } = Motion.DefaultFriction;
+
+    // 점프 (떨어지기)
+    public bool JumpEnabled { get; init; } = true;
+    public double JumpInterval { get; init; } = Motion.DefaultJumpInterval;
+    public double JumpAngle { get; init; } = Motion.DefaultJumpAngle;
+    public bool JumpAngleRandom { get; init; }
+    public double JumpAngleRange { get; init; } = Motion.DefaultJumpAngleRange;
+    public double JumpHeight { get; init; } = Motion.DefaultJumpHeight;
+    public bool JumpHeightRandom { get; init; }
+    public double JumpHeightMin { get; init; } = Motion.DefaultJumpHeightMin;
+    public double JumpHeightMax { get; init; } = Motion.DefaultJumpHeightMax;
+
+    // 미끄러짐 자동 밀기
+    public bool SlideAuto { get; init; }
+    public bool PushDirRandom { get; init; } = true;
+    public double PushAngle { get; init; }
+    public bool PushForceRandom { get; init; } = true;
+    public double PushForce { get; init; } = Motion.DefaultPushForce;
+    public double PushForceMin { get; init; } = Motion.DefaultPushForceMin;
+    public double PushForceMax { get; init; } = Motion.DefaultPushForceMax;
+    public bool PushIntervalRandom { get; init; } = true;
+    public double PushInterval { get; init; } = Motion.DefaultPushInterval;
+    public double PushIntervalMin { get; init; } = Motion.DefaultPushIntervalMin;
+    public double PushIntervalMax { get; init; } = Motion.DefaultPushIntervalMax;
+
+    public static MotionParams From(ActiveItem a) => new()
+    {
+        Speed = a.MotionSpeed, Gravity = a.MotionGravity, Friction = a.SlideFriction,
+        JumpEnabled = a.JumpEnabled, JumpInterval = a.JumpInterval, JumpAngle = a.JumpAngle,
+        JumpAngleRandom = a.JumpAngleRandom, JumpAngleRange = a.JumpAngleRange,
+        JumpHeight = a.JumpHeight, JumpHeightRandom = a.JumpHeightRandom, JumpHeightMin = a.JumpHeightMin, JumpHeightMax = a.JumpHeightMax,
+        SlideAuto = a.SlideAuto, PushDirRandom = a.PushDirRandom, PushAngle = a.PushAngle,
+        PushForceRandom = a.PushForceRandom, PushForce = a.PushForce, PushForceMin = a.PushForceMin, PushForceMax = a.PushForceMax,
+        PushIntervalRandom = a.PushIntervalRandom, PushInterval = a.PushInterval, PushIntervalMin = a.PushIntervalMin, PushIntervalMax = a.PushIntervalMax,
+    };
 }
 
 /// <summary>
@@ -59,14 +99,30 @@ internal sealed class MotionState
     public bool IsSliding => _mode == Motion.Slide && (Vx != 0 || Vy != 0);
     /// <summary>점프한 횟수 (점검용).</summary>
     public int Jumps { get; private set; }
+    /// <summary>자동으로 민 횟수 (점검용).</summary>
+    public int Pushes { get; private set; }
+    /// <summary>미끄러짐 자동 밀기: 멈춰 있어도 시간을 재야 하므로 계속 돌아야 함.</summary>
+    public bool AutoPush => _mode == Motion.Slide && _p.SlideAuto;
 
+    private readonly Random _rng;
     private string _mode = Motion.None;
-    private MotionParams _p = new(Motion.DefaultSpeed, true, Motion.DefaultJumpHeight, Motion.DefaultJumpInterval, 0, Motion.DefaultFriction);
+    private MotionParams _p = new();
     private double _restTime;
+    private double _nextWait = -1; // 자동 밀기: 이번에 기다릴 시간 (−1 = 아직 안 뽑음)
     private double _groundY; // 중력을 끈 경우의 땅 높이 = 놓은(배치한) 위치
     private int _jumpDir = 1;
 
     public string Mode => _mode;
+
+    public MotionState(int? seed = null) => _rng = seed is int s ? new Random(s) : new Random();
+
+    /// <summary>random이면 [min, max]에서 뽑고, 아니면 고정값.</summary>
+    private double Pick(bool random, double value, double min, double max)
+    {
+        if (!random) return value;
+        if (max < min) (min, max) = (max, min);
+        return min + _rng.NextDouble() * (max - min);
+    }
 
     public void Reset(string mode, MotionParams p, double x, double y)
     {
@@ -75,6 +131,7 @@ internal sealed class MotionState
         Y = y;
         _groundY = y;
         _restTime = 0;
+        _nextWait = -1;
         _p = p;
         Configure(p);
         double speed = Math.Clamp(p.Speed, Motion.MinSpeed, Motion.MaxSpeed);
@@ -95,6 +152,7 @@ internal sealed class MotionState
         bool angleSignChanged = Math.Sign(p.JumpAngle) != Math.Sign(_p.JumpAngle);
         if (p.Gravity != _p.Gravity) { _groundY = Y; Vy = 0; _restTime = 0; } // 중력을 끄면 지금 높이가 땅
         _p = p;
+        _nextWait = -1; // 간격 설정이 바뀌었을 수 있으니 다시 뽑음
         if (angleSignChanged && p.JumpAngle != 0) _jumpDir = p.JumpAngle < 0 ? -1 : 1;
     }
 
@@ -105,6 +163,7 @@ internal sealed class MotionState
         Y = y;
         _groundY = y; // 중력이 꺼져 있으면 놓은 높이가 새 땅
         _restTime = 0;
+        _nextWait = -1;
         switch (_mode)
         {
             case Motion.Slide:
@@ -162,7 +221,16 @@ internal sealed class MotionState
                 break;
 
             case Motion.Slide:
-                if (Vx == 0 && Vy == 0) return;
+                if (Vx == 0 && Vy == 0)
+                {
+                    if (!_p.SlideAuto) { _restTime = 0; return; }
+                    if (_nextWait < 0)
+                        _nextWait = Math.Clamp(Pick(_p.PushIntervalRandom, _p.PushInterval, _p.PushIntervalMin, _p.PushIntervalMax),
+                            Motion.MinPushInterval, Motion.MaxPushInterval);
+                    _restTime += dt;
+                    if (_restTime >= _nextWait) Push();
+                    return;
+                }
                 X += Vx * dt;
                 Y += Vy * dt;
                 if (Y < top) { Y = top; Vy = Math.Abs(Vy) * WallBounce; Vx *= WallBounce; }
@@ -172,7 +240,7 @@ internal sealed class MotionState
                 // 당구공처럼 일정하게 감속
                 double sp = Math.Sqrt(Vx * Vx + Vy * Vy);
                 double next = sp - Motion.FrictionToDecel(_p.Friction) * dt;
-                if (next < StopSpeed) { Vx = Vy = 0; }
+                if (next < StopSpeed) { Vx = Vy = 0; _restTime = 0; _nextWait = -1; }
                 else { Vx *= next / sp; Vy *= next / sp; }
                 if (Vx != 0) FacingLeft = Vx < 0;
                 return;
@@ -186,7 +254,7 @@ internal sealed class MotionState
         if (X > maxX) { X = maxX; Vx = -Math.Abs(Vx); hitWall = true; }
         if (hitWall && _mode == Motion.Fall && _p.JumpAngle != 0) _jumpDir = Vx < 0 ? -1 : Vx > 0 ? 1 : -_jumpDir;
         if (Math.Abs(Vx) > 1) FacingLeft = Vx < 0;
-        else if (_mode == Motion.Fall && _p.JumpAngle != 0 && Vy == 0) FacingLeft = _jumpDir < 0; // 다음에 뛸 방향을 바라봄
+        else if (_mode == Motion.Fall && !_p.JumpAngleRandom && _p.JumpAngle != 0 && Vy == 0) FacingLeft = _jumpDir < 0; // 다음에 뛸 방향을 바라봄
     }
 
     private void StepFall(double dt, int top, double maxY)
@@ -223,12 +291,44 @@ internal sealed class MotionState
     private void Jump(double room)
     {
         _restTime = 0;
-        double height = Math.Clamp(_p.JumpHeight, Motion.MinJumpHeight, Motion.MaxJumpHeight);
+        double height = Math.Clamp(Pick(_p.JumpHeightRandom, _p.JumpHeight, _p.JumpHeightMin, _p.JumpHeightMax),
+            Motion.MinJumpHeight, Motion.MaxJumpHeight);
         height = Math.Min(height, Math.Max(10, room)); // 화면 위로 넘어가지 않게
-        double angle = Math.Clamp(_p.JumpAngle, -Motion.MaxJumpAngle, Motion.MaxJumpAngle) * Math.PI / 180;
+
+        double deg, dir;
+        if (_p.JumpAngleRandom)
+        {
+            double range = Math.Clamp(_p.JumpAngleRange, 0, Motion.MaxJumpAngle);
+            deg = (_rng.NextDouble() * 2 - 1) * range; // −범위 ~ +범위
+            dir = Math.Sign(deg);
+            deg = Math.Abs(deg);
+        }
+        else
+        {
+            deg = Math.Min(Math.Abs(_p.JumpAngle), Motion.MaxJumpAngle);
+            dir = _jumpDir;
+        }
         double up = Math.Sqrt(2 * Gravity * height); // 최고점이 height가 되는 수직 속도
         Vy = -up;
-        Vx = angle == 0 ? 0 : _jumpDir * up * Math.Tan(Math.Abs(angle));
+        Vx = deg < 0.01 ? 0 : dir * up * Math.Tan(deg * Math.PI / 180);
+        if (Vx != 0) FacingLeft = Vx < 0;
         Jumps++;
+    }
+
+    /// <summary>미끄러짐 자동 밀기: 정해진(또는 랜덤) 방향·힘으로 툭 민다.</summary>
+    private void Push()
+    {
+        double deg = _p.PushDirRandom ? _rng.NextDouble() * 360 : _p.PushAngle;
+        double force = Math.Clamp(Pick(_p.PushForceRandom, _p.PushForce, _p.PushForceMin, _p.PushForceMax),
+            Motion.MinPushForce, Motion.MaxPushForce);
+        double rad = deg * Math.PI / 180;
+        Vx = Math.Cos(rad) * force;
+        Vy = -Math.Sin(rad) * force; // 화면 좌표는 아래가 +
+        if (Math.Abs(Vx) < 1e-6) Vx = 0;
+        if (Math.Abs(Vy) < 1e-6) Vy = 0;
+        if (Vx != 0) FacingLeft = Vx < 0;
+        _restTime = 0;
+        _nextWait = -1;
+        Pushes++;
     }
 }

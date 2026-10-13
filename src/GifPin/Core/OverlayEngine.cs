@@ -312,4 +312,4 @@ public sealed class OverlayEngine : IDisposable
 }
 
 /// <summary>오버레이 상태 (점검용).</summary>
-public sealed record OverlayProbe(ActiveItem Item, bool MotionRunning, bool Held, bool Pressed, bool Sliding, int Jumps, bool Topmost);
+public sealed record OverlayProbe(ActiveItem Item, bool MotionRunning, bool Held, bool Pressed, bool Sliding, int Jumps, bool Topmost, int Pushes);
