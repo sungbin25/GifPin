@@ -253,7 +253,56 @@ public partial class App : Application
         app.UpdateActive(id, a => { a.SlideAuto = false; a.MotionMode = Motion.None; });
         sb.Append($" auto push x{p.Pushes} ·");
 
-        // 6) 표시 층: 바탕화면이면 항상 위(topmost)가 아니고, 맨 위로 되돌리면 다시 topmost
+        // 6) 효과 레이어: 떨어지기 + 점프와 함께 여러 효과 → 타이머가 돌고, 파티클·찌그러짐이 생기고, 창에 여백이 생김
+        app.SetEffectsSettings(60, pauseFullscreen: false, pauseOnBattery: false);
+        app.UpdateActive(id, a =>
+        {
+            a.MotionMode = Motion.Fall; a.MotionGravity = true; a.JumpEnabled = true; a.JumpInterval = 0.5; a.JumpHeight = 120;
+            a.JumpAngleRandom = false; a.JumpHeightRandom = false; a.JumpAngle = 0;
+            a.FxFloat = true; a.FxSquash = true; a.FxDust = true; a.FxShadow = true; a.FxTrail = true;
+            a.FxGlow = true; a.FxGlowPulse = true; a.FxBreathe = true; a.FxSway = true; a.FxBlink = true;
+            a.FxParticles = true; a.FxParticleMode = Fx.Always; a.FxParticleRate = 20; a.FxParticleKind = Fx.Heart;
+        });
+        app.Relocate(id, x0, y0);
+        await Wait(2500);
+        p = await P();
+        if (!p.FxRunning || p.Particles == 0 || p.Squashes == 0) throw new Exception($"effects: running={p.FxRunning} particles={p.Particles} squashes={p.Squashes}");
+        if (p.WindowWidth <= w || p.WindowHeight <= h) throw new Exception($"effects window not padded: {p.WindowWidth}x{p.WindowHeight} for {w}x{h}");
+        int fxParticles = p.Particles, fxSquashes = p.Squashes;
+
+        // 여백이 있어도 끌기는 정확히 끈 만큼
+        app.UpdateActive(id, a => { a.MotionMode = Motion.None; a.FxParticleKind = Fx.Star; });
+        app.Relocate(id, x0, y0);
+        await Wait(300);
+        b = Now();
+        eng.SimulatePointer(id, OverlayEngine.PointerAction.Down, x0 + 10, y0 + 10, b, 0);
+        eng.SimulatePointer(id, OverlayEngine.PointerAction.Move, x0 + 50, y0 + 40, b, 300);
+        eng.SimulatePointer(id, OverlayEngine.PointerAction.Up, x0 + 50, y0 + 40, b, 500);
+        await Wait(300);
+        p = await P();
+        if (p.Item.X != x0 + 40 || p.Item.Y != y0 + 30) throw new Exception($"drag with effects moved to {p.Item.X},{p.Item.Y}, expected {x0 + 40},{y0 + 30}");
+
+        // 클릭할 때 터지는 파티클
+        app.UpdateActive(id, a => { a.FxParticleMode = Fx.Click; a.FxFloat = false; a.FxBreathe = false; a.FxSway = false; a.FxBlink = false; a.FxGlowPulse = false; });
+        await Wait(2200); // 이전 파티클이 사라질 때까지
+        int before = (await P()).Particles;
+        eng.SimulatePointer(id, OverlayEngine.PointerAction.Down, p.Item.X + 5, p.Item.Y + 5, Now(), 0);
+        eng.SimulatePointer(id, OverlayEngine.PointerAction.Up, p.Item.X + 5, p.Item.Y + 5, Now(), 0);
+        await Wait(100);
+        p = await P();
+        if (p.Particles < before + 8 || !p.FxRunning) throw new Exception($"click burst: {before} -> {p.Particles} particles");
+
+        // 모두 끄면 여백·타이머가 사라짐
+        app.UpdateActive(id, a =>
+        {
+            a.FxFloat = a.FxBreathe = a.FxSway = a.FxSpin = a.FxBlink = a.FxSquash = a.FxDust = a.FxTrail = a.FxShadow = a.FxGlow = a.FxParticles = false;
+        });
+        await Wait(2500);
+        p = await P();
+        if (p.FxRunning || p.WindowWidth != w || p.WindowHeight != h) throw new Exception($"effects off: running={p.FxRunning} window {p.WindowWidth}x{p.WindowHeight} vs {w}x{h}");
+        sb.Append($" effects ok ({fxParticles} particles, {fxSquashes} squashes, burst) ·");
+
+        // 7) 표시 층: 바탕화면이면 항상 위(topmost)가 아니고, 맨 위로 되돌리면 다시 topmost
         app.UpdateActive(id, a => { a.MotionMode = Motion.None; a.MotionGravity = true; a.Layer = Layers.Desktop; });
         await Wait(400);
         p = await P();

@@ -42,6 +42,12 @@ public sealed class OverlayEngine : IDisposable
     /// <summary>움직이는 GIF를 잡기까지 눌러야 하는 시간 / 놓은 뒤 다시 출발하기까지 (ms). 엔진 스레드에서 읽음.</summary>
     internal volatile int HoldToGrabMs = 200, ResumeDelayMs = 500;
 
+    /// <summary>효과 설정 (엔진 스레드에서 읽음).</summary>
+    internal volatile int FxFps = 60;
+    private volatile bool _pauseFxFullscreen = true, _pauseFxBattery;
+    /// <summary>전체 화면 앱·배터리 때문에 효과를 멈춘 상태.</summary>
+    internal bool FxPaused { get; private set; }
+
     // 네이티브 콜백은 GC 수거 방지를 위해 필드로 보관
     private readonly WndProc _overlayProc, _msgProc;
     private readonly WinEventProc _winEventProc;
@@ -134,6 +140,7 @@ public sealed class OverlayEngine : IDisposable
                     return IntPtr.Zero;
                 case WM_TIMER:
                     BringAllToTop();
+                    CheckFxPause();
                     return IntPtr.Zero;
             }
         }
@@ -233,6 +240,33 @@ public sealed class OverlayEngine : IDisposable
         if (_byId.TryGetValue(id, out var w)) w.Relocate(x, y);
     });
 
+    /// <summary>효과 성능 설정: 초당 프레임, 전체 화면·배터리일 때 멈춤.</summary>
+    public void SetEffectsSettings(int fps, bool pauseFullscreen, bool pauseOnBattery) => Post(() =>
+    {
+        FxFps = fps >= 45 ? 60 : 30;
+        _pauseFxFullscreen = pauseFullscreen;
+        _pauseFxBattery = pauseOnBattery;
+        CheckFxPause(force: true);
+    });
+
+    /// <summary>전체 화면 게임·발표 중이거나 배터리 사용 중이면 효과를 멈춘다 (1.5초마다 확인).</summary>
+    private void CheckFxPause(bool force = false)
+    {
+        bool paused = false;
+        try
+        {
+            if (_pauseFxFullscreen && SHQueryUserNotificationState(out int state) == 0)
+                paused = state is QUNS_BUSY or QUNS_RUNNING_D3D_FULL_SCREEN or QUNS_PRESENTATION_MODE;
+            if (!paused && _pauseFxBattery && GetSystemPowerStatus(out var ps))
+                paused = ps.ACLineStatus == 0;
+        }
+        catch (Exception ex) { Log.Warn("Could not check full-screen / power state", ex); }
+        if (paused == FxPaused && !force) return;
+        if (paused != FxPaused) Log.Info(paused ? "Effects paused (full screen or battery)" : "Effects resumed");
+        FxPaused = paused;
+        foreach (var w in _byId.Values) w.UpdateFxTimer();
+    }
+
     public void SetPointerTiming(int holdMs, int resumeMs)
     {
         HoldToGrabMs = Math.Clamp(holdMs, 0, 5000);
@@ -312,4 +346,12 @@ public sealed class OverlayEngine : IDisposable
 }
 
 /// <summary>오버레이 상태 (점검용).</summary>
-public sealed record OverlayProbe(ActiveItem Item, bool MotionRunning, bool Held, bool Pressed, bool Sliding, int Jumps, bool Topmost, int Pushes);
+public sealed record OverlayProbe(ActiveItem Item, bool MotionRunning, bool Held, bool Pressed, bool Sliding, int Jumps, bool Topmost, int Pushes)
+{
+    public bool FxRunning { get; init; }
+    public int Particles { get; init; }
+    public int Squashes { get; init; }
+    public int DustPuffs { get; init; }
+    public int WindowWidth { get; init; }
+    public int WindowHeight { get; init; }
+}

@@ -94,6 +94,56 @@ public sealed class ActiveItem
     public double PushIntervalMin { get; set; } = Motion.DefaultPushIntervalMin;
     public double PushIntervalMax { get; set; } = Motion.DefaultPushIntervalMax;
 
+    // ── 효과 레이어 (Fx 참고) ──────────────────────────────
+    /// <summary>둥실둥실: 위아래로 떠다님 (진폭 px, 주기 초)</summary>
+    public bool FxFloat { get; set; }
+    public double FxFloatAmp { get; set; } = 10;
+    public double FxFloatPeriod { get; set; } = 2.5;
+    /// <summary>숨쉬기: 크기가 커졌다 작아짐 (%, 초)</summary>
+    public bool FxBreathe { get; set; }
+    public double FxBreatheAmount { get; set; } = 6;
+    public double FxBreathePeriod { get; set; } = 3;
+    /// <summary>흔들림: 좌우로 기울어짐 (각도, 초)</summary>
+    public bool FxSway { get; set; }
+    public double FxSwayAngle { get; set; } = 8;
+    public double FxSwayPeriod { get; set; } = 2;
+    /// <summary>회전: 계속 돔 (도/초, 방향)</summary>
+    public bool FxSpin { get; set; }
+    public double FxSpinSpeed { get; set; } = 90;
+    public bool FxSpinClockwise { get; set; } = true;
+    /// <summary>깜빡임: 투명도가 오르내림 (최저 %, 초)</summary>
+    public bool FxBlink { get; set; }
+    public double FxBlinkMin { get; set; } = 40;
+    public double FxBlinkPeriod { get; set; } = 1.5;
+    /// <summary>찌그러짐: 착지·점프·벽에 부딪힐 때 말랑하게 (%)</summary>
+    public bool FxSquash { get; set; }
+    public double FxSquashAmount { get; set; } = 25;
+    /// <summary>착지 먼지</summary>
+    public bool FxDust { get; set; }
+    /// <summary>잔상: 움직일 때 뒤에 남는 그림 (개수, 첫 잔상 투명도 %)</summary>
+    public bool FxTrail { get; set; }
+    public double FxTrailCount { get; set; } = 5;
+    public double FxTrailOpacity { get; set; } = 40;
+    /// <summary>바닥 그림자 (진하기 %, 크기 %)</summary>
+    public bool FxShadow { get; set; }
+    public double FxShadowOpacity { get; set; } = 40;
+    public double FxShadowSize { get; set; } = 80;
+    /// <summary>외곽 발광 (색, 크기 px, 세기 %, 맥동)</summary>
+    public bool FxGlow { get; set; }
+    public string FxGlowColor { get; set; } = "#FFD54F";
+    public double FxGlowSize { get; set; } = 10;
+    public double FxGlowStrength { get; set; } = 70;
+    public bool FxGlowPulse { get; set; }
+    /// <summary>파티클 (모양, 나오는 때, 움직임, 개수/초, 크기, 수명, 색)</summary>
+    public bool FxParticles { get; set; }
+    public string FxParticleKind { get; set; } = Fx.Sparkle;
+    public string FxParticleMode { get; set; } = Fx.Always;
+    public string FxParticleStyle { get; set; } = Fx.Rise;
+    public double FxParticleRate { get; set; } = 6;
+    public double FxParticleSize { get; set; } = 14;
+    public double FxParticleLife { get; set; } = 1.6;
+    public string FxParticleColor { get; set; } = Fx.Rainbow;
+
     /// <summary>미끄러짐 마찰 (1~10). 높을수록 빨리 멈춤</summary>
     public double SlideFriction { get; set; } = Motion.DefaultFriction;
 
@@ -120,6 +170,12 @@ public sealed class AppSettings
     public int HoldToGrabMs { get; set; } = 200;
     /// <summary>잡았다 놓은 뒤 이만큼(ms) 지나면 다시 움직임</summary>
     public int ResumeDelayMs { get; set; } = 500;
+    /// <summary>효과 초당 프레임 (30 또는 60)</summary>
+    public int EffectsFps { get; set; } = 60;
+    /// <summary>전체 화면 게임·발표 중에는 효과 멈춤</summary>
+    public bool PauseEffectsFullscreen { get; set; } = true;
+    /// <summary>배터리로 쓸 때 효과 멈춤</summary>
+    public bool PauseEffectsOnBattery { get; set; }
     public bool TrayNoticeShown { get; set; }
     public WindowBounds? Window { get; set; }
 }

@@ -76,6 +76,7 @@ public sealed class AppController
         Log.Info($"GifPin {AppVersion} starting · {Environment.OSVersion} · {State.Library.Count} photos, {State.Active.Count} on screen");
         Engine.SetPointerTiming(State.Settings.HoldToGrabMs, State.Settings.ResumeDelayMs);
         Engine.Start();
+        Engine.SetEffectsSettings(State.Settings.EffectsFps, State.Settings.PauseEffectsFullscreen, State.Settings.PauseEffectsOnBattery);
         Engine.SetAllHidden(State.Settings.AllHidden);
         foreach (var f in Engine.HotkeyFailures) Log.Warn($"Hotkey unavailable: {f}");
 
@@ -486,6 +487,7 @@ public sealed class AppController
         a.PushInterval = Math.Clamp(a.PushInterval, Motion.MinPushInterval, Motion.MaxPushInterval);
         a.PushIntervalMin = Math.Clamp(a.PushIntervalMin, Motion.MinPushInterval, Motion.MaxPushInterval);
         a.PushIntervalMax = Math.Clamp(a.PushIntervalMax, a.PushIntervalMin, Motion.MaxPushInterval);
+        Fx.Normalize(a);
         SyncToEngine(a);
         RefreshActiveVM(a);
         GeometryChanged?.Invoke(a.Clone());
@@ -799,6 +801,16 @@ public sealed class AppController
             case OverlayEngine.HotkeyHide: SetAllHidden(!State.Settings.AllHidden); break;
             case OverlayEngine.HotkeyQuit: Quit(); break;
         }
+    }
+
+    /// <summary>효과 성능 설정.</summary>
+    public void SetEffectsSettings(int fps, bool pauseFullscreen, bool pauseOnBattery)
+    {
+        State.Settings.EffectsFps = fps >= 45 ? 60 : 30;
+        State.Settings.PauseEffectsFullscreen = pauseFullscreen;
+        State.Settings.PauseEffectsOnBattery = pauseOnBattery;
+        Engine.SetEffectsSettings(State.Settings.EffectsFps, pauseFullscreen, pauseOnBattery);
+        Save();
     }
 
     /// <summary>움직이는 GIF 잡기: 눌러야 하는 시간 / 놓은 뒤 다시 움직이기까지 (ms).</summary>

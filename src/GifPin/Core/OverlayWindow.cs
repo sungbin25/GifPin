@@ -19,7 +19,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
     private const int HandleHit = 18;
     private const int SnapPx = 8;
     private const int KeepVisiblePx = 20;
-    private const nuint TIMER_FRAME = 1, TIMER_FLASH = 2, TIMER_MOTION = 3, TIMER_HOLD = 4, TIMER_RESUME = 5;
+    private const nuint TIMER_FRAME = 1, TIMER_FLASH = 2, TIMER_MOTION = 3, TIMER_HOLD = 4, TIMER_RESUME = 5, TIMER_FX = 6;
     private const double ThrowWindowSec = 0.1; // 놓기 직전 이 시간 동안의 마우스 속도로 던짐
     private const uint MotionIntervalMs = 15;
     private const long MotionReportMs = 3000; // 움직이는 중 위치를 UI에 알리는 간격
@@ -43,6 +43,13 @@ internal sealed unsafe class OverlayWindow : IDisposable
     private readonly System.Diagnostics.Stopwatch _motionClock = new();
     private long _lastMotionReport;
     private bool _motionRunning, _facingLeft;
+
+    // 효과 레이어
+    private readonly EffectState _fx = new();
+    private readonly System.Diagnostics.Stopwatch _fxClock = new();
+    private bool _fxRunning;
+    private uint _fxInterval;
+    private Pads _pads = Pads.Zero; // 지금 창 가장자리 여백 (창 위치 = GIF 위치 − 여백)
 
     private Press _press;
     private bool _held;              // 손으로 잡아서 움직임을 멈춤 (놓은 뒤 다시 출발하기 전까지 포함)
@@ -179,6 +186,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
         bool run = MotionShouldRun;
         if (run == _motionRunning) return;
         _motionRunning = run;
+        UpdateFxTimer();
         if (run)
         {
             _motion.X = Item.X; // 편집·숨김 뒤 다시 출발할 때 현재 위치에서
@@ -218,7 +226,8 @@ internal sealed unsafe class OverlayWindow : IDisposable
         {
             Item.X = nx;
             Item.Y = ny;
-            SetWindowPos(Hwnd, IntPtr.Zero, nx, ny, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+            if (!_fxRunning) // 효과가 돌고 있으면 다음 효과 프레임에서 함께 옮겨짐
+                SetWindowPos(Hwnd, IntPtr.Zero, nx - _pads.Left, ny - _pads.Top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
         }
 
         if (!MotionShouldRun)
@@ -342,6 +351,42 @@ internal sealed unsafe class OverlayWindow : IDisposable
             ShowWindow(Hwnd, SW_HIDE);
         }
         UpdateMotionTimer();
+        UpdateFxTimer();
+    }
+
+    // ── 효과 타이머 ─────────────────────────────────────────
+
+    /// <summary>효과가 움직여야 할 때만 타이머를 돌림 (편집 중·숨김·일시정지 중에는 멈춤).</summary>
+    internal void UpdateFxTimer()
+    {
+        bool motionActive = Motion.IsMoving(Item.MotionMode) && (_motionRunning || _held || _press == Press.Grab);
+        bool run = !_editMode && IsShown && !_engine.FxPaused && _fx.IsAnimated(Item, motionActive);
+        uint interval = (uint)Math.Max(10, 1000 / Math.Max(1, _engine.FxFps));
+        if (run == _fxRunning && (!run || interval == _fxInterval)) return;
+        _fxRunning = run;
+        _fxInterval = interval;
+        if (run)
+        {
+            _fxClock.Restart();
+            SetTimer(Hwnd, TIMER_FX, interval, IntPtr.Zero);
+        }
+        else
+        {
+            KillTimer(Hwnd, TIMER_FX);
+            _fxClock.Stop();
+            Render(); // 멈춘 모습으로 한 번 그림
+        }
+    }
+
+    private void OnFxTick()
+    {
+        if (!_fxRunning || _anim == null) return;
+        double dt = _fxClock.Elapsed.TotalSeconds;
+        _fxClock.Restart();
+        var (w, h) = ContentSize(Item.Scale);
+        _fx.Advance(dt, Item, Item.X, Item.Y, w, h, Motion.IsMoving(Item.MotionMode) ? _motion : null);
+        Render();
+        UpdateFxTimer();
     }
 
     private void StartTimer()
@@ -381,6 +426,10 @@ internal sealed unsafe class OverlayWindow : IDisposable
                 else if ((nuint)wParam == TIMER_MOTION)
                 {
                     OnMotionTick();
+                }
+                else if ((nuint)wParam == TIMER_FX)
+                {
+                    OnFxTick();
                 }
                 else if ((nuint)wParam == TIMER_HOLD)
                 {
@@ -495,6 +544,12 @@ internal sealed unsafe class OverlayWindow : IDisposable
         if (_editMode || _anim == null || _press != Press.None) return;
         _ptX = x;
         _ptY = y;
+        if (Item.FxParticles && Item.FxParticleMode == Fx.Click && !_engine.FxPaused)
+        {
+            var (bw, bh) = ContentSize(Item.Scale);
+            _fx.Burst(Item, Item.X, Item.Y, bw, bh);
+            UpdateFxTimer();
+        }
         SetCapture(Hwnd);
         KillTimer(Hwnd, TIMER_RESUME); // 다시 출발하기 전에 또 잡음
         int hold = _engine.HoldToGrabMs;
@@ -618,11 +673,19 @@ internal sealed unsafe class OverlayWindow : IDisposable
         Item.Y = y;
         _motion.X = x;
         _motion.Y = y;
-        SetWindowPos(Hwnd, IntPtr.Zero, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+        SetWindowPos(Hwnd, IntPtr.Zero, x - _pads.Left, y - _pads.Top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
     }
 
     /// <summary>점검용 상태.</summary>
-    internal OverlayProbe Probe() => new(Item.Clone(), _motionRunning, _held, _press != Press.None, _motion.IsSliding, _motion.Jumps, IsTopmost, _motion.Pushes);
+    internal OverlayProbe Probe() => new(Item.Clone(), _motionRunning, _held, _press != Press.None, _motion.IsSliding, _motion.Jumps, IsTopmost, _motion.Pushes)
+    {
+        FxRunning = _fxRunning,
+        Particles = _fx.ParticleCount,
+        Squashes = _fx.Squashes,
+        DustPuffs = _fx.DustPuffs,
+        WindowWidth = _dibW,
+        WindowHeight = _dibH,
+    };
 
     private Drag HitTest(int x, int y)
     {
@@ -712,26 +775,46 @@ internal sealed unsafe class OverlayWindow : IDisposable
     private void Render()
     {
         if (_anim == null || !IsShown) return;
-        int pad = _editMode ? EditPad : 0;
         var (w, h) = ContentSize(Item.Scale);
-        int ww = w + pad * 2, wh = h + pad * 2;
+        // 편집 중에는 효과 없이 핸들 여백만, 평소에는 효과가 잘리지 않을 만큼 여백
+        _pads = _editMode ? Pads.Uniform(EditPad) : EffectState.ComputePads(Item, w, h);
+        int ww = w + _pads.Left + _pads.Right, wh = h + _pads.Top + _pads.Bottom;
         EnsureSurface(ww, wh);
 
         var c = _surface!.Canvas;
         c.Clear(SKColors.Transparent);
-        var content = new SKRect(pad, pad, pad + w, pad + h);
-
-        if (_editMode) c.DrawRect(content, _editFill);
-
+        var content = new SKRect(_pads.Left, _pads.Top, _pads.Left + w, _pads.Top + h);
+        var frame = _anim.Frames[_frame];
         bool flip = Item.FlipX ^ (_facingLeft && !_editMode);
-        if (flip)
+
+        if (_editMode)
         {
+            c.DrawRect(content, _editFill);
             c.Save();
-            c.Scale(-1, 1, pad + w / 2f, 0);
-            c.DrawBitmap(_anim.Frames[_frame], content, _framePaint);
+            if (flip) c.Scale(-1, 1, content.MidX, 0);
+            c.DrawBitmap(frame, content, _framePaint);
             c.Restore();
         }
-        else c.DrawBitmap(_anim.Frames[_frame], content, _framePaint);
+        else
+        {
+            double originX = Item.X - _pads.Left, originY = Item.Y - _pads.Top;
+            double ground = Motion.Normalize(Item.MotionMode) is Motion.Walk or Motion.Fall ? _motion.GroundDistance : 0;
+            _fx.DrawBehind(c, Item, content, originX, originY, frame, flip, ground);
+
+            c.Save();
+            _fx.ApplyTransform(c, Item, content);
+            if (flip) c.Scale(-1, 1, content.MidX, 0);
+            byte alpha = _fx.FrameAlpha(Item);
+            var glow = _fx.GlowFilter(Item);
+            _framePaint.Color = new SKColor(255, 255, 255, alpha);
+            _framePaint.ImageFilter = glow;
+            c.DrawBitmap(frame, content, _framePaint);
+            _framePaint.ImageFilter = null;
+            _framePaint.Color = SKColors.White;
+            c.Restore();
+
+            _fx.DrawFront(c, originX, originY);
+        }
 
         if (_editMode)
         {
@@ -770,7 +853,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
         }
         c.Flush();
 
-        var dst = new POINT(Item.X - pad, Item.Y - pad);
+        var dst = new POINT(Item.X - _pads.Left, Item.Y - _pads.Top);
         var size = new SIZE(ww, wh);
         var src = new POINT(0, 0);
         double op = Math.Clamp(Item.Opacity, 0.1, 1.0);
@@ -830,7 +913,9 @@ internal sealed unsafe class OverlayWindow : IDisposable
         KillTimer(Hwnd, TIMER_FRAME);
         KillTimer(Hwnd, TIMER_FLASH);
         KillTimer(Hwnd, TIMER_MOTION);
+        KillTimer(Hwnd, TIMER_FX);
         DestroyWindow(Hwnd);
+        _fx.Dispose();
         FreeSurface();
         _anim?.Dispose();
         _anim = null;

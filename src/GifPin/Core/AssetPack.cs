@@ -85,6 +85,8 @@ public static class AssetPack
         public double PushInterval { get; set; } = Motion.DefaultPushInterval;
         public double PushIntervalMin { get; set; } = Motion.DefaultPushIntervalMin;
         public double PushIntervalMax { get; set; } = Motion.DefaultPushIntervalMax;
+        /// <summary>GIF 설정 전체 (효과 포함). 있으면 위 개별 값보다 우선. 이후 버전에서 늘어나는 설정도 그대로 담긴다.</summary>
+        public ActiveItem? Settings { get; set; }
     }
 
     /// <summary>가져오기 결과: 임시 폴더에 풀린 파일과 메타데이터. 다 쓰면 Dispose로 임시 폴더 삭제.</summary>
@@ -151,6 +153,7 @@ public static class AssetPack
                         SlideAuto = a.SlideAuto, PushDirRandom = a.PushDirRandom, PushAngle = a.PushAngle,
                         PushForceRandom = a.PushForceRandom, PushForce = a.PushForce, PushForceMin = a.PushForceMin, PushForceMax = a.PushForceMax,
                         PushIntervalRandom = a.PushIntervalRandom, PushInterval = a.PushInterval, PushIntervalMin = a.PushIntervalMin, PushIntervalMax = a.PushIntervalMax,
+                        Settings = a.Clone(),
                     });
                 }
             }
@@ -258,6 +261,27 @@ public static class AssetPack
 
     /// <summary>배치 정보 → 실제 화면 좌표.</summary>
     public static ActiveItem ToActive(PackLayout l, PhotoItem photo, IReadOnlyList<MonitorInfo> monitors)
+    {
+        var basic = ToActiveBasic(l, photo, monitors);
+        if (l.Settings == null) return basic;
+        // 전체 설정이 있으면 그대로 쓰되, 위치·식별자는 이 PC에 맞게
+        var a = l.Settings.Clone();
+        a.Id = basic.Id;
+        a.PhotoId = basic.PhotoId;
+        a.X = basic.X;
+        a.Y = basic.Y;
+        a.Scale = basic.Scale;
+        a.Visible = true;
+        a.Opacity = Math.Clamp(a.Opacity, 0.1, 1.0);
+        a.Speed = Math.Clamp(a.Speed, 0.25, 4.0);
+        a.MotionMode = Motion.Normalize(a.MotionMode);
+        a.MotionSpeed = Math.Clamp(a.MotionSpeed, Motion.MinSpeed, Motion.MaxSpeed);
+        a.Layer = Layers.Normalize(a.Layer);
+        GifPin.Core.Fx.Normalize(a);
+        return a;
+    }
+
+    private static ActiveItem ToActiveBasic(PackLayout l, PhotoItem photo, IReadOnlyList<MonitorInfo> monitors)
     {
         var mon = monitors.FirstOrDefault(m => m.Index == l.Monitor) ?? Monitors.Primary(monitors);
         double scale = Math.Clamp(l.Scale, 0.1, 4.0);

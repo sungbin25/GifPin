@@ -29,6 +29,8 @@
 | 움직이는 GIF 잡기 | 0.2초 이상 누르면 멈추고 잡힘, 놓으면 0.5초 뒤 다시 움직임 (설정 → 마우스에서 조정) |
 | 랜덤 점프 | 떨어지기 → 점프 높이·방향을 "고정" 또는 "랜덤(범위)"으로 |
 | 저절로 미끄러지기 | 미끄러짐 → "저절로 움직이기": 방향(랜덤/지정)·힘(랜덤 범위/고정)·주기(랜덤 범위/고정) |
+| 효과 | 속성의 "효과": 둥실둥실·숨쉬기·흔들흔들·빙글빙글·깜빡임 / 말랑말랑·착지 먼지·잔상 / 바닥 그림자·외곽 빛 / 파티클(반짝·하트·별·방울·점) — 효과마다 세부 설정 |
+| 효과 성능 | 설정 → 효과: 30/60fps, 전체 화면 게임·배터리일 때 자동 멈춤 |
 | 던지기 | "미끄러짐"에서 GIF를 끌다가 놓으면 마우스 속도만큼 화면에 튕기며 미끄러지다 멈춤 |
 | 모니터 옮기기 | 속성의 "모니터"에서 선택. 모니터를 빼면 그 위의 GIF는 주 모니터로 이동 |
 | GIF를 잃어버렸을 때 | 설정 → 문제 해결, 또는 트레이 → 문제 해결: 가운데로 모으기 / 모두 보이기 / 클릭 통과 끄기 |
@@ -44,7 +46,7 @@
 src/GifPin/
   Core/   OverlayEngine (전용 스레드), OverlayWindow (레이어드 윈도우 + 편집 핸들),
           GifAnimation, ApngDecoder, BackgroundRemover, WebpWriter, SpriteBuilder,
-          AssetPack, Motion, Monitors, Library, AppState/Store, Log, Loc/Strings (영어·한국어)
+          AssetPack, Motion, Effects, Monitors, Library, AppState/Store, Log, Loc/Strings (영어·한국어)
   UI/     MainWindow, EditToolbar, BgRemoveWindow, SpriteImportWindow, TrayIcon, AppController
 tests/    스모크 테스트용 샘플 (GIF, APNG, 스프라이트 시트, 프레임 폴더)
 installer/GifPin.iss   Inno Setup 스크립트

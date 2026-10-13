@@ -86,19 +86,22 @@ public static class SmokeTest
             new() { Id = "pa", Name = "apng sample", File = apng, Width = 64, Height = 48, FrameCount = 4, Favorite = true },
             new() { Id = "pb", Name = "strip", File = strip, Width = 64, Height = 16, FrameCount = 1, Pixelated = true },
         };
-        var layout = new List<ActiveItem> { new() { Id = "x", PhotoId = "pa", X = 100, Y = 100, Scale = 2, MotionMode = Motion.Bounce } };
+        var layout = new List<ActiveItem> { new() { Id = "x", PhotoId = "pa", X = 100, Y = 100, Scale = 2, MotionMode = Motion.Bounce, FxGlow = true, FxGlowColor = "#81D4FA", FxParticles = true, FxParticleKind = Fx.Heart } };
         string zip = Path.Combine(Store.DataDir, "smoke-pack.zip");
         AssetPack.Export(zip, "smoke pack", photos, layout);
         using (var ex = AssetPack.Extract(zip))
         {
             if (ex.Files.Count != 2) throw new Exception($"pack files {ex.Files.Count} != 2");
             if (ex.Layout.Count != 1 || ex.Layout[0].MotionMode != Motion.Bounce) throw new Exception("pack layout lost");
+            var st = ex.Layout[0].Settings;
+            if (st == null || !st.FxGlow || st.FxGlowColor != "#81D4FA" || st.FxParticleKind != Fx.Heart) throw new Exception("pack lost effect settings");
             if (!ex.Files.Any(f => f.item.Favorite && f.item.Name == "apng sample")) throw new Exception("pack metadata lost");
             if (!ex.Files.All(f => File.Exists(f.path))) throw new Exception("pack files not extracted");
             report.Append("asset pack ok · ");
         }
 
         report.Append(RunPhysics()).Append(" · ");
+        report.Append(RunEffects()).Append(" · ");
 
         // 번역 사전: 모든 키에 영어·한국어가 있어야 함
         var missing = Strings.All.Where(kv => string.IsNullOrWhiteSpace(kv.Value.en) || string.IsNullOrWhiteSpace(kv.Value.ko)).Select(kv => kv.Key).ToList();
@@ -277,5 +280,71 @@ public static class SmokeTest
             if (s.IsSliding) throw new Exception("slide never stopped");
             return s;
         }
+    }
+
+    /// <summary>효과 계산 점검 (그리기 제외): 여백, 파티클 양, 충돌 반응, 잔상, 클릭 터뜨리기.</summary>
+    public static string RunEffects()
+    {
+        var a = new ActiveItem();
+        if (EffectState.ComputePads(a, 100, 50) != Pads.Zero) throw new Exception("pads without effects");
+        a.FxSpin = true;
+        var pads = EffectState.ComputePads(a, 100, 50);
+        double need = (Math.Sqrt(100 * 100 + 50 * 50) - 50) / 2;
+        if (pads.Top < need || pads.Left < need - 30) throw new Exception($"spin pads too small: {pads}");
+        a.FxSpin = false;
+
+        // 항상: 초당 10개 → 1초에 약 10개
+        a.FxParticles = true; a.FxParticleMode = Fx.Always; a.FxParticleRate = 10; a.FxParticleLife = 2;
+        var fx = new EffectState(seed: 5);
+        for (int i = 0; i < 100; i++) fx.Advance(0.01, a, 100, 100, 64, 64, null);
+        if (fx.ParticleCount < 8 || fx.ParticleCount > 12) throw new Exception($"always: {fx.ParticleCount} particles after 1 s at 10/s");
+        int always = fx.ParticleCount;
+
+        // 움직일 때만: 가만히 있으면 0, 움직이면 생김
+        a.FxParticleMode = Fx.Moving;
+        var mv = new EffectState(seed: 6);
+        for (int i = 0; i < 100; i++) mv.Advance(0.01, a, 100, 100, 64, 64, null);
+        if (mv.ParticleCount != 0) throw new Exception("moving-only particles appeared while still");
+        for (int i = 0; i < 100; i++) mv.Advance(0.01, a, 100 + i * 3, 100, 64, 64, null); // 300 px/s
+        if (mv.ParticleCount == 0) throw new Exception("moving-only particles did not appear while moving");
+
+        // 클릭: 한꺼번에 터짐, 시간이 지나면 사라짐
+        a.FxParticleMode = Fx.Click;
+        var ck = new EffectState(seed: 7);
+        ck.Burst(a, 100, 100, 64, 64);
+        if (ck.ParticleCount < 8) throw new Exception($"click burst made {ck.ParticleCount} particles");
+        for (int i = 0; i < 400; i++) ck.Advance(0.01, a, 100, 100, 64, 64, null);
+        if (ck.ParticleCount != 0) throw new Exception("burst particles never faded");
+        a.FxParticles = false;
+
+        // 떨어지기 + 찌그러짐 + 먼지: 착지할 때 반응하고, 잠시 뒤 원래대로
+        a.FxSquash = true; a.FxDust = true;
+        var m = new MotionState();
+        m.Reset(Motion.Fall, new MotionParams { Speed = 20, JumpEnabled = false }, 100, 0);
+        var sq = new EffectState(seed: 8);
+        for (int i = 0; i < 200; i++)
+        {
+            m.Step(0.01, 50, 50, 0, 0, 400, 300);
+            sq.Advance(0.01, a, m.X, m.Y, 50, 50, m);
+        }
+        if (sq.Squashes < 1 || sq.DustPuffs < 1) throw new Exception($"landing: squashes={sq.Squashes} dust={sq.DustPuffs}");
+        for (int i = 0; i < 150; i++) { m.Step(0.01, 50, 50, 0, 0, 400, 300); sq.Advance(0.01, a, m.X, m.Y, 50, 50, m); }
+        if (sq.SquashActive) throw new Exception("squash never settled");
+
+        // 잔상: 움직이는 동안 개수만큼 쌓이고 멈추면 사라짐
+        a.FxTrail = true; a.FxTrailCount = 5;
+        var tr = new EffectState(seed: 9);
+        for (int i = 0; i < 60; i++) tr.Advance(0.01, a, 100 + i * 4, 100, 50, 50, null);
+        if (tr.TrailCount != 5) throw new Exception($"trail holds {tr.TrailCount}, expected 5");
+        for (int i = 0; i < 60; i++) tr.Advance(0.01, a, 340, 100, 50, 50, null);
+        if (tr.TrailCount != 0) throw new Exception("trail did not clear after stopping");
+
+        // 범위 바로잡기
+        var bad = new ActiveItem { FxParticleKind = "???", FxGlowColor = "nope", FxTrailCount = 99, FxParticleColor = "#12" };
+        Fx.Normalize(bad);
+        if (bad.FxParticleKind != Fx.Sparkle || bad.FxGlowColor != "#FFD54F" || bad.FxTrailCount != 10 || bad.FxParticleColor != Fx.Rainbow)
+            throw new Exception("effect settings were not normalized");
+
+        return $"effects ok (spin pad {pads.Top}, {always} particles/s, landing squash+dust, trail 5)";
     }
 }

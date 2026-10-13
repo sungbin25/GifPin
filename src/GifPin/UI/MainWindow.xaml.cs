@@ -47,6 +47,7 @@ public partial class MainWindow : Window
         Loc.Changed += OnLanguageChanged;
 
         BindMotionSliders();
+        BindEffects();
         BuildAnchorButtons();
         BuildHotkeyRows();
         RestoreSavedBounds();
@@ -468,6 +469,7 @@ public partial class MainWindow : Window
         PushIntervalFixed.IsChecked = !a.PushIntervalRandom;
         foreach (var b in _sliderBindings) b.Load(a);
         UpdateChoicePanels();
+        LoadEffects(a);
 
         var monitors = _app.MonitorList;
         MonitorRow.Visibility = monitors.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
@@ -735,6 +737,136 @@ public partial class MainWindow : Window
         WithSelected(a => a.SlideAuto = on);
     }
 
+    // ── 효과 레이어: 컨트롤의 Tag = ActiveItem 속성 이름 ───────────────
+
+    private readonly List<ToggleButton> _fxToggles = new();
+    private readonly List<RadioButton> _fxChoices = new();
+    private readonly List<System.Windows.Controls.Slider> _fxSliders = new();
+
+    /// <summary>슬라이더 값 표시 형식.</summary>
+    private static string FxFormat(string prop, double v) => prop switch
+    {
+        "FxFloatAmp" or "FxParticleSize" => $"{v:0} px",
+        "FxGlowSize" => $"{v:0} px",
+        "FxFloatPeriod" or "FxBreathePeriod" or "FxSwayPeriod" or "FxBlinkPeriod" or "FxParticleLife" => SecondsText(Math.Round(v, 1)),
+        "FxSwayAngle" => $"± {v:0}°",
+        "FxSpinSpeed" => $"{v:0}°/s",
+        "FxTrailCount" => $"{v:0}",
+        "FxParticleRate" => Loc.F("fx.perSecond", v.ToString("0", CultureInfo.CurrentCulture)),
+        _ => $"{v:0}%",
+    };
+
+    private static System.Reflection.PropertyInfo? FxProp(string name) => typeof(ActiveItem).GetProperty(name);
+
+    private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+        {
+            yield return child;
+            foreach (var d in Descendants(child)) yield return d;
+        }
+    }
+
+    /// <summary>효과 패널의 스위치·선택·슬라이더를 ActiveItem 속성에 연결.</summary>
+    private void BindEffects()
+    {
+        foreach (var d in Descendants(FxPanel))
+        {
+            switch (d)
+            {
+                case RadioButton rb when rb.Tag is string t && t.StartsWith("Fx"): _fxChoices.Add(rb); break;
+                case ToggleButton tb when tb.Tag is string t && t.StartsWith("Fx"): _fxToggles.Add(tb); break;
+                case System.Windows.Controls.Slider sl when sl.Tag is string prop:
+                    _fxSliders.Add(sl);
+                    sl.ValueChanged += (_, e) =>
+                    {
+                        if (FindName(prop + "Text") is TextBlock text) text.Text = FxFormat(prop, e.NewValue);
+                        if (_updating) return;
+                        double v = Math.Round(e.NewValue, 2);
+                        WithSelected(a => FxProp(prop)?.SetValue(a, v));
+                    };
+                    break;
+            }
+        }
+    }
+
+    private void LoadEffects(ActiveItem a)
+    {
+        foreach (var tb in _fxToggles)
+            tb.IsChecked = FxProp((string)tb.Tag)?.GetValue(a) is true;
+        foreach (var rb in _fxChoices)
+        {
+            var parts = ((string)rb.Tag).Split('=', 2);
+            var value = FxProp(parts[0])?.GetValue(a);
+            rb.IsChecked = string.Equals(Convert.ToString(value, CultureInfo.InvariantCulture), parts[1], StringComparison.OrdinalIgnoreCase);
+        }
+        foreach (var sl in _fxSliders)
+        {
+            var prop = (string)sl.Tag;
+            if (FxProp(prop)?.GetValue(a) is double v) sl.Value = v;
+            if (FindName(prop + "Text") is TextBlock text) text.Text = FxFormat(prop, sl.Value);
+        }
+        UpdateEffectPanels(a);
+    }
+
+    /// <summary>켜진 효과의 세부 설정만 보이고, 상황 안내를 맞춘다.</summary>
+    private void UpdateEffectPanels(ActiveItem a)
+    {
+        foreach (var tb in _fxToggles)
+            if (FindName((string)tb.Tag + "Opts") is FrameworkElement opts)
+                opts.Visibility = tb.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        FxClickHint.Visibility = a.FxParticleMode == Fx.Click && a.ClickThrough ? Visibility.Visible : Visibility.Collapsed;
+        FxMotionHint.Visibility = (a.FxSquash || a.FxDust || a.FxTrail) && !Motion.IsMoving(a.MotionMode) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void FxToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleButton tb || tb.Tag is not string prop) return;
+        bool on = tb.IsChecked == true;
+        WithSelected(a => FxProp(prop)?.SetValue(a, on));
+        if (_app.SelectedActive is ActiveItem a) UpdateEffectPanels(a);
+    }
+
+    private void FxChoice_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_updating || sender is not RadioButton rb || rb.Tag is not string tag || FxClickHint == null) return;
+        var parts = tag.Split('=', 2);
+        var pi = FxProp(parts[0]);
+        if (pi == null) return;
+        object value = pi.PropertyType == typeof(bool) ? bool.Parse(parts[1]) : parts[1];
+        WithSelected(a => pi.SetValue(a, value));
+        if (_app.SelectedActive is ActiveItem a) UpdateEffectPanels(a);
+    }
+
+    private void FxAllOff_Click(object sender, RoutedEventArgs e)
+    {
+        WithSelected(a =>
+        {
+            foreach (var tb in _fxToggles)
+                if ((string)tb.Tag != "FxGlowPulse") FxProp((string)tb.Tag)?.SetValue(a, false);
+        });
+        if (_app.SelectedActive is ActiveItem a)
+        {
+            bool was = _updating;
+            _updating = true;
+            LoadEffects(a);
+            _updating = was;
+        }
+    }
+
+    private void FxFps_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_updating || sender is not RadioButton rb || rb.Tag is not string t) return;
+        var s = _app.State.Settings;
+        _app.SetEffectsSettings(int.Parse(t, CultureInfo.InvariantCulture), s.PauseEffectsFullscreen, s.PauseEffectsOnBattery);
+    }
+
+    private void FxPause_Click(object sender, RoutedEventArgs e)
+    {
+        if (_updating) return;
+        _app.SetEffectsSettings(_app.State.Settings.EffectsFps, PauseFxFullscreenToggle.IsChecked == true, PauseFxBatteryToggle.IsChecked == true);
+    }
+
     private void Gravity_Click(object sender, RoutedEventArgs e)
     {
         bool on = GravityToggle.IsChecked == true;
@@ -857,6 +989,10 @@ public partial class MainWindow : Window
         StartWithWindowsToggle.IsChecked = s.StartWithWindows;
         OpenOnStartToggle.IsChecked = s.OpenWindowOnStart;
         CopyOnAddToggle.IsChecked = s.CopyOnAdd;
+        Fps30.IsChecked = s.EffectsFps < 45;
+        Fps60.IsChecked = s.EffectsFps >= 45;
+        PauseFxFullscreenToggle.IsChecked = s.PauseEffectsFullscreen;
+        PauseFxBatteryToggle.IsChecked = s.PauseEffectsOnBattery;
         HoldSlider.Value = s.HoldToGrabMs;
         HoldText.Text = DelayText(s.HoldToGrabMs);
         ResumeSlider.Value = s.ResumeDelayMs;

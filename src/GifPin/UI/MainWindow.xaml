@@ -599,6 +599,262 @@
                     <ToggleButton x:Name="FaceDirToggle" Style="{StaticResource SwitchBox}" Margin="0,8,0,0" Content="{DynamicResource s.panel.faceDirection}"
                                   Click="FaceDir_Click" ToolTip="{DynamicResource s.panel.faceDirectionTip}"/>
                   </StackPanel>
+
+                  <!-- 효과 레이어 -->
+                  <DockPanel Margin="0,18,0,0">
+                    <Button DockPanel.Dock="Right" Height="24" Padding="10,0" FontSize="12" Content="{DynamicResource s.fx.allOff}" Click="FxAllOff_Click"/>
+                    <TextBlock Text="{DynamicResource s.fx.title}" Style="{StaticResource SectionLabel}" VerticalAlignment="Center"/>
+                  </DockPanel>
+                  <TextBlock Text="{DynamicResource s.fx.hint}" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                  <StackPanel x:Name="FxPanel">
+                    <TextBlock Text="{DynamicResource s.fx.groupIdle}" Style="{StaticResource Hint}" FontWeight="SemiBold" Margin="0,10,0,0"/>
+                    <ToggleButton Style="{StaticResource SwitchBox}" Margin="0,8,0,0" Tag="FxFloat" Content="{DynamicResource s.fx.float}"
+                                  ToolTip="{DynamicResource s.fx.floatTip}" Click="FxToggle_Click"/>
+                    <StackPanel x:Name="FxFloatOpts" Margin="14,0,0,6">
+                      <DockPanel Margin="0,6,0,0">
+                        <TextBlock x:Name="FxFloatAmpText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock Text="{DynamicResource s.fx.amplitude}" Style="{StaticResource Hint}"/>
+                      </DockPanel>
+                      <Slider Tag="FxFloatAmp" Minimum="2" Maximum="60" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                      <DockPanel Margin="0,6,0,0">
+                        <TextBlock x:Name="FxFloatPeriodText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock Text="{DynamicResource s.fx.period}" Style="{StaticResource Hint}"/>
+                      </DockPanel>
+                      <Slider Tag="FxFloatPeriod" Minimum="0.5" Maximum="10" TickFrequency="0.1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                    </StackPanel>
+                    <ToggleButton Style="{StaticResource SwitchBox}" Margin="0,8,0,0" Tag="FxBreathe" Content="{DynamicResource s.fx.breathe}"
+                                  ToolTip="{DynamicResource s.fx.breatheTip}" Click="FxToggle_Click"/>
+                    <StackPanel x:Name="FxBreatheOpts" Margin="14,0,0,6">
+                      <DockPanel Margin="0,6,0,0">
+                        <TextBlock x:Name="FxBreatheAmountText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock Text="{DynamicResource s.fx.amount}" Style="{StaticResource Hint}"/>
+                      </DockPanel>
+                      <Slider Tag="FxBreatheAmount" Minimum="1" Maximum="30" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                      <DockPanel Margin="0,6,0,0">
+                        <TextBlock x:Name="FxBreathePeriodText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock Text="{DynamicResource s.fx.period}" Style="{StaticResource Hint}"/>
+                      </DockPanel>
+                      <Slider Tag="FxBreathePeriod" Minimum="0.5" Maximum="10" TickFrequency="0.1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                    </StackPanel>
+                    <ToggleButton Style="{StaticResource SwitchBox}" Margin="0,8,0,0" Tag="FxSway" Content="{DynamicResource s.fx.sway}"
+                                  ToolTip="{DynamicResource s.fx.swayTip}" Click="FxToggle_Click"/>
+                    <StackPanel x:Name="FxSwayOpts" Margin="14,0,0,6">
+                      <DockPanel Margin="0,6,0,0">
+                        <TextBlock x:Name="FxSwayAngleText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock Text="{DynamicResource s.fx.angle}" Style="{StaticResource Hint}"/>
+                      </DockPanel>
+                      <Slider Tag="FxSwayAngle" Minimum="1" Maximum="45" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                      <DockPanel Margin="0,6,0,0">
+                        <TextBlock x:Name="FxSwayPeriodText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock Text="{DynamicResource s.fx.period}" Style="{StaticResource Hint}"/>
+                      </DockPanel>
+                      <Slider Tag="FxSwayPeriod" Minimum="0.5" Maximum="10" TickFrequency="0.1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                    </StackPanel>
+                    <ToggleButton Style="{StaticResource SwitchBox}" Margin="0,8,0,0" Tag="FxSpin" Content="{DynamicResource s.fx.spin}"
+                                  ToolTip="{DynamicResource s.fx.spinTip}" Click="FxToggle_Click"/>
+                    <StackPanel x:Name="FxSpinOpts" Margin="14,0,0,6">
+                      <DockPanel Margin="0,6,0,0">
+                        <TextBlock x:Name="FxSpinSpeedText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock Text="{DynamicResource s.fx.spinSpeed}" Style="{StaticResource Hint}"/>
+                      </DockPanel>
+                      <Slider Tag="FxSpinSpeed" Minimum="10" Maximum="720" TickFrequency="10" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                      <Border Style="{StaticResource SegmentBox}" Margin="0,4,0,0" Padding="2">
+                        <UniformGrid Columns="2">
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxSpinClockwise" Tag="FxSpinClockwise=true" Padding="2,0" Height="26" Content="{DynamicResource s.fx.clockwise}" Checked="FxChoice_Checked"/>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxSpinClockwise" Tag="FxSpinClockwise=false" Padding="2,0" Height="26" Content="{DynamicResource s.fx.counterClockwise}" Checked="FxChoice_Checked"/>
+                        </UniformGrid>
+                      </Border>
+                    </StackPanel>
+                    <ToggleButton Style="{StaticResource SwitchBox}" Margin="0,8,0,0" Tag="FxBlink" Content="{DynamicResource s.fx.blink}"
+                                  ToolTip="{DynamicResource s.fx.blinkTip}" Click="FxToggle_Click"/>
+                    <StackPanel x:Name="FxBlinkOpts" Margin="14,0,0,6">
+                      <DockPanel Margin="0,6,0,0">
+                        <TextBlock x:Name="FxBlinkMinText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock Text="{DynamicResource s.fx.blinkMin}" Style="{StaticResource Hint}"/>
+                      </DockPanel>
+                      <Slider Tag="FxBlinkMin" Minimum="0" Maximum="90" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                      <DockPanel Margin="0,6,0,0">
+                        <TextBlock x:Name="FxBlinkPeriodText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock Text="{DynamicResource s.fx.period}" Style="{StaticResource Hint}"/>
+                      </DockPanel>
+                      <Slider Tag="FxBlinkPeriod" Minimum="0.3" Maximum="10" TickFrequency="0.1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                    </StackPanel>
+                    <TextBlock Text="{DynamicResource s.fx.groupMotion}" Style="{StaticResource Hint}" FontWeight="SemiBold" Margin="0,14,0,0"/>
+                    <ToggleButton Style="{StaticResource SwitchBox}" Margin="0,8,0,0" Tag="FxSquash" Content="{DynamicResource s.fx.squash}"
+                                  ToolTip="{DynamicResource s.fx.squashTip}" Click="FxToggle_Click"/>
+                    <StackPanel x:Name="FxSquashOpts" Margin="14,0,0,6">
+                      <DockPanel Margin="0,6,0,0">
+                        <TextBlock x:Name="FxSquashAmountText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock Text="{DynamicResource s.fx.amount}" Style="{StaticResource Hint}"/>
+                      </DockPanel>
+                      <Slider Tag="FxSquashAmount" Minimum="5" Maximum="50" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                    </StackPanel>
+                    <ToggleButton Style="{StaticResource SwitchBox}" Margin="0,8,0,0" Tag="FxDust" Content="{DynamicResource s.fx.dust}"
+                                  ToolTip="{DynamicResource s.fx.dustTip}" Click="FxToggle_Click"/>
+                    <ToggleButton Style="{StaticResource SwitchBox}" Margin="0,8,0,0" Tag="FxTrail" Content="{DynamicResource s.fx.trail}"
+                                  ToolTip="{DynamicResource s.fx.trailTip}" Click="FxToggle_Click"/>
+                    <StackPanel x:Name="FxTrailOpts" Margin="14,0,0,6">
+                      <DockPanel Margin="0,6,0,0">
+                        <TextBlock x:Name="FxTrailCountText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock Text="{DynamicResource s.fx.trailCount}" Style="{StaticResource Hint}"/>
+                      </DockPanel>
+                      <Slider Tag="FxTrailCount" Minimum="2" Maximum="10" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                      <DockPanel Margin="0,6,0,0">
+                        <TextBlock x:Name="FxTrailOpacityText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock Text="{DynamicResource s.fx.trailOpacity}" Style="{StaticResource Hint}"/>
+                      </DockPanel>
+                      <Slider Tag="FxTrailOpacity" Minimum="10" Maximum="80" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                    </StackPanel>
+                    <TextBlock x:Name="FxMotionHint" Text="{DynamicResource s.fx.motionHint}" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                    <TextBlock Text="{DynamicResource s.fx.groupLight}" Style="{StaticResource Hint}" FontWeight="SemiBold" Margin="0,14,0,0"/>
+                    <ToggleButton Style="{StaticResource SwitchBox}" Margin="0,8,0,0" Tag="FxShadow" Content="{DynamicResource s.fx.shadow}"
+                                  ToolTip="{DynamicResource s.fx.shadowTip}" Click="FxToggle_Click"/>
+                    <StackPanel x:Name="FxShadowOpts" Margin="14,0,0,6">
+                      <DockPanel Margin="0,6,0,0">
+                        <TextBlock x:Name="FxShadowOpacityText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock Text="{DynamicResource s.fx.opacity}" Style="{StaticResource Hint}"/>
+                      </DockPanel>
+                      <Slider Tag="FxShadowOpacity" Minimum="10" Maximum="90" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                      <DockPanel Margin="0,6,0,0">
+                        <TextBlock x:Name="FxShadowSizeText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock Text="{DynamicResource s.fx.size}" Style="{StaticResource Hint}"/>
+                      </DockPanel>
+                      <Slider Tag="FxShadowSize" Minimum="30" Maximum="150" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                    </StackPanel>
+                    <ToggleButton Style="{StaticResource SwitchBox}" Margin="0,8,0,0" Tag="FxGlow" Content="{DynamicResource s.fx.glow}"
+                                  ToolTip="{DynamicResource s.fx.glowTip}" Click="FxToggle_Click"/>
+                    <StackPanel x:Name="FxGlowOpts" Margin="14,0,0,6">
+                      <TextBlock Text="{DynamicResource s.fx.color}" Style="{StaticResource Hint}" Margin="0,8,0,0"/>
+                      <Border Style="{StaticResource SegmentBox}" Margin="0,4,0,0" Padding="2">
+                        <UniformGrid Columns="8">
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxGlowColor" Tag="FxGlowColor=#FFFFFF" Padding="0" Height="26" Checked="FxChoice_Checked">
+                            <Ellipse Width="14" Height="14" Fill="#FFFFFF" Stroke="#40000000" StrokeThickness="1"/>
+                          </RadioButton>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxGlowColor" Tag="FxGlowColor=#FFD54F" Padding="0" Height="26" Checked="FxChoice_Checked">
+                            <Ellipse Width="14" Height="14" Fill="#FFD54F" Stroke="#40000000" StrokeThickness="1"/>
+                          </RadioButton>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxGlowColor" Tag="FxGlowColor=#FF8A80" Padding="0" Height="26" Checked="FxChoice_Checked">
+                            <Ellipse Width="14" Height="14" Fill="#FF8A80" Stroke="#40000000" StrokeThickness="1"/>
+                          </RadioButton>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxGlowColor" Tag="FxGlowColor=#F48FB1" Padding="0" Height="26" Checked="FxChoice_Checked">
+                            <Ellipse Width="14" Height="14" Fill="#F48FB1" Stroke="#40000000" StrokeThickness="1"/>
+                          </RadioButton>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxGlowColor" Tag="FxGlowColor=#CE93D8" Padding="0" Height="26" Checked="FxChoice_Checked">
+                            <Ellipse Width="14" Height="14" Fill="#CE93D8" Stroke="#40000000" StrokeThickness="1"/>
+                          </RadioButton>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxGlowColor" Tag="FxGlowColor=#81D4FA" Padding="0" Height="26" Checked="FxChoice_Checked">
+                            <Ellipse Width="14" Height="14" Fill="#81D4FA" Stroke="#40000000" StrokeThickness="1"/>
+                          </RadioButton>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxGlowColor" Tag="FxGlowColor=#A5D6A7" Padding="0" Height="26" Checked="FxChoice_Checked">
+                            <Ellipse Width="14" Height="14" Fill="#A5D6A7" Stroke="#40000000" StrokeThickness="1"/>
+                          </RadioButton>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxGlowColor" Tag="FxGlowColor=#FFAB40" Padding="0" Height="26" Checked="FxChoice_Checked">
+                            <Ellipse Width="14" Height="14" Fill="#FFAB40" Stroke="#40000000" StrokeThickness="1"/>
+                          </RadioButton>
+                        </UniformGrid>
+                      </Border>
+                      <DockPanel Margin="0,6,0,0">
+                        <TextBlock x:Name="FxGlowSizeText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock Text="{DynamicResource s.fx.glowSize}" Style="{StaticResource Hint}"/>
+                      </DockPanel>
+                      <Slider Tag="FxGlowSize" Minimum="2" Maximum="40" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                      <DockPanel Margin="0,6,0,0">
+                        <TextBlock x:Name="FxGlowStrengthText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock Text="{DynamicResource s.fx.strength}" Style="{StaticResource Hint}"/>
+                      </DockPanel>
+                      <Slider Tag="FxGlowStrength" Minimum="10" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                      <ToggleButton Style="{StaticResource SwitchBox}" Margin="0,8,0,0" Tag="FxGlowPulse" Content="{DynamicResource s.fx.pulse}"
+                                    ToolTip="{DynamicResource s.fx.pulseTip}" Click="FxToggle_Click"/>
+                    </StackPanel>
+                    <TextBlock Text="{DynamicResource s.fx.groupParticles}" Style="{StaticResource Hint}" FontWeight="SemiBold" Margin="0,14,0,0"/>
+                    <ToggleButton Style="{StaticResource SwitchBox}" Margin="0,8,0,0" Tag="FxParticles" Content="{DynamicResource s.fx.particles}"
+                                  ToolTip="{DynamicResource s.fx.particlesTip}" Click="FxToggle_Click"/>
+                    <StackPanel x:Name="FxParticlesOpts" Margin="14,0,0,6">
+                      <TextBlock Text="{DynamicResource s.fx.shape}" Style="{StaticResource Hint}" Margin="0,8,0,0"/>
+                      <Border Style="{StaticResource SegmentBox}" Margin="0,4,0,0" Padding="2">
+                        <UniformGrid Columns="5">
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleKind" Tag="FxParticleKind=sparkle" Padding="2,0" Height="26" Content="{DynamicResource s.fx.kindSparkle}" Checked="FxChoice_Checked"/>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleKind" Tag="FxParticleKind=heart" Padding="2,0" Height="26" Content="{DynamicResource s.fx.kindHeart}" Checked="FxChoice_Checked"/>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleKind" Tag="FxParticleKind=star" Padding="2,0" Height="26" Content="{DynamicResource s.fx.kindStar}" Checked="FxChoice_Checked"/>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleKind" Tag="FxParticleKind=bubble" Padding="2,0" Height="26" Content="{DynamicResource s.fx.kindBubble}" Checked="FxChoice_Checked"/>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleKind" Tag="FxParticleKind=dot" Padding="2,0" Height="26" Content="{DynamicResource s.fx.kindDot}" Checked="FxChoice_Checked"/>
+                        </UniformGrid>
+                      </Border>
+                      <TextBlock Text="{DynamicResource s.fx.when}" Style="{StaticResource Hint}" Margin="0,8,0,0"/>
+                      <Border Style="{StaticResource SegmentBox}" Margin="0,4,0,0" Padding="2">
+                        <UniformGrid Columns="3">
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleMode" Tag="FxParticleMode=always" Padding="2,0" Height="26" Content="{DynamicResource s.fx.modeAlways}" Checked="FxChoice_Checked"/>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleMode" Tag="FxParticleMode=moving" Padding="2,0" Height="26" Content="{DynamicResource s.fx.modeMoving}" Checked="FxChoice_Checked"/>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleMode" Tag="FxParticleMode=click" Padding="2,0" Height="26" Content="{DynamicResource s.fx.modeClick}" Checked="FxChoice_Checked"/>
+                        </UniformGrid>
+                      </Border>
+                      <TextBlock x:Name="FxClickHint" Text="{DynamicResource s.fx.clickHint}" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                      <TextBlock Text="{DynamicResource s.fx.direction}" Style="{StaticResource Hint}" Margin="0,8,0,0"/>
+                      <Border Style="{StaticResource SegmentBox}" Margin="0,4,0,0" Padding="2">
+                        <UniformGrid Columns="3">
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleStyle" Tag="FxParticleStyle=rise" Padding="2,0" Height="26" Content="{DynamicResource s.fx.styleRise}" Checked="FxChoice_Checked"/>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleStyle" Tag="FxParticleStyle=fall" Padding="2,0" Height="26" Content="{DynamicResource s.fx.styleFall}" Checked="FxChoice_Checked"/>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleStyle" Tag="FxParticleStyle=burst" Padding="2,0" Height="26" Content="{DynamicResource s.fx.styleBurst}" Checked="FxChoice_Checked"/>
+                        </UniformGrid>
+                      </Border>
+                      <TextBlock Text="{DynamicResource s.fx.color}" Style="{StaticResource Hint}" Margin="0,8,0,0"/>
+                      <Border Style="{StaticResource SegmentBox}" Margin="0,4,0,0" Padding="2">
+                        <UniformGrid Columns="9">
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleColor" Tag="FxParticleColor=rainbow" Padding="0" Height="26" Checked="FxChoice_Checked" ToolTip="{DynamicResource s.fx.rainbow}">
+                            <Ellipse Width="14" Height="14">
+                              <Ellipse.Fill>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                  <GradientStop Color="#FF8A80" Offset="0"/>
+                                  <GradientStop Color="#FFD54F" Offset="0.33"/>
+                                  <GradientStop Color="#81D4FA" Offset="0.66"/>
+                                  <GradientStop Color="#CE93D8" Offset="1"/>
+                                </LinearGradientBrush>
+                              </Ellipse.Fill>
+                            </Ellipse>
+                          </RadioButton>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleColor" Tag="FxParticleColor=#FFFFFF" Padding="0" Height="26" Checked="FxChoice_Checked">
+                            <Ellipse Width="14" Height="14" Fill="#FFFFFF" Stroke="#40000000" StrokeThickness="1"/>
+                          </RadioButton>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleColor" Tag="FxParticleColor=#FFD54F" Padding="0" Height="26" Checked="FxChoice_Checked">
+                            <Ellipse Width="14" Height="14" Fill="#FFD54F" Stroke="#40000000" StrokeThickness="1"/>
+                          </RadioButton>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleColor" Tag="FxParticleColor=#FF8A80" Padding="0" Height="26" Checked="FxChoice_Checked">
+                            <Ellipse Width="14" Height="14" Fill="#FF8A80" Stroke="#40000000" StrokeThickness="1"/>
+                          </RadioButton>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleColor" Tag="FxParticleColor=#F48FB1" Padding="0" Height="26" Checked="FxChoice_Checked">
+                            <Ellipse Width="14" Height="14" Fill="#F48FB1" Stroke="#40000000" StrokeThickness="1"/>
+                          </RadioButton>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleColor" Tag="FxParticleColor=#CE93D8" Padding="0" Height="26" Checked="FxChoice_Checked">
+                            <Ellipse Width="14" Height="14" Fill="#CE93D8" Stroke="#40000000" StrokeThickness="1"/>
+                          </RadioButton>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleColor" Tag="FxParticleColor=#81D4FA" Padding="0" Height="26" Checked="FxChoice_Checked">
+                            <Ellipse Width="14" Height="14" Fill="#81D4FA" Stroke="#40000000" StrokeThickness="1"/>
+                          </RadioButton>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleColor" Tag="FxParticleColor=#A5D6A7" Padding="0" Height="26" Checked="FxChoice_Checked">
+                            <Ellipse Width="14" Height="14" Fill="#A5D6A7" Stroke="#40000000" StrokeThickness="1"/>
+                          </RadioButton>
+                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleColor" Tag="FxParticleColor=#FFAB40" Padding="0" Height="26" Checked="FxChoice_Checked">
+                            <Ellipse Width="14" Height="14" Fill="#FFAB40" Stroke="#40000000" StrokeThickness="1"/>
+                          </RadioButton>
+                        </UniformGrid>
+                      </Border>
+                      <DockPanel Margin="0,6,0,0">
+                        <TextBlock x:Name="FxParticleRateText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock Text="{DynamicResource s.fx.rate}" Style="{StaticResource Hint}"/>
+                      </DockPanel>
+                      <Slider Tag="FxParticleRate" Minimum="1" Maximum="60" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                      <DockPanel Margin="0,6,0,0">
+                        <TextBlock x:Name="FxParticleSizeText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock Text="{DynamicResource s.fx.size}" Style="{StaticResource Hint}"/>
+                      </DockPanel>
+                      <Slider Tag="FxParticleSize" Minimum="4" Maximum="48" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                      <DockPanel Margin="0,6,0,0">
+                        <TextBlock x:Name="FxParticleLifeText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock Text="{DynamicResource s.fx.life}" Style="{StaticResource Hint}"/>
+                      </DockPanel>
+                      <Slider Tag="FxParticleLife" Minimum="0.5" Maximum="5" TickFrequency="0.1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                    </StackPanel>
+                  </StackPanel>
                 </StackPanel>
               </StackPanel>
             </ScrollViewer>
@@ -641,6 +897,38 @@
               <StackPanel>
                 <TextBlock Text="{DynamicResource s.set.openOnStart}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
                 <TextBlock Text="{DynamicResource s.set.openOnStartDesc}" Style="{StaticResource Hint}" FontSize="12" Margin="0,2,0,0"/>
+              </StackPanel>
+            </ToggleButton>
+          </StackPanel>
+        </Border>
+
+        <TextBlock Text="{DynamicResource s.set.effects}" Style="{StaticResource SettingsHeader}"/>
+        <Border Style="{StaticResource SettingsCard}">
+          <StackPanel>
+            <DockPanel Margin="18,14">
+              <Border DockPanel.Dock="Right" Style="{StaticResource SegmentBox}" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal">
+                  <RadioButton x:Name="Fps30" Style="{StaticResource Segment}" GroupName="fxfps" Tag="30" Content="30 fps" Padding="14,0" Checked="FxFps_Checked"/>
+                  <RadioButton x:Name="Fps60" Style="{StaticResource Segment}" GroupName="fxfps" Tag="60" Content="60 fps" Padding="14,0" Checked="FxFps_Checked"/>
+                </StackPanel>
+              </Border>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{DynamicResource s.set.fxFpsTitle}" FontSize="14"/>
+                <TextBlock Text="{DynamicResource s.set.fxFpsDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
+              </StackPanel>
+            </DockPanel>
+            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <ToggleButton x:Name="PauseFxFullscreenToggle" Style="{StaticResource Switch}" Margin="18,14" Click="FxPause_Click">
+              <StackPanel>
+                <TextBlock Text="{DynamicResource s.set.fxPauseFullscreen}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource s.set.fxPauseFullscreenDesc}" Style="{StaticResource Hint}" FontSize="12" Margin="0,2,0,0"/>
+              </StackPanel>
+            </ToggleButton>
+            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <ToggleButton x:Name="PauseFxBatteryToggle" Style="{StaticResource Switch}" Margin="18,14" Click="FxPause_Click">
+              <StackPanel>
+                <TextBlock Text="{DynamicResource s.set.fxPauseBattery}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource s.set.fxPauseBatteryDesc}" Style="{StaticResource Hint}" FontSize="12" Margin="0,2,0,0"/>
               </StackPanel>
             </ToggleButton>
           </StackPanel>

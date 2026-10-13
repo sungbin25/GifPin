@@ -87,6 +87,9 @@ internal sealed record MotionParams
 /// </summary>
 internal sealed class MotionState
 {
+    /// <summary>효과(찌그러짐·먼지)를 위한 충돌 종류.</summary>
+    public enum Impact { None, Land, Jump, Ceiling, WallLeft, WallRight }
+
     private const double Gravity = 1800;     // px/s²
     private const double FloorBounce = 0.55; // 바닥에서 튕길 때 남는 속도 비율
     private const double RestSpeed = 60;     // 이보다 느리면 바닥에 멈춤
@@ -103,6 +106,23 @@ internal sealed class MotionState
     public int Pushes { get; private set; }
     /// <summary>미끄러짐 자동 밀기: 멈춰 있어도 시간을 재야 하므로 계속 돌아야 함.</summary>
     public bool AutoPush => _mode == Motion.Slide && _p.SlideAuto;
+
+    /// <summary>충돌이 일어날 때마다 1씩 증가 (효과가 새 충돌을 알아챔).</summary>
+    public int ImpactSeq { get; private set; }
+    public Impact LastImpact { get; private set; }
+    /// <summary>0.15 ~ 1 (빠를수록 큼)</summary>
+    public double ImpactStrength { get; private set; }
+    /// <summary>걷기·떨어지기: 땅까지 남은 거리 (그림자용). 그 밖에는 0.</summary>
+    public double GroundDistance { get; private set; }
+
+    private void Hit(Impact kind, double speed)
+    {
+        speed = Math.Abs(speed);
+        if (speed < 120) return; // 느린 접촉은 무시
+        ImpactSeq++;
+        LastImpact = kind;
+        ImpactStrength = Math.Clamp(speed / 1500, 0.15, 1);
+    }
 
     private readonly Random _rng;
     private string _mode = Motion.None;
@@ -199,7 +219,7 @@ internal sealed class MotionState
                     // 공중에서 놓으면 먼저 바닥까지 떨어진 뒤 걷는다
                     Vy += Gravity * dt;
                     Y += Vy * dt;
-                    if (Y >= floor) { Y = floor; Vy = 0; }
+                    if (Y >= floor) { Hit(Impact.Land, Vy); Y = floor; Vy = 0; }
                 }
                 else
                 {
@@ -212,8 +232,8 @@ internal sealed class MotionState
             case Motion.Bounce:
                 X += Vx * dt;
                 Y += Vy * dt;
-                if (Y < top) { Y = top; Vy = Math.Abs(Vy); }
-                if (Y > maxY) { Y = maxY; Vy = -Math.Abs(Vy); }
+                if (Y < top) { Hit(Impact.Ceiling, Vy); Y = top; Vy = Math.Abs(Vy); }
+                if (Y > maxY) { Hit(Impact.Land, Vy); Y = maxY; Vy = -Math.Abs(Vy); }
                 break;
 
             case Motion.Fall:
@@ -233,10 +253,10 @@ internal sealed class MotionState
                 }
                 X += Vx * dt;
                 Y += Vy * dt;
-                if (Y < top) { Y = top; Vy = Math.Abs(Vy) * WallBounce; Vx *= WallBounce; }
-                if (Y > maxY) { Y = maxY; Vy = -Math.Abs(Vy) * WallBounce; Vx *= WallBounce; }
-                if (X < left) { X = left; Vx = Math.Abs(Vx) * WallBounce; Vy *= WallBounce; }
-                if (X > maxX) { X = maxX; Vx = -Math.Abs(Vx) * WallBounce; Vy *= WallBounce; }
+                if (Y < top) { Hit(Impact.Ceiling, Vy); Y = top; Vy = Math.Abs(Vy) * WallBounce; Vx *= WallBounce; }
+                if (Y > maxY) { Hit(Impact.Land, Vy); Y = maxY; Vy = -Math.Abs(Vy) * WallBounce; Vx *= WallBounce; }
+                if (X < left) { Hit(Impact.WallLeft, Vx); X = left; Vx = Math.Abs(Vx) * WallBounce; Vy *= WallBounce; }
+                if (X > maxX) { Hit(Impact.WallRight, Vx); X = maxX; Vx = -Math.Abs(Vx) * WallBounce; Vy *= WallBounce; }
                 // 당구공처럼 일정하게 감속
                 double sp = Math.Sqrt(Vx * Vx + Vy * Vy);
                 double next = sp - Motion.FrictionToDecel(_p.Friction) * dt;
@@ -249,9 +269,11 @@ internal sealed class MotionState
                 return;
         }
 
+        GroundDistance = _mode is Motion.Walk or Motion.Fall ? Math.Max(0, floor - Y) : 0;
+
         // 좌우 벽
-        if (X < left) { X = left; Vx = Math.Abs(Vx); hitWall = true; }
-        if (X > maxX) { X = maxX; Vx = -Math.Abs(Vx); hitWall = true; }
+        if (X < left) { Hit(Impact.WallLeft, Vx); X = left; Vx = Math.Abs(Vx); hitWall = true; }
+        if (X > maxX) { Hit(Impact.WallRight, Vx); X = maxX; Vx = -Math.Abs(Vx); hitWall = true; }
         if (hitWall && _mode == Motion.Fall && _p.JumpAngle != 0) _jumpDir = Vx < 0 ? -1 : Vx > 0 ? 1 : -_jumpDir;
         if (Math.Abs(Vx) > 1) FacingLeft = Vx < 0;
         else if (_mode == Motion.Fall && !_p.JumpAngleRandom && _p.JumpAngle != 0 && Vy == 0) FacingLeft = _jumpDir < 0; // 다음에 뛸 방향을 바라봄
@@ -280,9 +302,10 @@ internal sealed class MotionState
         Vy += Gravity * dt;
         X += Vx * dt;
         Y += Vy * dt;
-        if (Y < top) { Y = top; Vy = Math.Abs(Vy) * 0.5; }
+        if (Y < top) { Hit(Impact.Ceiling, Vy); Y = top; Vy = Math.Abs(Vy) * 0.5; }
         if (Y >= maxY)
         {
+            Hit(Impact.Land, Vy);
             Y = maxY;
             Vy = Math.Abs(Vy) > RestSpeed ? -Math.Abs(Vy) * FloorBounce : 0;
         }
@@ -313,6 +336,9 @@ internal sealed class MotionState
         Vx = deg < 0.01 ? 0 : dir * up * Math.Tan(deg * Math.PI / 180);
         if (Vx != 0) FacingLeft = Vx < 0;
         Jumps++;
+        ImpactSeq++;
+        LastImpact = Impact.Jump;
+        ImpactStrength = Math.Clamp(height / 300, 0.3, 1);
     }
 
     /// <summary>미끄러짐 자동 밀기: 정해진(또는 랜덤) 방향·힘으로 툭 민다.</summary>
