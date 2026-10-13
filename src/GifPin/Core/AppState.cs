@@ -160,6 +160,39 @@ public sealed class ActiveItem
     public double SlideFriction { get; set; } = Motion.DefaultFriction;
 
     public ActiveItem Clone() => (ActiveItem)MemberwiseClone();
+
+    /// <summary>
+    /// 모든 값을 허용 범위로 바로잡음. 화면에서 바꿀 때뿐 아니라 저장 파일을 불러올 때도 실행
+    /// (파일이 손상되거나 손으로 고친 값 때문에 매 프레임 오류·과부하가 나지 않게).
+    /// </summary>
+    public void Normalize()
+    {
+        var a = this;
+        if (!double.IsFinite(a.Scale)) a.Scale = 1;
+        if (!double.IsFinite(a.Opacity)) a.Opacity = 1;
+        a.Scale = Math.Round(Math.Clamp(a.Scale, 0.1, 4.0), 3);
+        a.Opacity = Math.Clamp(a.Opacity, 0.1, 1.0);
+        a.MotionMode = Motion.Normalize(a.MotionMode);
+        a.MotionSpeed = Math.Clamp(a.MotionSpeed, Motion.MinSpeed, Motion.MaxSpeed);
+        a.JumpHeight = Math.Clamp(a.JumpHeight, Motion.MinJumpHeight, Motion.MaxJumpHeight);
+        a.JumpInterval = Math.Clamp(a.JumpInterval, Motion.MinJumpInterval, Motion.MaxJumpInterval);
+        a.JumpAngle = Math.Clamp(a.JumpAngle, -Motion.MaxJumpAngle, Motion.MaxJumpAngle);
+        a.SlideFriction = Math.Clamp(a.SlideFriction, Motion.MinFriction, Motion.MaxFriction);
+        a.Layer = Layers.Normalize(a.Layer);
+        a.JumpAngleRange = Math.Clamp(a.JumpAngleRange, 0, Motion.MaxJumpAngle);
+        a.JumpHeightMin = Math.Clamp(a.JumpHeightMin, Motion.MinJumpHeight, Motion.MaxJumpHeight);
+        a.JumpHeightMax = Math.Clamp(a.JumpHeightMax, a.JumpHeightMin, Motion.MaxJumpHeight);
+        a.PushAngle = ((a.PushAngle % 360) + 360) % 360;
+        a.PushForce = Math.Clamp(a.PushForce, Motion.MinPushForce, Motion.MaxPushForce);
+        a.PushForceMin = Math.Clamp(a.PushForceMin, Motion.MinPushForce, Motion.MaxPushForce);
+        a.PushForceMax = Math.Clamp(a.PushForceMax, a.PushForceMin, Motion.MaxPushForce);
+        a.PushInterval = Math.Clamp(a.PushInterval, Motion.MinPushInterval, Motion.MaxPushInterval);
+        a.PushIntervalMin = Math.Clamp(a.PushIntervalMin, Motion.MinPushInterval, Motion.MaxPushInterval);
+        a.PushIntervalMax = Math.Clamp(a.PushIntervalMax, a.PushIntervalMin, Motion.MaxPushInterval);
+        Fx.Normalize(a);
+        a.Speed = double.IsFinite(a.Speed) ? Math.Clamp(a.Speed, 0.25, 4.0) : 1;
+        a.FxParticleImages ??= "";
+    }
 }
 
 public sealed class WindowBounds
@@ -184,8 +217,15 @@ public sealed class AppSettings
     public int ResumeDelayMs { get; set; } = 500;
     /// <summary>효과 초당 프레임 (30 또는 60)</summary>
     public int EffectsFps { get; set; } = 60;
-    /// <summary>전체 화면 게임·발표 중에는 효과 멈춤</summary>
-    public bool PauseEffectsFullscreen { get; set; } = true;
+    /// <summary>전체 화면 게임·발표 중에는 효과 멈춤 (기본: 끔 → 전체 화면에서도 효과 동작)</summary>
+    public bool PauseEffectsFullscreen { get; set; }
+    /// <summary>다른 프로그램이 CPU를 많이 쓰면(게임 등) 파티클을 자동으로 끔</summary>
+    public bool AutoLightEffects { get; set; } = true;
+    /// <summary>이 CPU 사용률(%, GifPin 제외) 이상이 몇 초 이어지면 절약</summary>
+    public int AutoLightCpuPercent { get; set; } = 80;
+    /// <summary>설정 형식 버전 (기본값이 바뀐 항목을 한 번만 옮기기 위해)</summary>
+    public int SettingsVersion { get; set; } // 예전 파일엔 없으므로 0 → 불러올 때 옮긴 뒤 CurrentVersion
+    public const int CurrentVersion = 2;
     /// <summary>배터리로 쓸 때 효과 멈춤</summary>
     public bool PauseEffectsOnBattery { get; set; }
     public bool TrayNoticeShown { get; set; }
@@ -241,7 +281,7 @@ public static class Store
                 if (System.IO.File.Exists(file))
                 {
                     var s = JsonSerializer.Deserialize<AppState>(System.IO.File.ReadAllText(file), JsonOptions);
-                    if (s != null) return s;
+                    if (s != null) return Migrate(s);
                 }
             }
             catch { /* 손상 → 다음 후보(백업) */ }
@@ -250,6 +290,19 @@ public static class Store
     }
 
     /// <summary>v0.1 프로토타입 설정(prototype.json)이 있으면 그 GIF를 라이브러리와 화면에 옮긴다.</summary>
+    /// <summary>예전 버전 설정 옮기기.</summary>
+    internal static AppState Migrate(AppState s)
+    {
+        s.Settings ??= new AppSettings();
+        if (s.Settings.SettingsVersion < 2)
+        {
+            // v0.4.4: 전체 화면에서도 효과를 켜 두는 것이 기본으로 바뀜
+            s.Settings.PauseEffectsFullscreen = false;
+            s.Settings.SettingsVersion = 2;
+        }
+        return s;
+    }
+
     private static AppState? MigrateFromPrototype()
     {
         try

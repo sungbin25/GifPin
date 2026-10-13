@@ -776,14 +776,15 @@
                                   ToolTip="{DynamicResource s.fx.particlesTip}" Click="FxToggle_Click"/>
                     <StackPanel x:Name="FxParticlesOpts" Margin="14,0,0,6">
                       <TextBlock Text="{DynamicResource s.fx.shape}" Style="{StaticResource Hint}" Margin="0,8,0,0"/>
+                      <TextBlock Text="{DynamicResource s.fx.shapeMultiHint}" Style="{StaticResource Hint}" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"/>
                       <Border Style="{StaticResource SegmentBox}" Margin="0,4,0,0" Padding="2">
                         <UniformGrid Columns="3">
-                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleKind" Tag="FxParticleKind=sparkle" Padding="2,0" Height="26" Content="{DynamicResource s.fx.kindSparkle}" Checked="FxChoice_Checked"/>
-                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleKind" Tag="FxParticleKind=heart" Padding="2,0" Height="26" Content="{DynamicResource s.fx.kindHeart}" Checked="FxChoice_Checked"/>
-                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleKind" Tag="FxParticleKind=star" Padding="2,0" Height="26" Content="{DynamicResource s.fx.kindStar}" Checked="FxChoice_Checked"/>
-                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleKind" Tag="FxParticleKind=bubble" Padding="2,0" Height="26" Content="{DynamicResource s.fx.kindBubble}" Checked="FxChoice_Checked"/>
-                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleKind" Tag="FxParticleKind=dot" Padding="2,0" Height="26" Content="{DynamicResource s.fx.kindDot}" Checked="FxChoice_Checked"/>
-                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleKind" Tag="FxParticleKind=image" Padding="2,0" Height="26" Content="{DynamicResource s.fx.kindImage}" Checked="FxChoice_Checked"/>
+                          <ToggleButton Style="{StaticResource SegmentToggle}" Tag="FxParticleKind+sparkle" Padding="2,0" Height="26" Content="{DynamicResource s.fx.kindSparkle}" Click="FxKind_Click"/>
+                          <ToggleButton Style="{StaticResource SegmentToggle}" Tag="FxParticleKind+heart" Padding="2,0" Height="26" Content="{DynamicResource s.fx.kindHeart}" Click="FxKind_Click"/>
+                          <ToggleButton Style="{StaticResource SegmentToggle}" Tag="FxParticleKind+star" Padding="2,0" Height="26" Content="{DynamicResource s.fx.kindStar}" Click="FxKind_Click"/>
+                          <ToggleButton Style="{StaticResource SegmentToggle}" Tag="FxParticleKind+bubble" Padding="2,0" Height="26" Content="{DynamicResource s.fx.kindBubble}" Click="FxKind_Click"/>
+                          <ToggleButton Style="{StaticResource SegmentToggle}" Tag="FxParticleKind+dot" Padding="2,0" Height="26" Content="{DynamicResource s.fx.kindDot}" Click="FxKind_Click"/>
+                          <ToggleButton Style="{StaticResource SegmentToggle}" Tag="FxParticleKind+image" Padding="2,0" Height="26" Content="{DynamicResource s.fx.kindImage}" Click="FxKind_Click"/>
                         </UniformGrid>
                       </Border>
                       <!-- 내 이미지 / GIF 파티클 -->
@@ -942,6 +943,21 @@
                 <TextBlock Text="{DynamicResource s.set.fxFpsDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
               </StackPanel>
             </DockPanel>
+            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <ToggleButton x:Name="AutoLightToggle" Style="{StaticResource Switch}" Margin="18,14,18,6" Click="FxPause_Click">
+              <StackPanel>
+                <TextBlock Text="{DynamicResource s.set.autoLight}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource s.set.autoLightDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
+              </StackPanel>
+            </ToggleButton>
+            <StackPanel x:Name="AutoLightOptions" Margin="18,0,18,14">
+              <DockPanel>
+                <TextBlock x:Name="AutoLightCpuText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                <TextBlock Text="{DynamicResource s.set.autoLightCpu}" Style="{StaticResource Hint}"/>
+              </DockPanel>
+              <Slider x:Name="AutoLightCpuSlider" Minimum="50" Maximum="95" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,4,0,0" ValueChanged="AutoLightCpu_ValueChanged"/>
+              <TextBlock x:Name="AutoLightStatus" Style="{StaticResource Hint}" FontSize="12" Margin="0,4,0,0"/>
+            </StackPanel>
             <Border Height="1" Background="{StaticResource LineBrush}"/>
             <ToggleButton x:Name="PauseFxFullscreenToggle" Style="{StaticResource Switch}" Margin="18,14" Click="FxPause_Click">
               <StackPanel>

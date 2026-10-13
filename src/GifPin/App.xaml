@@ -160,6 +160,32 @@
         </Setter.Value>
       </Setter>
     </Style>
+    <!-- 여러 개를 고를 수 있는 세그먼트 (모양이 Segment와 같음) -->
+    <Style x:Key="SegmentToggle" TargetType="ToggleButton">
+      <Setter Property="Foreground" Value="{StaticResource TextDimBrush}"/>
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="Height" Value="28"/>
+      <Setter Property="Padding" Value="11,0"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ToggleButton">
+            <Border x:Name="Bd" Background="Transparent" CornerRadius="6" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="Bd" Property="Background" Value="{StaticResource SegmentOnBrush}"/>
+                <Setter Property="Foreground" Value="#FFFFFF"/>
+              </Trigger>
+              <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="#FFFFFF"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
     <Style x:Key="SegmentBox" TargetType="Border">
       <Setter Property="Background" Value="#161920"/>
       <Setter Property="BorderBrush" Value="#22262F"/>

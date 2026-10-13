@@ -79,7 +79,8 @@ public sealed class AppController
         Log.Info($"GifPin {AppVersion} starting · {Environment.OSVersion} · {State.Library.Count} photos, {State.Active.Count} on screen");
         Engine.SetPointerTiming(State.Settings.HoldToGrabMs, State.Settings.ResumeDelayMs);
         Engine.Start();
-        Engine.SetEffectsSettings(State.Settings.EffectsFps, State.Settings.PauseEffectsFullscreen, State.Settings.PauseEffectsOnBattery);
+        Engine.SetEffectsSettings(State.Settings.EffectsFps, State.Settings.PauseEffectsFullscreen, State.Settings.PauseEffectsOnBattery,
+            State.Settings.AutoLightEffects, State.Settings.AutoLightCpuPercent);
         Engine.SetAllHidden(State.Settings.AllHidden);
         foreach (var f in Engine.HotkeyFailures) Log.Warn($"Hotkey unavailable: {f}");
 
@@ -87,6 +88,7 @@ public sealed class AppController
         int missing = State.Active.RemoveAll(a => State.FindPhoto(a.PhotoId) is not PhotoItem p || !File.Exists(Store.ResolvePath(p)));
         if (missing > 0) Log.Warn($"Removed {missing} overlay(s) whose image file is missing");
 
+        foreach (var a in State.Active) a.Normalize(); // 저장 파일의 값도 범위 검사
         MonitorList = Monitors.List();
         EnsureAllReachable(notify: false);
         foreach (var a in State.Active) SyncToEngine(a);
@@ -492,26 +494,7 @@ public sealed class AppController
         var a = State.Active.FirstOrDefault(x => x.Id == activeId);
         if (a == null) return;
         change(a);
-        a.Scale = Math.Round(Math.Clamp(a.Scale, 0.1, 4.0), 3);
-        a.Opacity = Math.Clamp(a.Opacity, 0.1, 1.0);
-        a.MotionMode = Motion.Normalize(a.MotionMode);
-        a.MotionSpeed = Math.Clamp(a.MotionSpeed, Motion.MinSpeed, Motion.MaxSpeed);
-        a.JumpHeight = Math.Clamp(a.JumpHeight, Motion.MinJumpHeight, Motion.MaxJumpHeight);
-        a.JumpInterval = Math.Clamp(a.JumpInterval, Motion.MinJumpInterval, Motion.MaxJumpInterval);
-        a.JumpAngle = Math.Clamp(a.JumpAngle, -Motion.MaxJumpAngle, Motion.MaxJumpAngle);
-        a.SlideFriction = Math.Clamp(a.SlideFriction, Motion.MinFriction, Motion.MaxFriction);
-        a.Layer = Layers.Normalize(a.Layer);
-        a.JumpAngleRange = Math.Clamp(a.JumpAngleRange, 0, Motion.MaxJumpAngle);
-        a.JumpHeightMin = Math.Clamp(a.JumpHeightMin, Motion.MinJumpHeight, Motion.MaxJumpHeight);
-        a.JumpHeightMax = Math.Clamp(a.JumpHeightMax, a.JumpHeightMin, Motion.MaxJumpHeight);
-        a.PushAngle = ((a.PushAngle % 360) + 360) % 360;
-        a.PushForce = Math.Clamp(a.PushForce, Motion.MinPushForce, Motion.MaxPushForce);
-        a.PushForceMin = Math.Clamp(a.PushForceMin, Motion.MinPushForce, Motion.MaxPushForce);
-        a.PushForceMax = Math.Clamp(a.PushForceMax, a.PushForceMin, Motion.MaxPushForce);
-        a.PushInterval = Math.Clamp(a.PushInterval, Motion.MinPushInterval, Motion.MaxPushInterval);
-        a.PushIntervalMin = Math.Clamp(a.PushIntervalMin, Motion.MinPushInterval, Motion.MaxPushInterval);
-        a.PushIntervalMax = Math.Clamp(a.PushIntervalMax, a.PushIntervalMin, Motion.MaxPushInterval);
-        Fx.Normalize(a);
+        a.Normalize();
         SyncToEngine(a);
         RefreshActiveVM(a);
         GeometryChanged?.Invoke(a.Clone());
@@ -733,6 +716,7 @@ public sealed class AppController
         sb.AppendLine($"Log: {Log.FilePath}");
         sb.AppendLine($"Library: {State.Library.Count} photos · On screen: {State.Active.Count} · All hidden: {State.Settings.AllHidden}");
         sb.AppendLine($"Effects: {State.Settings.EffectsFps} fps target · frame pacing {Engine.FramePacing} · paused for full screen: {State.Settings.PauseEffectsFullscreen}, battery: {State.Settings.PauseEffectsOnBattery}");
+        sb.AppendLine($"Busy-PC saver: {(State.Settings.AutoLightEffects ? $"on at {State.Settings.AutoLightCpuPercent}%" : "off")} · now {(Engine.LightMode ? "particles off" : "normal")} · other apps CPU {Engine.OtherCpuPercent:0}%");
         foreach (var m in MonitorList)
             sb.AppendLine($"Monitor {m.Index}{(m.Primary ? " (primary)" : "")}: {m.Left},{m.Top} {m.Width}x{m.Height} work {m.WorkLeft},{m.WorkTop}-{m.WorkRight},{m.WorkBottom}");
         foreach (var a in State.Active)
@@ -845,12 +829,15 @@ public sealed class AppController
     }
 
     /// <summary>효과 성능 설정.</summary>
-    public void SetEffectsSettings(int fps, bool pauseFullscreen, bool pauseOnBattery)
+    public void SetEffectsSettings(int fps, bool pauseFullscreen, bool pauseOnBattery, bool autoLight, int cpuPercent)
     {
-        State.Settings.EffectsFps = fps >= 45 ? 60 : 30;
-        State.Settings.PauseEffectsFullscreen = pauseFullscreen;
-        State.Settings.PauseEffectsOnBattery = pauseOnBattery;
-        Engine.SetEffectsSettings(State.Settings.EffectsFps, pauseFullscreen, pauseOnBattery);
+        var s = State.Settings;
+        s.EffectsFps = fps >= 45 ? 60 : 30;
+        s.PauseEffectsFullscreen = pauseFullscreen;
+        s.PauseEffectsOnBattery = pauseOnBattery;
+        s.AutoLightEffects = autoLight;
+        s.AutoLightCpuPercent = Math.Clamp(cpuPercent, 50, 95);
+        Engine.SetEffectsSettings(s.EffectsFps, pauseFullscreen, pauseOnBattery, autoLight, s.AutoLightCpuPercent);
         Save();
     }
 

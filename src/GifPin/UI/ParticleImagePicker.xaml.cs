@@ -115,7 +115,14 @@ public partial class ParticleImagePicker : Window
         _app.UpdateActive(_activeId, a =>
         {
             a.FxParticleImages = value;
-            if (_selected.Count > 0) { a.FxParticles = true; a.FxParticleKind = Fx.Image; }
+            if (_selected.Count > 0)
+            {
+                a.FxParticles = true;
+                // 이미 고른 모양(하트 등)은 그대로 두고 "내 이미지"를 함께 추가 → 같은 비율로 섞임
+                var kinds = Fx.ParticleKinds(a).ToList();
+                if (!kinds.Contains(Fx.Image)) kinds.Add(Fx.Image);
+                a.FxParticleKind = string.Join(",", kinds);
+            }
         });
         _app.SelectActive(_activeId, flash: false); // PC에서 추가하면 메인 창 선택이 바뀌었을 수 있음
         DialogResult = true;

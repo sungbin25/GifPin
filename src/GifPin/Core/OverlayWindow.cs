@@ -439,6 +439,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
     internal void UpdateFxTimer()
     {
         bool motionActive = Motion.IsMoving(Item.MotionMode) && (_motionRunning || _held || _press == Press.Grab);
+        _fx.SuppressParticles = _engine.LightMode;
         bool run = !_editMode && IsShown && !_engine.FxPaused && _fx.IsAnimated(Item, motionActive);
         if (run == _fxRunning) return;
         _fxRunning = run;
@@ -613,7 +614,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
         if (_editMode || _anim == null || _press != Press.None) return;
         _ptX = x;
         _ptY = y;
-        if (Item.FxParticles && Item.FxParticleMode == Fx.Click && !_engine.FxPaused)
+        if (Item.FxParticles && Item.FxParticleMode == Fx.Click && !_engine.FxPaused && !_engine.LightMode)
         {
             var (bw, bh) = ContentSize(Item.Scale);
             _fx.Burst(Item, Item.X, Item.Y, bw, bh);
@@ -748,6 +749,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
     /// <summary>점검용 상태.</summary>
     internal OverlayProbe Probe() => new(Item.Clone(), _motionRunning, _held, _press != Press.None, _motion.IsSliding, _motion.Jumps, IsTopmost, _motion.Pushes)
     {
+        LightMode = _engine.LightMode,
         FxRunning = _fxRunning,
         Particles = _fx.ParticleCount,
         Squashes = _fx.Squashes,

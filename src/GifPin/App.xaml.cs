@@ -258,7 +258,7 @@ public partial class App : Application
         sb.Append($" auto push x{p.Pushes} ·");
 
         // 6) 효과 레이어: 떨어지기 + 점프와 함께 여러 효과 → 타이머가 돌고, 파티클·찌그러짐이 생기고, 창에 여백이 생김
-        app.SetEffectsSettings(60, pauseFullscreen: false, pauseOnBattery: false);
+        app.SetEffectsSettings(60, pauseFullscreen: false, pauseOnBattery: false, autoLight: false, cpuPercent: 80);
         app.UpdateActive(id, a =>
         {
             a.MotionMode = Motion.Fall; a.MotionGravity = true; a.JumpEnabled = true; a.JumpInterval = 0.5; a.JumpHeight = 120;
@@ -312,6 +312,19 @@ public partial class App : Application
         await Wait(300);
         p = await P();
         if (p.Sprites != 0) throw new Exception("particle images were not released");
+
+        // 절약 모드: 켜지면 새 파티클이 멈추고 날던 것은 사라짐, 끄면 다시 나옴
+        app.UpdateActive(id, a => { a.FxParticleKind = "heart,star"; a.FxParticleMode = Fx.Always; a.FxParticleRate = 20; a.FxParticleLife = 1; });
+        await Wait(800);
+        if ((await P()).Particles == 0) throw new Exception("mixed-shape particles did not appear");
+        eng.ForceLightMode(true);
+        await Wait(1800);
+        p = await P();
+        if (!p.LightMode || p.Particles != 0) throw new Exception($"light mode: on={p.LightMode} particles={p.Particles}");
+        eng.ForceLightMode(null);
+        await Wait(800);
+        p = await P();
+        if (p.LightMode || p.Particles == 0) throw new Exception($"after light mode: on={p.LightMode} particles={p.Particles}");
 
         // 모두 끄면 여백·타이머가 사라짐
         app.UpdateActive(id, a =>

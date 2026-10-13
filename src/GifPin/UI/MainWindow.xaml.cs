@@ -740,6 +740,20 @@ public partial class MainWindow : Window
     // ── 효과 레이어: 컨트롤의 Tag = ActiveItem 속성 이름 ───────────────
 
     private readonly List<ToggleButton> _fxToggles = new();
+    private readonly List<ToggleButton> _fxKindToggles = new(); // 파티클 모양 (여러 개 선택)
+
+    private static string KindOf(ToggleButton t) => ((string)t.Tag).Substring("FxParticleKind+".Length);
+
+    /// <summary>파티클 모양 켜고 끄기. 하나는 늘 남아 있어야 함. 여러 개면 같은 비율로 섞임.</summary>
+    private void FxKind_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleButton tb) return;
+        var kinds = _fxKindToggles.Where(t => t.IsChecked == true).Select(KindOf).ToList();
+        if (kinds.Count == 0) { tb.IsChecked = true; return; } // 마지막 하나는 끌 수 없음
+        string value = string.Join(",", kinds);
+        WithSelected(a => a.FxParticleKind = value);
+        if (_app.SelectedActive is ActiveItem a) UpdateEffectPanels(a);
+    }
 
     /// <summary>"모두 끄기"가 끄는 효과 (세부 옵션 스위치는 그대로 둠).</summary>
     private static readonly string[] MainEffects =
@@ -793,6 +807,7 @@ public partial class MainWindow : Window
             switch (d)
             {
                 case RadioButton rb when rb.Tag is string t && t.StartsWith("Fx"): _fxChoices.Add(rb); break;
+                case ToggleButton kb when kb.Tag is string t && t.StartsWith("FxParticleKind+"): _fxKindToggles.Add(kb); break;
                 case ToggleButton tb when tb.Tag is string t && t.StartsWith("Fx"): _fxToggles.Add(tb); break;
                 case System.Windows.Controls.Slider sl when sl.Tag is string prop:
                     _fxSliders.Add(sl);
@@ -818,6 +833,8 @@ public partial class MainWindow : Window
             var value = FxProp(parts[0])?.GetValue(a);
             rb.IsChecked = string.Equals(Convert.ToString(value, CultureInfo.InvariantCulture), parts[1], StringComparison.OrdinalIgnoreCase);
         }
+        var kinds = Fx.ParticleKinds(a);
+        foreach (var kb in _fxKindToggles) kb.IsChecked = Array.IndexOf(kinds, KindOf(kb)) >= 0;
         foreach (var sl in _fxSliders)
         {
             var prop = (string)sl.Tag;
@@ -836,9 +853,12 @@ public partial class MainWindow : Window
         FxClickHint.Visibility = a.FxParticleMode == Fx.Click && a.ClickThrough ? Visibility.Visible : Visibility.Collapsed;
 
         // 내 이미지 파티클
-        bool image = a.FxParticleKind == Fx.Image;
+        var kindList = Fx.ParticleKinds(a);
+        bool image = Array.IndexOf(kindList, Fx.Image) >= 0;
+        bool onlyImage = image && kindList.Length == 1;
         ParticleImagePanel.Visibility = image ? Visibility.Visible : Visibility.Collapsed;
-        ParticleColorPanel.Visibility = image && a.FxParticleKeepColors ? Visibility.Collapsed : Visibility.Visible;
+        // 색은 기본 모양(하트·별 등)이나 물들인 이미지에 쓰임
+        ParticleColorPanel.Visibility = onlyImage && a.FxParticleKeepColors ? Visibility.Collapsed : Visibility.Visible;
         ParticleCpuWarn.Visibility = image && a.FxParticleAnimate ? Visibility.Visible : Visibility.Collapsed;
         if (image)
         {
@@ -895,13 +915,32 @@ public partial class MainWindow : Window
     {
         if (_updating || sender is not RadioButton rb || rb.Tag is not string t) return;
         var s = _app.State.Settings;
-        _app.SetEffectsSettings(int.Parse(t, CultureInfo.InvariantCulture), s.PauseEffectsFullscreen, s.PauseEffectsOnBattery);
+        _app.SetEffectsSettings(int.Parse(t, CultureInfo.InvariantCulture), s.PauseEffectsFullscreen, s.PauseEffectsOnBattery, s.AutoLightEffects, s.AutoLightCpuPercent);
     }
 
     private void FxPause_Click(object sender, RoutedEventArgs e)
     {
         if (_updating) return;
-        _app.SetEffectsSettings(_app.State.Settings.EffectsFps, PauseFxFullscreenToggle.IsChecked == true, PauseFxBatteryToggle.IsChecked == true);
+        var s = _app.State.Settings;
+        _app.SetEffectsSettings(s.EffectsFps, PauseFxFullscreenToggle.IsChecked == true, PauseFxBatteryToggle.IsChecked == true,
+            AutoLightToggle.IsChecked == true, s.AutoLightCpuPercent);
+        AutoLightOptions.Visibility = AutoLightToggle.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void AutoLightCpu_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (AutoLightCpuText == null) return;
+        AutoLightCpuText.Text = $"{e.NewValue:0}%";
+        if (_updating) return;
+        var s = _app.State.Settings;
+        _app.SetEffectsSettings(s.EffectsFps, s.PauseEffectsFullscreen, s.PauseEffectsOnBattery, s.AutoLightEffects, (int)e.NewValue);
+    }
+
+    /// <summary>설정 탭: 지금 절약 모드인지와 다른 프로그램의 CPU 사용률.</summary>
+    private void RefreshLightStatus()
+    {
+        if (AutoLightStatus == null) return;
+        AutoLightStatus.Text = Loc.F(_app.Engine.LightMode ? "set.autoLightOn" : "set.autoLightOff", Math.Round(_app.Engine.OtherCpuPercent));
     }
 
     private void Gravity_Click(object sender, RoutedEventArgs e)
@@ -1029,6 +1068,11 @@ public partial class MainWindow : Window
         Fps30.IsChecked = s.EffectsFps < 45;
         Fps60.IsChecked = s.EffectsFps >= 45;
         PauseFxFullscreenToggle.IsChecked = s.PauseEffectsFullscreen;
+        AutoLightToggle.IsChecked = s.AutoLightEffects;
+        AutoLightOptions.Visibility = s.AutoLightEffects ? Visibility.Visible : Visibility.Collapsed;
+        AutoLightCpuSlider.Value = s.AutoLightCpuPercent;
+        AutoLightCpuText.Text = $"{s.AutoLightCpuPercent}%";
+        RefreshLightStatus();
         PauseFxBatteryToggle.IsChecked = s.PauseEffectsOnBattery;
         HoldSlider.Value = s.HoldToGrabMs;
         HoldText.Text = DelayText(s.HoldToGrabMs);

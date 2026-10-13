@@ -518,13 +518,29 @@ public sealed class OverlayEngine : IDisposable
     });
 
     /// <summary>효과 성능 설정: 초당 프레임, 전체 화면·배터리일 때 멈춤.</summary>
-    public void SetEffectsSettings(int fps, bool pauseFullscreen, bool pauseOnBattery) => Post(() =>
+    public void SetEffectsSettings(int fps, bool pauseFullscreen, bool pauseOnBattery, bool autoLight = true, int cpuPercent = 80) => Post(() =>
     {
         FxFps = fps >= 45 ? 60 : 30;
         _pauseFxFullscreen = pauseFullscreen;
         _pauseFxBattery = pauseOnBattery;
+        _autoLight = autoLight;
+        _busy.ThresholdPercent = Math.Clamp(cpuPercent, 30, 98);
+        if (!autoLight) _busy.Reset();
         CheckFxPause(force: true);
     });
+
+    // ── 절약 모드: 다른 프로그램이 CPU를 많이 쓰면(게임 등) 파티클을 끔 ──
+    private readonly CpuSampler _cpu = new();
+    private readonly BusyDetector _busy = new();
+    private bool _autoLight = true;
+    private bool? _lightOverride;
+    /// <summary>파티클을 끈 절약 모드 중.</summary>
+    public bool LightMode { get; private set; }
+    /// <summary>마지막으로 잰 다른 프로그램의 CPU 사용률 (%).</summary>
+    public double OtherCpuPercent { get; private set; }
+
+    /// <summary>점검용: 절약 모드를 강제로 켜고 끔 (null = 자동).</summary>
+    public void ForceLightMode(bool? on) => Post(() => { _lightOverride = on; CheckFxPause(force: true); });
 
     /// <summary>전체 화면 게임·발표 중이거나 배터리 사용 중이면 효과를 멈춘다 (1.5초마다 확인).</summary>
     private void CheckFxPause(bool force = false)
@@ -538,9 +554,21 @@ public sealed class OverlayEngine : IDisposable
                 paused = ps.ACLineStatus == 0;
         }
         catch (Exception ex) { Log.Warn("Could not check full-screen / power state", ex); }
-        if (paused == FxPaused && !force) return;
+
+        bool light = false;
+        try
+        {
+            var cpu = _cpu.SampleOthersPercent();
+            if (cpu is double c) OtherCpuPercent = c;
+            light = _lightOverride ?? (_autoLight && cpu is double v ? _busy.Feed(v) : _autoLight && _busy.Busy);
+        }
+        catch (Exception ex) { Log.Warn("Could not read CPU usage", ex); }
+
+        if (paused == FxPaused && light == LightMode && !force) return;
         if (paused != FxPaused) Log.Info(paused ? "Effects paused (full screen or battery)" : "Effects resumed");
+        if (light != LightMode) Log.Info(light ? $"Busy PC (other apps {OtherCpuPercent:0}% CPU): particles off" : "PC no longer busy: particles back on");
         FxPaused = paused;
+        LightMode = light;
         foreach (var w in _byId.Values) w.UpdateFxTimer();
     }
 
@@ -643,4 +671,5 @@ public sealed record OverlayProbe(ActiveItem Item, bool MotionRunning, bool Held
     public int PushedArea { get; init; }
     public int GlowBuilds { get; init; }
     public int GlowHits { get; init; }
+    public bool LightMode { get; init; }
 }

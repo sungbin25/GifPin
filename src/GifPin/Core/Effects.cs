@@ -26,7 +26,32 @@ public static class Fx
         (a.FxParticleImages ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     /// <summary>내 이미지 파티클을 실제로 쓰는 중 (이미지를 불러와야 함).</summary>
-    public static bool UsesParticleImages(ActiveItem a) => a.FxParticles && a.FxParticleKind == Image && ParticleImageIds(a).Length > 0;
+    public static bool UsesParticleImages(ActiveItem a) => a.FxParticles && HasKind(a, Image) && ParticleImageIds(a).Length > 0;
+
+    /// <summary>
+    /// 고른 파티클 모양들 (여러 개 가능, 쉼표로 구분). 여러 개면 같은 비율로 섞여 나온다.
+    /// 예: "heart,star" → 하트 50% · 별 50%. "내 이미지"도 한 모양으로 셈 (그 안에서 이미지를 랜덤으로).
+    /// </summary>
+    public static string[] ParticleKinds(ActiveItem a) => ParseKinds(a.FxParticleKind);
+
+    public static bool HasKind(ActiveItem a, string kind) => Array.IndexOf(ParticleKinds(a), kind) >= 0;
+
+    private static string? _kindsKey;
+    private static string[] _kindsCache = { Sparkle };
+    private static readonly object KindsGate = new();
+
+    private static string[] ParseKinds(string? value)
+    {
+        lock (KindsGate)
+        {
+            if (value == _kindsKey) return _kindsCache;
+            var list = (value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(k => Array.IndexOf(Kinds, k) >= 0).Distinct().ToArray();
+            _kindsKey = value;
+            _kindsCache = list.Length > 0 ? list : new[] { Sparkle };
+            return _kindsCache;
+        }
+    }
     public static readonly string[] Modes = { Always, Moving, Click };
     public static readonly string[] Styles = { Rise, Fall, Burst };
 
@@ -67,7 +92,7 @@ public static class Fx
         a.FxGlowSize = Math.Clamp(a.FxGlowSize, 2, 40);
         a.FxGlowStrength = Math.Clamp(a.FxGlowStrength, 10, 100);
         if (!TryParseColor(a.FxGlowColor, out _)) a.FxGlowColor = "#FFD54F";
-        a.FxParticleKind = Pick(a.FxParticleKind, Kinds, Sparkle);
+        a.FxParticleKind = string.Join(",", ParticleKinds(a));
         a.FxParticleMode = Pick(a.FxParticleMode, Modes, Always);
         a.FxParticleStyle = Pick(a.FxParticleStyle, Styles, Rise);
         a.FxParticleRate = Math.Clamp(a.FxParticleRate, 1, 60);
@@ -137,6 +162,8 @@ internal sealed class EffectState : IDisposable
     private readonly SKPaint _ghostPaint = new() { FilterQuality = SKFilterQuality.Medium, IsAntialias = true };
 
     public double Time { get; private set; }
+    /// <summary>절약 모드: 새 파티클을 만들지 않음 (이미 날던 것은 자연스럽게 사라짐).</summary>
+    public bool SuppressParticles { get; set; }
     public double Speed { get; private set; }
     public int ParticleCount => _particles.Count;
     public int Squashes { get; private set; }
@@ -144,6 +171,7 @@ internal sealed class EffectState : IDisposable
     public int TrailCount => _trail.Count;
     public IReadOnlyList<(double x, double y)> Trail => _trail;
     public int SpriteCount => _sprites.Count;
+    internal int CountKind(string kind) { int n = 0; foreach (var p in _particles) if (p.Kind == kind) n++; return n; }
 
     /// <summary>점검용: i번째 파티클 좌표와 기준 (따라오기면 GIF 기준).</summary>
     internal (double x, double y, bool local) ParticleAt(int i) => (_particles[i].X, _particles[i].Y, _particles[i].Local);
@@ -160,7 +188,7 @@ internal sealed class EffectState : IDisposable
     /// <summary>계속 다시 그려야 하는 효과가 있음 (타이머가 필요).</summary>
     public bool IsAnimated(ActiveItem a, bool motionActive) =>
         a.FxFloat || a.FxBreathe || a.FxSway || a.FxSpin || a.FxBlink || (a.FxGlow && a.FxGlowPulse)
-        || (a.FxParticles && a.FxParticleMode != Fx.Click)
+        || (a.FxParticles && a.FxParticleMode != Fx.Click && !SuppressParticles)
         || _particles.Count > 0 || _trail.Count > 0 || SquashActive
         || (motionActive && (a.FxSquash || a.FxTrail || a.FxShadow || a.FxDust || a.FxParticles));
 
@@ -294,7 +322,7 @@ internal sealed class EffectState : IDisposable
         }
         // 파티클 만들기: 이번 프레임 사이에 생겼어야 할 개수를 GIF가 지나온 길 위에 고르게 나눠 놓고,
         // 그 사이 흐른 시간만큼 미리 진행시킴 → 빠르게 움직여도 도장 찍힌 듯 끊기지 않음
-        if (a.FxParticles)
+        if (a.FxParticles && !SuppressParticles)
         {
             double rate = a.FxParticleMode switch
             {
@@ -320,6 +348,7 @@ internal sealed class EffectState : IDisposable
     /// <summary>클릭했을 때 한꺼번에 터뜨림.</summary>
     public void Burst(ActiveItem a, double x, double y, int w, int h)
     {
+        if (SuppressParticles) return;
         int n = (int)Math.Clamp(a.FxParticleRate * 1.5, 8, 40);
         for (int i = 0; i < n; i++) Spawn(a, x, y, w, h, Fx.Burst, 0, x, y);
     }
@@ -336,19 +365,22 @@ internal sealed class EffectState : IDisposable
     /// </summary>
     private void Spawn(ActiveItem a, double x, double y, int w, int h, string style, double preAge, double curX, double curY)
     {
-        bool image = a.FxParticleKind == Fx.Image && _sprites.Count > 0;
-        int cap = image && a.FxParticleAnimate ? MaxAnimatedParticles : MaxParticles;
+        // 여러 모양을 골랐으면 같은 확률로 하나를 뽑음
+        var kinds = Fx.ParticleKinds(a);
+        string kind = kinds.Length == 1 ? kinds[0] : kinds[_rng.Next(kinds.Length)];
+        bool image = kind == Fx.Image && _sprites.Count > 0;
+        int cap = a.FxParticleAnimate && _sprites.Count > 0 && Array.IndexOf(kinds, Fx.Image) >= 0 ? MaxAnimatedParticles : MaxParticles;
         if (_particles.Count >= cap) return;
         var p = new Particle
         {
             Life = a.FxParticleLife * Rnd(0.75, 1.25),
             Size = a.FxParticleSize * Rnd(0.7, 1.3),
             Rot = a.FxParticleRotate ? Rnd(0, 360) : 0,
-            VRot = !a.FxParticleRotate ? 0 : a.FxParticleKind is Fx.Sparkle or Fx.Star ? Rnd(-120, 120) : Rnd(-40, 40),
+            VRot = !a.FxParticleRotate ? 0 : kind is Fx.Sparkle or Fx.Star ? Rnd(-120, 120) : Rnd(-40, 40),
             Seed = Rnd(0, 10),
             Color = ParticleColor(a),
             // 이미지를 아직 불러오는 중이면 반짝이로 대신
-            Kind = a.FxParticleKind == Fx.Image && !image ? Fx.Sparkle : a.FxParticleKind,
+            Kind = kind == Fx.Image && !image ? Fx.Sparkle : kind,
             Style = style,
         };
         if (image)
@@ -478,12 +510,9 @@ internal sealed class EffectState : IDisposable
         var drawn = SKRect.Empty;
         if (a.FxShadow)
         {
-            double dist = Math.Clamp(groundDistance - FloatOffset(a), 0, 400);
-            double near = 1 - dist / 400;
-            float rx = (float)(content.Width / 2 * a.FxShadowSize / 100 * (0.4 + 0.6 * near));
-            float ry = Math.Max(3, rx * 0.2f);
-            float cy = (float)(content.Bottom + dist) - ry * 0.3f;
-            _shadowPaint.Color = new SKColor(0, 0, 0, (byte)(255 * a.FxShadowOpacity / 100 * (0.35 + 0.65 * near)));
+            var sh = ShadowShape(a, content, groundDistance, FloatOffset(a));
+            float rx = sh.rx, ry = sh.ry, cy = sh.cy;
+            _shadowPaint.Color = new SKColor(0, 0, 0, sh.alpha);
             float sigma = Math.Max(1.5f, ry * 0.6f);
             _shadowPaint.MaskFilter = ShadowBlur(sigma);
             c.DrawOval(content.MidX, cy, rx, ry, _shadowPaint);
@@ -509,6 +538,27 @@ internal sealed class EffectState : IDisposable
             }
         }
         return drawn;
+    }
+
+    /// <summary>
+    /// 바닥 그림자 모양. 그림자는 땅(둥실둥실이면 가장 낮게 내려온 높이)에 고정되고,
+    /// GIF가 올라갈수록(점프 높이·둥실둥실) 작고 옅어지며 내려오면 커지고 진해진다.
+    /// </summary>
+    internal static (float cy, float rx, float ry, byte alpha) ShadowShape(ActiveItem a, SKRect content, double groundDistance, double floatOffset)
+    {
+        double dist = Math.Clamp(groundDistance, 0, 400);
+        double near = 1 - dist / 400;
+        // 둥실둥실: 0 = 가장 낮음, 1 = 가장 높음
+        double up = a.FxFloat && a.FxFloatAmp > 0 ? Math.Clamp((a.FxFloatAmp - floatOffset) / (2 * a.FxFloatAmp), 0, 1) : 0;
+        double size = (0.4 + 0.6 * near) * (1 - 0.35 * up);
+        double fade = (0.35 + 0.65 * near) * (1 - 0.45 * up);
+        float rx = (float)(content.Width / 2 * a.FxShadowSize / 100 * size);
+        float ry = Math.Max(3, rx * 0.2f);
+        float ground = (float)(content.Bottom + dist + (a.FxFloat ? a.FxFloatAmp : 0));
+        byte alpha = (byte)Math.Round(255 * Math.Clamp(a.FxShadowOpacity / 100 * fade, 0, 1));
+        // 발밑에 살짝 겹치도록 올리는 양은 가장 큰 그림자 기준으로 고정 → 크기가 변해도 그림자 위치는 그대로
+        float lift = Math.Max(3, (float)(content.Width / 2 * a.FxShadowSize / 100) * 0.2f) * 0.3f;
+        return (ground - lift, rx, ry, alpha);
     }
 
     private static void Union(ref SKRect acc, SKRect r, float inflate)

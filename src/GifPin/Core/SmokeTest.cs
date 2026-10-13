@@ -460,12 +460,60 @@ public static class SmokeTest
         }
         if (fol.ParticleCount == 0) throw new Exception("follow made no particles");
 
+        // 여러 모양: 하트+별을 고르면 반반씩
+        var mk = new ActiveItem { FxParticles = true, FxParticleMode = Fx.Always, FxParticleRate = 60, FxParticleLife = 5, FxParticleKind = "heart,star" };
+        var mix = new EffectState(seed: 21);
+        for (int i = 0; i < 400; i++) mix.Advance(0.01, mk, 100, 100, 40, 40, null);
+        int hearts = mix.CountKind(Fx.Heart), stars = mix.CountKind(Fx.Star);
+        if (hearts + stars != mix.ParticleCount || hearts < mix.ParticleCount * 0.35 || stars < mix.ParticleCount * 0.35)
+            throw new Exception($"mixed shapes: {hearts} hearts, {stars} stars of {mix.ParticleCount}");
+        var norm = new ActiveItem { FxParticleKind = "star, heart,star,nope" };
+        Fx.Normalize(norm);
+        if (norm.FxParticleKind != "star,heart") throw new Exception($"shape list normalized to '{norm.FxParticleKind}'");
+
+        // 절약 모드: 새 파티클을 만들지 않고, 클릭해도 터지지 않음
+        var lite = new EffectState(seed: 22) { SuppressParticles = true };
+        for (int i = 0; i < 100; i++) lite.Advance(0.01, mk, 100, 100, 40, 40, null);
+        lite.Burst(mk, 100, 100, 40, 40);
+        if (lite.ParticleCount != 0 || lite.IsAnimated(mk, false)) throw new Exception("light mode still makes particles");
+
+        // 바쁨 판단: 잠깐 튀면 무시, 계속 높으면 바쁨, 충분히 내려가야 해제
+        var busy = new BusyDetector { ThresholdPercent = 80 };
+        busy.Feed(95); busy.Feed(20);
+        if (busy.Busy) throw new Exception("a CPU spike counted as busy");
+        busy.Feed(90); busy.Feed(88); busy.Feed(92);
+        if (!busy.Busy) throw new Exception("sustained high CPU not detected");
+        busy.Feed(70); busy.Feed(70); busy.Feed(70); busy.Feed(70);
+        if (!busy.Busy) throw new Exception("busy cleared without dropping well below the threshold");
+        busy.Feed(30); busy.Feed(30); busy.Feed(30); busy.Feed(30);
+        if (busy.Busy) throw new Exception("busy never cleared");
+
+        // 둥실둥실 그림자: 위치는 그대로, 올라가면 작고 옅게
+        var fl = new ActiveItem { FxShadow = true, FxFloat = true, FxFloatAmp = 20 };
+        var box = SkiaSharp.SKRect.Create(0, 0, 100, 100);
+        var low = EffectState.ShadowShape(fl, box, 0, +20);
+        var high = EffectState.ShadowShape(fl, box, 0, -20);
+        if (Math.Abs(low.cy - high.cy) > 0.01 || high.rx >= low.rx || high.alpha >= low.alpha)
+            throw new Exception($"float shadow: low y={low.cy:0.0} r={low.rx:0.0} a={low.alpha}, high y={high.cy:0.0} r={high.rx:0.0} a={high.alpha}");
+
+        // 예전 설정 옮기기: 전체 화면에서 멈추던 기본값 → 이제는 계속 동작
+        var old = new AppState();
+        old.Settings.PauseEffectsFullscreen = true;
+        old.Settings.SettingsVersion = 0;
+        Store.Migrate(old);
+        if (old.Settings.PauseEffectsFullscreen || old.Settings.SettingsVersion != AppSettings.CurrentVersion) throw new Exception("settings were not migrated");
+
+        // 저장 파일의 이상한 값도 바로잡음
+        var wild = new ActiveItem { Scale = 100, FxParticleRate = 1e9, Opacity = double.NaN, MotionSpeed = -5 };
+        wild.Normalize();
+        if (wild.Scale != 4 || wild.FxParticleRate != 60 || wild.MotionSpeed != Motion.MinSpeed) throw new Exception("loaded values were not clamped");
+
         // 범위 바로잡기
         var bad = new ActiveItem { FxParticleKind = "???", FxGlowColor = "nope", FxTrailCount = 99, FxParticleColor = "#12" };
         Fx.Normalize(bad);
         if (bad.FxParticleKind != Fx.Sparkle || bad.FxGlowColor != "#FFD54F" || bad.FxTrailCount != 10 || bad.FxParticleColor != Fx.Rainbow)
             throw new Exception("effect settings were not normalized");
 
-        return $"effects ok (spin pad {pads.Top}, {always} particles/s, landing squash+dust, trail 5, spacing 8px={tight} 40px={wide}, path spread {maxPx - minPx:0}px, follow ok)";
+        return $"effects ok (spin pad {pads.Top}, {always} particles/s, landing squash+dust, trail 5, spacing 8px={tight} 40px={wide}, path spread {maxPx - minPx:0}px, follow ok, mix {hearts}/{stars}, light mode, float shadow, migrate, clamp)";
     }
 }
