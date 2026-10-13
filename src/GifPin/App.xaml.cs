@@ -328,6 +328,7 @@ public partial class App : Application
         var src = app.State.FindPhoto(app.State.Active[0].PhotoId)!;
         // 큰 GIF(384px)를 만들어 작게 띄우면 작게 디코딩, 키우면 원본 크기로 다시 디코딩
         string bigPath = System.IO.Path.Combine(Store.LibraryDir, "smoke-big.webp");
+        System.IO.Directory.CreateDirectory(Store.LibraryDir);
         using (var sample = GifAnimation.Load(Store.ResolvePath(src)))
         {
             var info = new SkiaSharp.SKImageInfo(384, 384, SkiaSharp.SKColorType.Bgra8888, SkiaSharp.SKAlphaType.Premul);
