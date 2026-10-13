@@ -4,12 +4,12 @@
 
 ## 설치
 
-[Actions](../../actions) 탭 → 최신 **Build** 실행 → 아래 **Artifacts**의 `GifPin-x.y.z`를 받아 압축을 풉니다.
+[Releases](../../releases/latest)에서 받습니다. (main에 올라가면 자동으로 새 릴리스가 만들어집니다)
 
 - `GifPin-Setup-x.y.z.exe` — 설치 프로그램 (관리자 권한 필요 없음)
 - `GifPin-portable-x.y.z.exe` — 설치 없이 바로 실행
 
-`v`로 시작하는 태그(예: `v0.2.0`)를 올리면 [Releases](../../releases)에도 자동으로 올라갑니다.
+처음 실행하면 영어로 나옵니다. **Settings → Language → 한국어**로 바꾸면 바로 적용됩니다.
 
 ## 사용법
 
@@ -20,6 +20,12 @@
 | 사진 교체 | 아래 "화면에 표시 중"에서 GIF 선택 → 카드의 "교체" (위치·크기 유지) |
 | 위치·크기 조정 | "편집 모드" 또는 `Ctrl+Alt+E` → 드래그 / 모서리 / 휠 → "완료" |
 | 배경 지우기 | 카드 우클릭 → "배경 지우기…" |
+| 스프라이트 / 프레임 폴더 | "스프라이트" → 시트 이미지(칸 수 자동 추정) 또는 PNG 프레임 폴더 → 라이브러리에 WebP로 추가 |
+| 팩 공유 | "팩" → 화면 배치·즐겨찾기·전체를 `.zip`으로 내보내기 / 가져오기 (`.zip`을 끌어다 놓아도 됨) |
+| 움직이게 하기 | 화면의 GIF 선택 → 속성의 "움직임": 걷기 / 튕기기 / 떨어지기 |
+| 모니터 옮기기 | 속성의 "모니터"에서 선택. 모니터를 빼면 그 위의 GIF는 주 모니터로 이동 |
+| GIF를 잃어버렸을 때 | 설정 → 문제 해결, 또는 트레이 → 문제 해결: 가운데로 모으기 / 모두 보이기 / 클릭 통과 끄기 |
+| 오류 보고 | 설정 → 진단 → "진단 정보 복사" (로그: `%AppData%\GifPin\logs\gifpin.log`) |
 | 모두 숨기기 | `Ctrl+Alt+H` |
 | 종료 | 트레이 아이콘 메뉴 → "종료", 또는 `Ctrl+Alt+Q` (창의 X는 트레이로 숨김) |
 
@@ -30,14 +36,18 @@
 ```
 src/GifPin/
   Core/   OverlayEngine (전용 스레드), OverlayWindow (레이어드 윈도우 + 편집 핸들),
-          GifAnimation, BackgroundRemover, WebpWriter, Library, AppState/Store
-  UI/     MainWindow, EditToolbar, BgRemoveWindow, TrayIcon, AppController
+          GifAnimation, ApngDecoder, BackgroundRemover, WebpWriter, SpriteBuilder,
+          AssetPack, Motion, Monitors, Library, AppState/Store, Log, Loc/Strings (영어·한국어)
+  UI/     MainWindow, EditToolbar, BgRemoveWindow, SpriteImportWindow, TrayIcon, AppController
+tests/    스모크 테스트용 샘플 (GIF, APNG, 스프라이트 시트, 프레임 폴더)
 installer/GifPin.iss   Inno Setup 스크립트
 .github/workflows/     Windows 빌드 + 스모크 테스트 + 설치 파일
 ```
 
 - .NET 8 / WPF, SkiaSharp
-- 데이터: `%AppData%\GifPin\` (state.json, Library\, Thumbs\)
+- 데이터: `%AppData%\GifPin\` (state.json, Library\, Thumbs\, logs\)
+- 지원 형식: GIF, 애니메이션 WebP, APNG, PNG, JPG, BMP
+- 새 문구는 `Core/Strings.cs`에 영어·한국어를 함께 추가 (CI가 빠진 번역을 검사)
 
 ## 직접 빌드
 
