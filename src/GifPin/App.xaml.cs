@@ -324,16 +324,32 @@ public partial class App : Application
         sb.Append($" effects ok ({fxParticles} particles, {fxSquashes} squashes, {fxFps} fps via {eng.FramePacing}, burst) ·");
 
         // 7) 성능: 화면 크기로 디코딩, 같은 GIF 공유, 정확한 재생 속도, 슬라이더 중 재생 유지, 빛 캐시, 바뀐 부분만 보내기
-        app.UpdateActive(id, a => { a.Scale = 0.5; a.MotionMode = Motion.None; a.Speed = 1; });
-        await Wait(1200);
-        p = await P();
+        app.UpdateActive(id, a => { a.Scale = 1.5; a.MotionMode = Motion.None; a.Speed = 1; });
         var src = app.State.FindPhoto(app.State.Active[0].PhotoId)!;
-        if (p.AnimWidth >= src.Width) throw new Exception($"half-size GIF was decoded at {p.AnimWidth}px (source {src.Width}px)");
-        int halfWidth = p.AnimWidth;
-        app.UpdateActive(id, a => a.Scale = 1.5);
-        await Wait(1200);
-        p = await P();
-        if (p.AnimWidth != src.Width) throw new Exception($"enlarged GIF stayed at {p.AnimWidth}px");
+        // 큰 GIF(384px)를 만들어 작게 띄우면 작게 디코딩, 키우면 원본 크기로 다시 디코딩
+        string bigPath = System.IO.Path.Combine(Store.LibraryDir, "smoke-big.webp");
+        using (var sample = GifAnimation.Load(Store.ResolvePath(src)))
+        {
+            var info = new SkiaSharp.SKImageInfo(384, 384, SkiaSharp.SKColorType.Bgra8888, SkiaSharp.SKAlphaType.Premul);
+            var bigFrames = sample.Frames.Select(f => f.Resize(info, SkiaSharp.SKFilterQuality.Medium)).ToList();
+            try { SpriteBuilder.Save(bigFrames, 10, bigPath); }
+            finally { foreach (var f in bigFrames) f.Dispose(); }
+        }
+        var bigPhoto = Library.RegisterGenerated(bigPath, "smoke big") ?? throw new Exception("big test GIF not registered");
+        app.AddGeneratedPhoto(bigPhoto);
+        app.AddToScreen(bigPhoto.Id);
+        string bigId = app.State.Active[^1].Id;
+        app.UpdateActive(bigId, a => a.Scale = 0.25);
+        await Wait(1500);
+        var bp = await eng.ProbeAsync(bigId) ?? throw new Exception("big overlay missing");
+        if (bp.AnimWidth >= 384 || bp.AnimWidth < 96) throw new Exception($"quarter-size 384px GIF was decoded at {bp.AnimWidth}px");
+        int halfWidth = bp.AnimWidth;
+        app.UpdateActive(bigId, a => a.Scale = 1);
+        await Wait(1500);
+        bp = await eng.ProbeAsync(bigId) ?? throw new Exception("big overlay missing");
+        if (bp.AnimWidth != 384) throw new Exception($"enlarged GIF stayed at {bp.AnimWidth}px");
+        app.RemoveActive(bigId);
+        app.SelectActive(id, flash: false);
 
         // 같은 사진을 하나 더 띄우면 디코딩은 하나를 함께 씀
         var before2 = await eng.AnimStatsAsync();
@@ -371,7 +387,7 @@ public partial class App : Application
         long fullArea = (long)p.WindowWidth * p.WindowHeight;
         if (p.PushedArea <= 0 || p.PushedArea > fullArea * 0.6) throw new Exception($"pushed {p.PushedArea} of {fullArea} pixels");
         app.UpdateActive(id, a => { a.FxGlow = false; a.FxTrail = false; a.FxParticles = false; });
-        sb.Append($" perf ok (half-size {halfWidth}px, shared, {perSecond} frames/s, glow {p.GlowBuilds}/{p.GlowHits}, pushed {p.PushedArea * 100 / Math.Max(1, fullArea)}%) ·");
+        sb.Append($" perf ok (quarter-size decode {halfWidth}px, shared, {perSecond} frames/s, glow {p.GlowBuilds}/{p.GlowHits}, pushed {p.PushedArea * 100 / Math.Max(1, fullArea)}%) ·");
 
         // 8) 표시 층: 바탕화면이면 항상 위(topmost)가 아니고, 맨 위로 되돌리면 다시 topmost
         app.UpdateActive(id, a => { a.MotionMode = Motion.None; a.MotionGravity = true; a.Layer = Layers.Desktop; });
