@@ -48,6 +48,7 @@ public partial class MainWindow : Window
         _app.AutostartChanged += RefreshSettings; // 트레이 메뉴에서 바꾼 경우
         _app.SettingsChanged += RefreshSettings;
         _app.ScenesChanged += BuildSceneRows;
+        _app.ScenesChanged += RefreshSceneButton;
         _app.HotkeysChanged += BuildHotkeyRows;
         _app.RuleStateChanged += RefreshRuleStatus;
         _app.UpdateStatusChanged += RefreshUpdateStatus;
@@ -60,6 +61,7 @@ public partial class MainWindow : Window
         BuildAnchorButtons();
         BuildHotkeyRows();
         BuildSceneRows();
+        RefreshSceneButton();
         RestoreSavedBounds();
         RefreshSettings();
         RefreshHiddenToggle();
@@ -81,6 +83,7 @@ public partial class MainWindow : Window
         UpdateSortLabel();
         BuildHotkeyRows();
         BuildSceneRows();
+        RefreshSceneButton();
         RefreshSettings();
         RefreshPanel();
     }
@@ -1486,9 +1489,101 @@ public partial class MainWindow : Window
         _app.ChangeTemplate(t => t.ClickThrough = on);
     }
 
+    /// <summary>"GIF 설정 가져오기": 화면에 떠 있는 GIF 목록에서 하나를 골라 그 설정을 새 GIF 기본값으로.</summary>
     private void TemplateFromSelected_Click(object sender, RoutedEventArgs e)
     {
-        if (!_app.TemplateFromSelected()) ShowToast(Loc.T("newItem.selectFirst"));
+        var menu = new ContextMenu();
+        if (_app.State.Active.Count == 0)
+            menu.Items.Add(new MenuItem { Header = Loc.T("newItem.noneOnScreen"), IsEnabled = false });
+        int index = 1;
+        foreach (var a in _app.State.Active)
+        {
+            var photo = _app.State.FindPhoto(a.PhotoId);
+            string activeId = a.Id;
+            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            var thumb = new Border
+            {
+                Width = 36, Height = 36, CornerRadius = new CornerRadius(4), Margin = new Thickness(0, 0, 10, 0),
+                Background = (System.Windows.Media.Brush)FindResource("CheckerBrush"), ClipToBounds = true,
+            };
+            if (photo != null && Images.LoadThumb(photo) is System.Windows.Media.ImageSource img)
+                thumb.Child = new Image { Source = img, Stretch = System.Windows.Media.Stretch.Uniform };
+            row.Children.Add(thumb);
+            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(new TextBlock { Text = $"{index}. {photo?.Name ?? "?"}", MaxWidth = 260, TextTrimming = TextTrimming.CharacterEllipsis });
+            int fx = a.EnabledEffectCount();
+            text.Children.Add(new TextBlock
+            {
+                Text = Loc.T("motion." + Motion.Normalize(a.MotionMode)) + " · " + (fx == 0 ? Loc.T("newItem.noEffects") : Loc.F("newItem.effectsN", fx))
+                       + " · " + Loc.T(Layers.Normalize(a.Layer) == Layers.Desktop ? "layer.desktop" : "layer.top"),
+                FontSize = 11.5, Foreground = Res("TextMutedBrush"),
+            });
+            row.Children.Add(text);
+            menu.Items.Add(MenuEntryContent(row, () => _app.TemplateFromActive(activeId)));
+            index++;
+        }
+        OpenMenu(TemplateFromButton, menu);
+    }
+
+    private static MenuItem MenuEntryContent(object header, Action onClick)
+    {
+        var item = new MenuItem { Header = header };
+        item.Click += (_, _) => onClick();
+        return item;
+    }
+
+    // ── 라이브러리 상단: 장면 ────────────────────────────────
+
+    private void RefreshSceneButton()
+    {
+        if (SceneButtonText == null) return;
+        var cur = _app.CurrentScene;
+        SceneButtonText.Text = cur != null ? cur.Name : Loc.T("set.scenes");
+    }
+
+    private void SceneButton_Click(object sender, RoutedEventArgs e)
+    {
+        var menu = new ContextMenu();
+        foreach (var sc in _app.State.Scenes)
+        {
+            string sid = sc.Id;
+            var row = new DockPanel();
+            var info = new TextBlock
+            {
+                Text = Loc.F("lib.sceneCount", sc.Items.Count) + (sc.AutoAt != null ? " · " + sc.AutoAt : ""),
+                FontSize = 11.5, Foreground = Res("TextMutedBrush"), Margin = new Thickness(16, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
+            };
+            DockPanel.SetDock(info, Dock.Right);
+            row.Children.Add(info);
+            row.Children.Add(new TextBlock { Text = sc.Name, MaxWidth = 220, TextTrimming = TextTrimming.CharacterEllipsis });
+            var item = MenuEntryContent(row, () => _app.ApplyScene(sid));
+            item.IsChecked = sc.Id == _app.State.CurrentSceneId;
+            menu.Items.Add(item);
+        }
+        if (_app.State.Scenes.Count == 0)
+            menu.Items.Add(new MenuItem { Header = Loc.T("lib.noScenes"), IsEnabled = false });
+        menu.Items.Add(new Separator());
+        menu.Items.Add(MenuEntry(Loc.T("tray.saveScene"), () => SaveScene_Click(this, new RoutedEventArgs())));
+        var cur = _app.CurrentScene;
+        if (cur != null)
+        {
+            string cid = cur.Id;
+            menu.Items.Add(MenuEntry(Loc.F("lib.overwriteScene", cur.Name), () => _app.OverwriteScene(cid)));
+        }
+        var del = new MenuItem { Header = Loc.T("lib.deleteScene"), IsEnabled = _app.State.Scenes.Count > 0 };
+        foreach (var sc in _app.State.Scenes)
+        {
+            string sid = sc.Id, name = sc.Name;
+            del.Items.Add(MenuEntry(name, () =>
+            {
+                if (MessageBox.Show(this, Loc.F("scene.deleteQuestion", name), "GifPin", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+                    _app.DeleteScene(sid);
+            }));
+        }
+        menu.Items.Add(del);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(MenuEntry(Loc.T("lib.sceneSettings"), () => { TabSettings.IsChecked = true; }));
+        OpenMenu(SceneButton, menu);
     }
 
     private void TemplateReset_Click(object sender, RoutedEventArgs e) => _app.ClearTemplate();
@@ -1552,8 +1647,39 @@ public partial class MainWindow : Window
 
     // ── 설정 복사·붙여넣기 / 효과 프리셋 ───────────────────────
 
+    private ContextMenu? _lastMenu;
+
+    /// <summary>점검용: 라이브러리·설정의 팝업 메뉴를 모두 열어 보고(하위 메뉴 포함) 닫음.</summary>
+    internal int SmokeMenus()
+    {
+        int opened = 0;
+        void Try(Action open)
+        {
+            open();
+            if (_lastMenu == null) throw new Exception("menu did not open");
+            foreach (var mi in _lastMenu.Items.OfType<MenuItem>().Where(m => m.HasItems))
+            {
+                mi.IsSubmenuOpen = true;
+                mi.UpdateLayout();
+                mi.IsSubmenuOpen = false;
+            }
+            _lastMenu.IsOpen = false;
+            _lastMenu = null;
+            opened++;
+        }
+        Try(() => SceneButton_Click(this, new RoutedEventArgs()));
+        Try(() => TemplateFromSelected_Click(this, new RoutedEventArgs()));
+        if (_app.SelectedActiveId != null)
+        {
+            Try(() => PresetButton_Click(this, new RoutedEventArgs()));
+            Try(() => StyleButton_Click(this, new RoutedEventArgs()));
+        }
+        return opened;
+    }
+
     private void OpenMenu(Button target, ContextMenu menu)
     {
+        _lastMenu = menu;
         menu.PlacementTarget = target;
         menu.Placement = PlacementMode.Bottom;
         menu.IsOpen = true;
@@ -1626,20 +1752,30 @@ public partial class MainWindow : Window
             var dock = new DockPanel { Margin = new Thickness(18, 10, 18, 10) };
 
             var right = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            right.Children.Add(new TextBlock { Text = Loc.T("scene.autoAt"), Foreground = Res("TextMutedBrush"), FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
-            var time = new TextBox { Width = 64, Height = 30, Text = sc.AutoAt ?? "", ToolTip = Loc.T("scene.autoAtTip"), VerticalContentAlignment = VerticalAlignment.Center };
-            void CommitTime()
-            {
-                if ((time.Text.Trim()) == (sc.AutoAt ?? "")) return;
-                if (!_app.SetSceneTime(id, time.Text)) { ShowToast(Loc.T("scene.badTime")); time.Text = sc.AutoAt ?? ""; }
-            }
-            time.LostKeyboardFocus += (_, _) => CommitTime();
-            time.KeyDown += (_, ke) => { if (ke.Key == Key.Enter) CommitTime(); };
-            right.Children.Add(time);
+            // 자동 전환 시각: [없음 | 매일] + 숫자를 돌리는 시계
+            var (h0, m0) = sc.AutoAt is string at ? (int.Parse(at[..2]), int.Parse(at[3..])) : (9, 0);
+            var wheel = new TimeWheel(h0, m0) { Margin = new Thickness(8, 0, 0, 0), Visibility = sc.AutoAt != null ? Visibility.Visible : Visibility.Collapsed };
+            wheel.TimeCommitted += (hh, mm) => _app.SetSceneTime(id, $"{hh:00}:{mm:00}", quiet: true);
+            var seg = new Border { Style = (Style)FindResource("SegmentBox"), VerticalAlignment = VerticalAlignment.Center };
+            var segRow = new StackPanel { Orientation = Orientation.Horizontal };
+            var none = new RadioButton { Style = (Style)FindResource("Segment"), GroupName = "sceneTime" + id, Content = Loc.T("scene.noTime"), Padding = new Thickness(10, 0, 10, 0), IsChecked = sc.AutoAt == null };
+            var daily = new RadioButton { Style = (Style)FindResource("Segment"), GroupName = "sceneTime" + id, Content = Loc.T("scene.autoAt"), Padding = new Thickness(10, 0, 10, 0), IsChecked = sc.AutoAt != null };
+            none.Checked += (_, _) => { wheel.Visibility = Visibility.Collapsed; _app.SetSceneTime(id, null, quiet: true); };
+            daily.Checked += (_, _) => { wheel.Visibility = Visibility.Visible; _app.SetSceneTime(id, $"{wheel.Hour:00}:{wheel.Minute:00}", quiet: true); };
+            segRow.Children.Add(none);
+            segRow.Children.Add(daily);
+            seg.Child = segRow;
+            seg.ToolTip = Loc.T("scene.autoAtTip");
+            right.Children.Add(seg);
+            right.Children.Add(wheel);
             var apply = new Button { Content = Loc.T("scene.apply"), Height = 30, MinWidth = 70, Margin = new Thickness(10, 0, 0, 0), Style = (Style)FindResource("BtnSoftAccent") };
             apply.Click += (_, _) => _app.ApplyScene(id);
             right.Children.Add(apply);
-            var more = new Button { Content = "⋯", Width = 32, Height = 30, Margin = new Thickness(6, 0, 0, 0), ToolTip = Loc.T("scene.more") };
+            var more = new Button
+            {
+                Content = new TextBlock { Text = "\uE712", FontFamily = (System.Windows.Media.FontFamily)FindResource("IconFont"), FontSize = 13 },
+                Width = 32, Height = 30, Margin = new Thickness(6, 0, 0, 0), ToolTip = Loc.T("scene.more"),
+            };
             var menu = new ContextMenu();
             var rename = new MenuItem { Header = Loc.T("scene.rename") };
             rename.Click += (_, _) =>

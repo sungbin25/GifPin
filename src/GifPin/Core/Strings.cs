@@ -440,7 +440,7 @@ internal static class Strings
         ["scene.nameLabel"] = ("Scene name", "장면 이름"),
         ["scene.defaultName"] = ("Scene {0}", "장면 {0}"),
         ["scene.autoAt"] = ("Daily at", "매일"),
-        ["scene.autoAtTip"] = ("Time to switch to this scene every day, like 09:00 or 21:30. Leave empty to switch only by hand.", "매일 이 장면으로 바꿀 시각 (예: 09:00, 21:30). 비우면 직접 바꿀 때만 바뀌어요."),
+        ["scene.autoAtTip"] = ("Switch to this scene automatically every day at the time on the clock, or choose None to switch only by hand", "매일 시계에 맞춘 시각에 이 장면으로 자동으로 바꿔요. '없음'이면 직접 바꿀 때만 바뀌어요"),
         ["scene.badTime"] = ("Enter the time as HH:MM, like 09:00", "시각은 09:00처럼 시:분으로 입력하세요"),
         ["scene.apply"] = ("Apply", "적용"),
         ["scene.more"] = ("More", "더 보기"),
@@ -608,5 +608,18 @@ internal static class Strings
         ["perf.paused"] = ("paused · screen locked", "멈춤 · 화면 잠금"),
         ["perf.particles"] = ("{0} particles", "파티클 {0}개"),
         ["perf.particlesTotal"] = ("Particles: {0} / {1}", "파티클: {0} / {1}"),
+
+        // v0.6.2
+        ["scene.noTime"] = ("None", "없음"),
+        ["scene.wheelTip"] = ("Turn the numbers: mouse wheel, drag up/down, click the number above/below, or arrow keys", "숫자를 돌려 맞춰요: 마우스 휠, 위아래로 끌기, 위·아래 숫자 클릭, 방향키"),
+        ["newItem.fromGif"] = ("Copy from a GIF on screen", "GIF 설정 가져오기"),
+        ["newItem.noneOnScreen"] = ("No GIFs on screen", "화면에 띄운 GIF가 없습니다"),
+        ["notice.templateFrom"] = ("New GIFs will use the settings of \"{0}\"", "새 GIF에 \"{0}\"의 설정을 적용합니다"),
+        ["lib.sceneTip"] = ("Switch, save or delete scenes (saved layouts)", "장면(저장한 배치)을 바꾸거나 저장·삭제해요"),
+        ["lib.sceneCount"] = ("{0} GIF(s)", "GIF {0}개"),
+        ["lib.noScenes"] = ("No saved scenes yet", "저장한 장면이 없습니다"),
+        ["lib.overwriteScene"] = ("Update \"{0}\" with current screen", "\"{0}\"을(를) 지금 화면으로 덮어쓰기"),
+        ["lib.deleteScene"] = ("Delete scene", "장면 삭제"),
+        ["lib.sceneSettings"] = ("Scene settings (daily times)…", "장면 설정 (자동 전환 시각)…"),
     };
 }

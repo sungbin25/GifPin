@@ -542,6 +542,20 @@ public partial class App : Application
         app.SetSceneClockForTest(today.AddHours(7).AddMinutes(4));
         app.CheckSceneSchedule(today.AddHours(7).AddMinutes(6));
         if (app.State.CurrentSceneId != sceneA.Id) throw new Exception("scheduled scene was not applied");
+        // 숫자를 돌리는 시계: 시를 3칸, 분을 -5칸(0에서 거꾸로) 돌리면 그 시각으로 저장, 목록은 다시 만들지 않음
+        var wheel = new GifPin.UI.TimeWheel(23, 2);
+        wheel.TimeCommitted += (hh, mm) => app.SetSceneTime(sceneA.Id, $"{hh:00}:{mm:00}", quiet: true);
+        wheel.Spin(hour: true, 3);
+        wheel.Spin(hour: false, -5);
+        wheel.CommitNow();
+        if (sceneA.AutoAt != "02:57") throw new Exception($"time wheel: {sceneA.AutoAt}, expected 02:57");
+        app.SetSceneTime(sceneA.Id, null, quiet: true);
+        if (sceneA.AutoAt != null) throw new Exception("scene time 'none' was not saved");
+        // 새 GIF 기본값을 화면의 특정 GIF에서 가져오기
+        app.UpdateActive(app.State.Active[^1].Id, x => x.MotionMode = Motion.Bounce);
+        if (!app.TemplateFromActive(app.State.Active[^1].Id) || app.State.Settings.NewItemTemplate?.MotionMode != Motion.Bounce) throw new Exception("template from GIF");
+        app.ClearTemplate();
+        if (app.CurrentScene?.Id != sceneA.Id) throw new Exception("current scene");
         app.DeleteScene(sceneB.Id);
         app.DeleteScene(sceneA.Id);
         id = app.State.Active[0].Id;
@@ -776,7 +790,15 @@ public partial class App : Application
         app.SelectPhoto(fastPhoto.Id);
         app.SetLibraryPreview(true);
         app.RemoveActive(fastId);
-        sb.Append(" monitor ok");
+        sb.Append(" monitor ok ·");
+
+        // 8) 팝업 메뉴(장면·GIF 설정 가져오기·프리셋·설정 복사)와 하위 메뉴가 열리는지 — 장면이 있어야 삭제 하위 메뉴가 생김
+        var tmpScene = app.SaveScene("menu test");
+        if (app.State.Active.Count > 0) app.SelectActive(app.State.Active[0].Id, flash: false);
+        var main = Current.Windows.OfType<GifPin.UI.MainWindow>().FirstOrDefault() ?? throw new Exception("main window missing");
+        int menus = main.SmokeMenus();
+        app.DeleteScene(tmpScene.Id);
+        sb.Append($" menus ok ({menus})");
         return sb.ToString();
     }
 

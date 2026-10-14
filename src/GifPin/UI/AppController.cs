@@ -1370,16 +1370,39 @@ public sealed class AppController
     }
 
     /// <summary>매일 자동으로 적용할 시각 ("HH:mm", 빈 글자 = 끔). 형식이 틀리면 false.</summary>
-    public bool SetSceneTime(string sceneId, string? time)
+    public bool SetSceneTime(string sceneId, string? time, bool quiet = false)
     {
         var sc = State.Scenes.FirstOrDefault(x => x.Id == sceneId);
         if (sc == null) return false;
         string? t = Scene.NormalizeTime(time);
         if (t == null && !string.IsNullOrWhiteSpace(time)) return false;
         sc.AutoAt = t;
-        AfterScenesChanged();
+        if (quiet)
+        {
+            // 설정 화면의 시계에서 바꾼 경우: 목록을 다시 만들지 않음 (돌리던 시계가 사라지지 않게)
+            Save();
+            _tray?.Refresh();
+        }
+        else AfterScenesChanged();
         return true;
     }
+
+    /// <summary>화면의 GIF 하나의 움직임·효과·표시 방식을 새 GIF 기본값으로.</summary>
+    public bool TemplateFromActive(string activeId)
+    {
+        var a = State.Active.FirstOrDefault(x => x.Id == activeId);
+        if (a == null) return false;
+        var t = new ActiveItem();
+        t.CopyStyleFrom(a);
+        State.Settings.NewItemTemplate = t;
+        Save();
+        Notice?.Invoke(Loc.F("notice.templateFrom", State.FindPhoto(a.PhotoId)?.Name ?? ""));
+        SettingsChanged?.Invoke();
+        return true;
+    }
+
+    /// <summary>지금 적용 중인 장면 (없으면 null).</summary>
+    public Scene? CurrentScene => State.Scenes.FirstOrDefault(x => x.Id == State.CurrentSceneId);
 
     private void AfterScenesChanged()
     {

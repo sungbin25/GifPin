@@ -392,12 +392,28 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="MenuItem">
-            <Border x:Name="Bd" Background="Transparent" CornerRadius="4" Padding="10,7" MinWidth="190">
-              <ContentPresenter ContentSource="Header" RecognizesAccessKey="True"/>
-            </Border>
+            <Grid>
+              <Border x:Name="Bd" Background="Transparent" CornerRadius="4" Padding="10,7" MinWidth="190">
+                <DockPanel>
+                  <TextBlock x:Name="Arrow" DockPanel.Dock="Right" Text="&#xE76C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="9"
+                             Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource TextDimBrush}" Visibility="Collapsed"/>
+                  <TextBlock x:Name="Check" DockPanel.Dock="Left" Text="&#xE73E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11"
+                             Width="18" VerticalAlignment="Center" Foreground="{StaticResource AccentLightBrush}" Visibility="Collapsed"/>
+                  <ContentPresenter ContentSource="Header" RecognizesAccessKey="True" VerticalAlignment="Center"/>
+                </DockPanel>
+              </Border>
+              <Popup x:Name="PART_Popup" Placement="Right" HorizontalOffset="4" AllowsTransparency="True" Focusable="False"
+                     IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}">
+                <Border Background="#15181F" BorderBrush="#2E3441" BorderThickness="1" Padding="4">
+                  <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
+                </Border>
+              </Popup>
+            </Grid>
             <ControlTemplate.Triggers>
               <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="Bd" Property="Background" Value="#222838"/></Trigger>
               <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4"/></Trigger>
+              <Trigger Property="Role" Value="SubmenuHeader"><Setter TargetName="Arrow" Property="Visibility" Value="Visible"/></Trigger>
+              <Trigger Property="IsChecked" Value="True"><Setter TargetName="Check" Property="Visibility" Value="Visible"/></Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
         </Setter.Value>

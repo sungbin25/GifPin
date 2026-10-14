@@ -198,6 +198,13 @@
                 </ContextMenu>
               </Button.ContextMenu>
             </Button>
+            <Button x:Name="SceneButton" DockPanel.Dock="Left" Height="36" Padding="12,0" Margin="8,0,0,0" Click="SceneButton_Click" ToolTip="{DynamicResource s.lib.sceneTip}">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="&#xE7C4;" FontFamily="{StaticResource IconFont}" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                <TextBlock x:Name="SceneButtonText" Text="{DynamicResource s.set.scenes}" VerticalAlignment="Center" MaxWidth="140" TextTrimming="CharacterEllipsis"/>
+                <TextBlock Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="9" Margin="8,1,0,0" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Button>
             <Grid Margin="12,0,0,0" Height="36">
               <TextBox x:Name="SearchBox" Height="36" Padding="30,0,8,0" TextChanged="SearchBox_TextChanged"/>
               <TextBlock Text="&#xE721;" FontFamily="{StaticResource IconFont}" FontSize="13" Foreground="{StaticResource TextMutedBrush}"
@@ -1030,7 +1037,7 @@
             <Border Height="1" Background="{StaticResource LineBrush}"/>
             <DockPanel Margin="18,14">
               <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                <Button Height="30" Content="{DynamicResource s.newItem.fromSelected}" Click="TemplateFromSelected_Click"/>
+                <Button Height="30" x:Name="TemplateFromButton" Content="{DynamicResource s.newItem.fromGif}" Click="TemplateFromSelected_Click"/>
                 <Button Height="30" Margin="8,0,0,0" Content="{DynamicResource s.newItem.reset}" Click="TemplateReset_Click"/>
               </StackPanel>
               <StackPanel VerticalAlignment="Center">
