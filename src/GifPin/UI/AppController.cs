@@ -99,6 +99,7 @@ public sealed class AppController
         State.Settings.StartWithWindows = Autostart.IsEnabled(); // 설치 프로그램에서 켰을 수도 있음
         if (State.Settings.StartWithWindows) Autostart.Apply(true); // 설치 위치가 바뀌었을 수 있어 경로 갱신
 
+        RefreshShellIconOnce();
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
         StartSceneClock();
         StartUpdateClock();
@@ -297,6 +298,20 @@ public sealed class AppController
     {
         State.Settings.CustomThemeColors.Clear();
         ApplyTheme();
+    }
+
+    /// <summary>새 버전으로 처음 실행할 때 한 번: 바로가기·작업 표시줄에 예전 아이콘이 남지 않게 탐색기에 알림.</summary>
+    private void RefreshShellIconOnce()
+    {
+        if (State.Settings.IconRefreshedVersion == AppVersion) return;
+        State.Settings.IconRefreshedVersion = AppVersion;
+        string? exe = Environment.ProcessPath;
+        if (string.IsNullOrEmpty(exe)) return;
+        System.Threading.Tasks.Task.Run(() =>
+        {
+            try { Native.RefreshShellIcon(exe); Log.Info("Shell icon refreshed for " + AppVersion); }
+            catch (Exception ex) { Log.Warn("Shell icon refresh failed: " + ex.Message); }
+        });
     }
 
     /// <summary>오늘 처음 창을 열 때 시작 애니메이션(A·B·C 중 하나)을 보여 주고 끝나면 then. 보여 주지 않으면 false.</summary>

@@ -190,6 +190,20 @@ internal static unsafe class Native
     // ── 효과 일시정지 판단 ──────────────────────────────────
     public const int QUNS_BUSY = 2, QUNS_RUNNING_D3D_FULL_SCREEN = 3, QUNS_PRESENTATION_MODE = 4;
     [DllImport("shell32.dll")] public static extern int SHQueryUserNotificationState(out int state);
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)] public static extern void SHChangeNotify(int eventId, uint flags, string? item1, IntPtr item2);
+    [DllImport("shell32.dll")] public static extern void SHChangeNotify(int eventId, uint flags, IntPtr item1, IntPtr item2);
+
+    /// <summary>
+    /// 탐색기에 이 exe의 아이콘이 바뀌었다고 알림. Windows는 exe 경로별로 아이콘을 캐시해 두므로,
+    /// 같은 위치의 exe가 새 아이콘으로 바뀌어도 바로가기에는 예전 아이콘이 남는 경우가 있다.
+    /// </summary>
+    public static void RefreshShellIcon(string exePath)
+    {
+        const int SHCNE_UPDATEITEM = 0x00002000, SHCNE_ASSOCCHANGED = 0x08000000;
+        const uint SHCNF_IDLIST = 0x0000, SHCNF_PATHW = 0x0005, SHCNF_FLUSHNOWAIT = 0x3000;
+        SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATHW | SHCNF_FLUSHNOWAIT, exePath, IntPtr.Zero);
+        SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST | SHCNF_FLUSHNOWAIT, IntPtr.Zero, IntPtr.Zero);
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     public struct SYSTEM_POWER_STATUS

@@ -38,6 +38,8 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 CloseApplications=force
 RestartApplications=no
+; 설치가 끝나면 탐색기에 "아이콘이 바뀌었음"을 알림 (예전 아이콘이 캐시에 남아 바로가기에 보이는 문제)
+ChangesAssociations=yes
 MinVersion=10.0.17763
 ; 언어 선택 창은 항상 영어로 띄움 (목록 첫 번째 = English가 기본 선택). 한국어를 고르면 이후 화면과 앱이 한국어
 ShowLanguageDialog=yes
@@ -78,12 +80,18 @@ korean.RuntimeFailed=.NET 8 데스크톱 런타임 설치에 실패했습니다 
 Name: "desktopicon"; Description: "{cm:DesktopIcon}"; GroupDescription: "{cm:AdditionalTasks}"
 Name: "autostart"; Description: "{cm:Autostart}"; GroupDescription: "{cm:AdditionalTasks}"; Flags: unchecked
 
+[InstallDelete]
+; 예전 버전의 바로가기 아이콘 파일
+Type: files; Name: "{app}\GifPin-*.ico"
+
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; 바로가기 아이콘: 버전마다 파일 이름이 달라서 Windows 아이콘 캐시에 남은 예전 아이콘을 쓰지 않음
+Source: "..\src\GifPin\Assets\GifPin.ico"; DestDir: "{app}"; DestName: "GifPin-{#AppVersion}.ico"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\GifPin"; Filename: "{app}\GifPin.exe"
-Name: "{autodesktop}\GifPin"; Filename: "{app}\GifPin.exe"; Tasks: desktopicon
+Name: "{autoprograms}\GifPin"; Filename: "{app}\GifPin.exe"; IconFilename: "{app}\GifPin-{#AppVersion}.ico"
+Name: "{autodesktop}\GifPin"; Filename: "{app}\GifPin.exe"; IconFilename: "{app}\GifPin-{#AppVersion}.ico"; Tasks: desktopicon
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "GifPin"; ValueData: """{app}\GifPin.exe"" --tray"; Tasks: autostart
@@ -223,4 +231,18 @@ begin
   end;
   if not IsDesktopRuntime8Installed() then
     Result := FmtMessage(CustomMessage('RuntimeFailed'), [IntToStr(ResultCode)]);
+end;
+
+{ 설치가 끝나면 Windows 아이콘 캐시를 새로 고침 → 바로가기·작업 표시줄에 새 아이콘이 바로 보임 }
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  Code: Integer;
+begin
+  if CurStep = ssPostInstall then
+  begin
+    if Exec(ExpandConstant('{sys}\ie4uinit.exe'), '-show', '', SW_HIDE, ewWaitUntilTerminated, Code) then
+      Log('Icon cache refreshed (ie4uinit -show, code ' + IntToStr(Code) + ')')
+    else
+      Log('Icon cache refresh skipped');
+  end;
 end;

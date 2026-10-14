@@ -251,6 +251,9 @@ public sealed class AppSettings
     public bool TrayNoticeShown { get; set; }
     public WindowBounds? Window { get; set; }
 
+    /// <summary>탐색기 아이콘 캐시를 마지막으로 새로 고친 앱 버전 (버전이 바뀌면 한 번)</summary>
+    public string? IconRefreshedVersion { get; set; }
+
     /// <summary>앱을 열 때 시작 애니메이션 (하루에 한 번)</summary>
     public bool StartupAnimation { get; set; } = true;
     /// <summary>시작 애니메이션을 마지막으로 보여 준 날 (yyyy-MM-dd, 로컬)</summary>
@@ -326,6 +329,7 @@ public sealed class AppSettings
         CustomThemeColors = new Dictionary<string, string>(CustomThemeColors ?? new()),
         AppliedInstallStamp = AppliedInstallStamp,
         LastSplashDate = LastSplashDate,
+        IconRefreshedVersion = IconRefreshedVersion,
         StartWithWindows = StartWithWindows,
         AllHidden = false,
         SettingsVersion = SettingsVersion,

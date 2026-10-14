@@ -960,6 +960,7 @@ public partial class App : Application
                 if ((DateTime.UtcNow - started).TotalSeconds > 4.5) throw new Exception($"splash {v} took too long");
             }
         }
+        if (app.State.Settings.IconRefreshedVersion != AppController.AppVersion) throw new Exception("shell icon cache was not refreshed for this version");
         sb.Append(" icon/splash ok");
         return sb.ToString();
     }
