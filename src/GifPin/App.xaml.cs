@@ -77,7 +77,7 @@ public partial class App : Application
         }
         Loc.SetLanguage(state.Settings.Language);
         AppController.ApplyLanguageResources();
-        Themes.Apply(state.Settings.Theme);
+        AppController.ApplyThemeFrom(state.Settings);
         bool fromAutostart = e.Args.Any(a => a.Equals("--tray", StringComparison.OrdinalIgnoreCase));
         bool showWindow = !fromAutostart || state.Settings.OpenWindowOnStart;
 
@@ -831,9 +831,49 @@ public partial class App : Application
         var lowContrast = Themes.ContrastReport();
         if (lowContrast.Count > 0) throw new Exception("low contrast after correction: " + string.Join(", ", lowContrast));
         if (Themes.Normalize("midnight") != Themes.Amber) throw new Exception("old midnight theme not mapped to amber");
-        app.SetTheme(Themes.System);
-        app.FollowSystemTheme();
-        if (Themes.Current != Themes.Resolve(Themes.System)) throw new Exception($"system theme: showing {Themes.Current}, Windows wants {Themes.Resolve(Themes.System)}");
+        // 없어진 "시스템 설정" 테마는 라이트/다크로 옮겨지고, 처음 실행은 민트 파스텔
+        if (Themes.All.Contains("system")) throw new Exception("system theme should be removed");
+        if (Themes.Normalize("system") is not (Themes.Light or Themes.Dark)) throw new Exception("old system theme not migrated");
+        if (new AppSettings().Theme != Themes.Mint || Themes.Default != Themes.Mint) throw new Exception("default theme is not mint pastel");
+        // 사용자 지정: 고른 색은 그대로(대비 보정 없음), 바탕을 어둡게 하면 어두운 테마, 되돌리면 출발 테마와 같음
+        {
+            app.ResetCustomColors();
+            app.SetTheme(Themes.Light);
+            app.SetCustomColor("Accent", "#ff00ff");
+            if (app.State.Settings.Theme != Themes.Custom || Themes.Current != Themes.Custom) throw new Exception("custom color did not switch to the custom theme");
+            if (app.State.Settings.CustomThemeBase != Themes.Light) throw new Exception("custom theme did not start from the theme in use");
+            static string BrushHex(string key) => Current.Resources[key] is System.Windows.Media.SolidColorBrush b ? b.Color.ToString() : "?";
+            if (BrushHex("AccentBrush") != "#FFFF00FF") throw new Exception("custom accent not applied: " + BrushHex("AccentBrush"));
+            app.SetCustomColor("TextMuted", "#F0F0F0"); // 흰 바탕에 거의 안 보이는 색이어도 고른 그대로
+            if (BrushHex("TextMutedBrush") != "#FFF0F0F0") throw new Exception("custom color was changed by contrast correction");
+            app.SetCustomColor("Icon", "#123456");
+            if (BrushHex("IconBrush") != "#FF123456") throw new Exception("custom icon color not applied");
+            app.SetCustomColor("AccentSoft", "#26FF0000");
+            if (BrushHex("AccentSoftBrush") != "#26FF0000") throw new Exception("custom soft accent lost its transparency");
+            app.SetCustomColor("Bg", "#101418");
+            if (!Themes.IsDark) throw new Exception("dark custom background should use a dark title bar");
+            app.SetCustomBase(Themes.Neon);
+            if (BrushHex("AccentBrush") != "#FFFF00FF") throw new Exception("custom colors lost when changing the starting theme");
+            var items = main.OpenCustomEditorForTest();
+            if (items != Themes.EditableGroups.Sum(g => g.keys.Length)) throw new Exception($"custom editor shows {items} colors");
+            app.SetCustomBase(Themes.Mint);
+            app.SetCustomColor("Bg", null);
+            app.SetCustomColor("Chrome", "#1E2742");
+            app.SetCustomColor("ChromeText", "#C9F2E6");
+            app.SetCustomColor("ChromeTextActive", "#FFFFFF");
+            app.SetCustomColor("TextMuted", null);
+            app.SetCustomColor("Accent", "#FF8FB1");
+            main.SetTabForTest(true);
+            await System.Threading.Tasks.Task.Delay(300);
+            main.ScrollToThemeForTest();
+            await System.Threading.Tasks.Task.Delay(200);
+            SaveShot(main, System.IO.Path.Combine(shots, "custom-editor.png"));
+            main.SetTabForTest(false);
+            var saved = app.State.Settings.CustomThemeColors.Count;
+            app.ResetCustomColors();
+            if (app.State.Settings.CustomThemeColors.Count != 0 || BrushHex("AccentBrush") == "#FFFF8FB1") throw new Exception("reset custom colors failed");
+            if (saved < 3) throw new Exception("custom colors not stored");
+        }
         app.SetTheme(Themes.Light);
         if (Themes.IsDark || Native.DarkTitleBars) throw new Exception("light theme still dark");
         app.SetTheme(Themes.Dark);

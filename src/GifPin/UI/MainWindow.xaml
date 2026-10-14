@@ -921,6 +921,7 @@
               <TextBlock Text="{DynamicResource s.theme.title}" FontSize="14"/>
               <TextBlock Text="{DynamicResource s.theme.desc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,10"/>
               <WrapPanel x:Name="ThemePicker"/>
+              <StackPanel x:Name="CustomThemePanel"/>
             </StackPanel>
             <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <ToggleButton x:Name="HideFromCaptureToggle" Style="{StaticResource Switch}" Margin="18,14" Click="HideFromCapture_Click">

@@ -100,10 +100,8 @@ public sealed class AppController
         if (State.Settings.StartWithWindows) Autostart.Apply(true); // 설치 위치가 바뀌었을 수 있어 경로 갱신
 
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
-        Microsoft.Win32.SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
         StartSceneClock();
         StartUpdateClock();
-        UpdateThemeWatch();
 
         if (showWindow)
         {
@@ -248,48 +246,57 @@ public sealed class AppController
 
     public void SetTheme(string theme)
     {
-        State.Settings.Theme = Themes.Normalize(theme);
-        Themes.Apply(State.Settings.Theme);
+        theme = Themes.Normalize(theme);
+        // 아직 고친 색이 없는 사용자 지정 테마는 지금 보던 테마에서 시작
+        if (theme == Themes.Custom && State.Settings.Theme != Themes.Custom && State.Settings.CustomThemeColors.Count == 0)
+            State.Settings.CustomThemeBase = Themes.NormalizeBase(State.Settings.Theme);
+        State.Settings.Theme = theme;
+        ApplyTheme();
+    }
+
+    /// <summary>저장된 테마(사용자 지정 색 포함)를 화면에 적용.</summary>
+    public static void ApplyThemeFrom(AppSettings s)
+    {
+        s.Theme = Themes.Normalize(s.Theme);
+        Themes.SetCustom(s.CustomThemeBase, s.CustomThemeColors);
+        Themes.Apply(s.Theme);
+    }
+
+    private void ApplyTheme()
+    {
+        ApplyThemeFrom(State.Settings);
         ThemeChanged?.Invoke();
-        UpdateThemeWatch();
         Save();
     }
 
-    private DispatcherTimer? _themeWatch;
-
-    /// <summary>
-    /// "시스템 설정 따르기": Windows의 라이트/다크가 바뀌었는지 2초마다 확인 (변경 알림이 오지 않는 경우가 있어서).
-    /// 레지스트리 값 하나를 읽는 정도라 부담이 거의 없음.
-    /// </summary>
-    private void UpdateThemeWatch()
+    /// <summary>사용자 지정: UI 색 하나 바꾸기 (null이면 출발 테마 색으로 되돌림). 다른 테마였다면 사용자 지정으로 바뀜.</summary>
+    public void SetCustomColor(string key, string? hex)
     {
-        bool want = State.Settings.Theme == Themes.System;
-        if (want && _themeWatch == null)
+        if (!Themes.IsEditableKey(key)) return;
+        var s = State.Settings;
+        if (s.Theme != Themes.Custom)
         {
-            _themeWatch = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-            _themeWatch.Tick += (_, _) => FollowSystemTheme();
-            _themeWatch.Start();
+            if (s.CustomThemeColors.Count == 0) s.CustomThemeBase = Themes.NormalizeBase(s.Theme);
+            s.Theme = Themes.Custom;
         }
-        else if (!want && _themeWatch != null)
-        {
-            _themeWatch.Stop();
-            _themeWatch = null;
-        }
+        if (hex == null) s.CustomThemeColors.Remove(key);
+        else s.CustomThemeColors[key] = hex.ToUpperInvariant();
+        ApplyTheme();
     }
 
-    /// <summary>Windows 설정과 지금 테마가 다르면 다시 적용.</summary>
-    internal void FollowSystemTheme()
+    /// <summary>사용자 지정: 출발 테마 바꾸기 (고친 색은 그대로 위에 덮음).</summary>
+    public void SetCustomBase(string baseTheme)
     {
-        if (State.Settings.Theme != Themes.System || Themes.Resolve(Themes.System) == Themes.Current) return;
-        Themes.Apply(Themes.System);
-        ThemeChanged?.Invoke();
+        State.Settings.CustomThemeBase = Themes.NormalizeBase(baseTheme);
+        State.Settings.Theme = Themes.Custom;
+        ApplyTheme();
     }
 
-    /// <summary>"시스템 설정 따르기"일 때 Windows의 라이트/다크가 바뀌면 따라감.</summary>
-    private void OnUserPreferenceChanged(object? sender, Microsoft.Win32.UserPreferenceChangedEventArgs e)
+    /// <summary>사용자 지정: 고친 색을 모두 지움 (출발 테마와 같아짐).</summary>
+    public void ResetCustomColors()
     {
-        if (e.Category != Microsoft.Win32.UserPreferenceCategory.General || State.Settings.Theme != Themes.System) return;
-        _ui.InvokeAsync(FollowSystemTheme);
+        State.Settings.CustomThemeColors.Clear();
+        ApplyTheme();
     }
 
     /// <summary>오늘 처음 창을 열 때 시작 애니메이션(A·B·C 중 하나)을 보여 주고 끝나면 then. 보여 주지 않으면 false.</summary>
@@ -353,7 +360,6 @@ public sealed class AppController
         IsQuitting = true;
         Log.Info("Quitting");
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
-        Microsoft.Win32.SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
         if (IsEditing) FinishEdit(save: true);
         if (_main != null) State.Settings.Window = _main.CurrentBounds();
         Store.SaveNow(State);
@@ -1186,7 +1192,7 @@ public sealed class AppController
         foreach (var a in State.Active) SyncToEngine(a);
         ApplyEngineSettings();
         if (Loc.Normalize(State.Settings.Language) != Loc.Language) SetLanguage(State.Settings.Language);
-        Themes.Apply(State.Settings.Theme);
+        ApplyThemeFrom(State.Settings);
         ThemeChanged?.Invoke();
         RebuildVisible();
         RebuildActives();
@@ -1206,7 +1212,7 @@ public sealed class AppController
         State.Settings = State.Settings.ResetKeepingBasics();
         State.Settings.Normalize();
         ApplyEngineSettings();
-        Themes.Apply(State.Settings.Theme);
+        ApplyThemeFrom(State.Settings);
         ThemeChanged?.Invoke();
         Log.Info("Settings reset to defaults");
         _tray?.Refresh();

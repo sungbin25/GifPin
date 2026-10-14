@@ -259,8 +259,12 @@ public sealed class AppSettings
     /// <summary>색 고르기 창의 "최근 색" (#RRGGBB, 최근 것부터)</summary>
     public List<string> RecentColors { get; set; } = new();
 
-    /// <summary>화면 테마: system | dark | light | midnight | mint | neon | xp | classic</summary>
-    public string Theme { get; set; } = "dark";
+    /// <summary>화면 테마: mint(민트 파스텔, 기본) | dark | light | amber | neon | xp | classic | custom</summary>
+    public string Theme { get; set; } = "mint";
+    /// <summary>사용자 지정 테마의 출발 테마</summary>
+    public string CustomThemeBase { get; set; } = "mint";
+    /// <summary>사용자 지정 테마에서 직접 고른 UI 색 (색 이름 → #RRGGBB / #AARRGGBB)</summary>
+    public Dictionary<string, string> CustomThemeColors { get; set; } = new();
     /// <summary>설치 프로그램에서 고른 언어를 마지막으로 적용한 설치 표시 (같은 설치는 한 번만 적용)</summary>
     public string? AppliedInstallStamp { get; set; }
 
@@ -318,6 +322,8 @@ public sealed class AppSettings
     {
         Language = Language,
         Theme = Theme,
+        CustomThemeBase = CustomThemeBase,
+        CustomThemeColors = new Dictionary<string, string>(CustomThemeColors ?? new()),
         AppliedInstallStamp = AppliedInstallStamp,
         LastSplashDate = LastSplashDate,
         StartWithWindows = StartWithWindows,
@@ -334,7 +340,14 @@ public sealed class AppSettings
         AutostartDelaySec = Math.Clamp(AutostartDelaySec, 0, 300);
         RecentColors = (RecentColors ?? new()).Where(c => Fx.TryParseColor(c, out _)).Select(c => c.ToUpperInvariant()).Distinct().Take(12).ToList();
         if (Theme == "midnight") Theme = "amber"; // v0.7.1: 미드나잇 → 앰버
-        Theme = Theme is "system" or "dark" or "light" or "amber" or "mint" or "neon" or "xp" or "classic" ? Theme : "dark";
+        // "system"은 없어진 테마 — 화면에 적용할 때 Windows 모드에 맞춰 라이트/다크로 옮김 (Themes.Normalize)
+        Theme = Theme is "system" or "dark" or "light" or "amber" or "mint" or "neon" or "xp" or "classic" or "custom" ? Theme : "mint";
+        CustomThemeBase = CustomThemeBase is "dark" or "light" or "amber" or "mint" or "neon" or "xp" or "classic" ? CustomThemeBase : "mint";
+        CustomThemeColors = (CustomThemeColors ?? new())
+            .Where(kv => kv.Key is { Length: > 0 and <= 32 } && kv.Key.All(char.IsLetter)
+                         && kv.Value != null && System.Text.RegularExpressions.Regex.IsMatch(kv.Value, "^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$"))
+            .Take(100)
+            .ToDictionary(kv => kv.Key, kv => kv.Value.ToUpperInvariant());
         MaxParticlesTotal = Math.Clamp(MaxParticlesTotal, 20, 3000);
         GifFpsCap = GifFpsCap <= 0 ? 0 : Math.Clamp(GifFpsCap, 10, 60);
         RenderQuality = RenderQuality is "low" or "high" ? RenderQuality : "medium";

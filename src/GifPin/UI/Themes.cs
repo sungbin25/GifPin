@@ -16,13 +16,77 @@ namespace GifPin.UI;
 /// </summary>
 public static class Themes
 {
-    public const string System = "system", Dark = "dark", Light = "light", Amber = "amber", Mint = "mint", Neon = "neon", Xp = "xp", Classic = "classic";
+    public const string Dark = "dark", Light = "light", Amber = "amber", Mint = "mint", Neon = "neon", Xp = "xp", Classic = "classic", Custom = "custom";
+
+    /// <summary>처음 실행할 때의 테마 (민트 파스텔).</summary>
+    public const string Default = Mint;
 
     /// <summary>설정 화면에 보이는 순서.</summary>
-    public static readonly IReadOnlyList<string> All = new[] { System, Dark, Light, Amber, Mint, Neon, Xp, Classic };
+    public static readonly IReadOnlyList<string> All = new[] { Mint, Dark, Light, Amber, Neon, Xp, Classic, Custom };
 
-    /// <summary>예전 "미드나잇"(다크와 거의 같았음)은 앰버로 바뀜.</summary>
-    public static string Normalize(string? name) => name == "midnight" ? Amber : name != null && All.Contains(name) ? name : Dark;
+    /// <summary>사용자 지정 테마의 출발점으로 고를 수 있는 테마.</summary>
+    public static readonly IReadOnlyList<string> Bases = new[] { Mint, Dark, Light, Amber, Neon, Xp, Classic };
+
+    /// <summary>예전 값 옮기기: "미드나잇"(다크와 거의 같았음) → 앰버, 없어진 "시스템 설정" → 지금 Windows 모드에 맞는 라이트/다크.</summary>
+    public static string Normalize(string? name) => name switch
+    {
+        "midnight" => Amber,
+        "system" => SystemUsesLight() ? Light : Dark,
+        _ => name != null && All.Contains(name) ? name : Default,
+    };
+
+    public static string NormalizeBase(string? name) => name != null && Bases.Contains(name) ? name : Default;
+
+    // ── 사용자 지정 테마 ─────────────────────────────────────
+    // 출발 테마의 색 위에 사용자가 고른 색만 덮어씀. 사용자가 고른 색은 대비 보정으로 바꾸지 않는다.
+
+    /// <summary>설정 화면에서 고칠 수 있는 색 (묶음, 색 이름). Icon·AnchorDot은 다른 색에서 만들어지지만 직접 고를 수도 있음.</summary>
+    public static readonly IReadOnlyList<(string group, string[] keys)> EditableGroups = new (string, string[])[]
+    {
+        ("bg", new[] { "Bg", "Chrome", "Panel", "Card", "Input", "ToolbarBg", "BottomBar", "MenuBg", "ToastBg" }),
+        ("text", new[] { "Text", "StrongText", "Label", "TextDim", "TextMuted", "ChromeText", "ChromeTextActive", "Icon" }),
+        ("accent", new[] { "Accent", "AccentText", "AccentLight", "AccentSoft", "SelectedBg", "ChromeAccent", "CountBadge", "AnchorDot" }),
+        ("controls", new[] { "BtnBg", "BtnSoftBg", "BtnSoftBorder", "BtnSoftText", "SegmentBox", "SegmentOn", "Track", "Knob", "KnobOn", "SliderThumb", "ScrollThumb", "HoverOverlay" }),
+        ("borders", new[] { "Line", "Border", "BorderStrong", "CardBorder", "CardHoverBorder", "MenuBorder", "MenuHover", "SegmentBoxBorder", "ToastBorder" }),
+        ("status", new[] { "Green", "GreenText", "GreenBadgeBg", "Warn", "WarnText", "WarnBg", "Danger", "DangerBorder" }),
+        ("checker", new[] { "CheckerA", "CheckerB" }),
+    };
+
+    private static readonly HashSet<string> DerivedKeys = new() { "Icon", "AnchorDot" };
+
+    public static bool IsEditableKey(string key) => DarkColors.ContainsKey(key) || DerivedKeys.Contains(key);
+
+    private static string _customBase = Default;
+    private static Dictionary<string, string> _customColors = new();
+
+    /// <summary>사용자 지정 테마의 출발 테마와 덮어쓸 색 (#RRGGBB / #AARRGGBB). Apply 전에 부름.</summary>
+    public static void SetCustom(string? baseTheme, IReadOnlyDictionary<string, string>? colors)
+    {
+        _customBase = NormalizeBase(baseTheme);
+        _customColors = new Dictionary<string, string>();
+        if (colors == null) return;
+        foreach (var (k, v) in colors)
+        {
+            if (!IsEditableKey(k)) continue;
+            try { ParseColor(v); _customColors[k] = v.Trim().ToUpperInvariant(); } catch { }
+        }
+    }
+
+    private static Theme Def(string resolved)
+    {
+        if (resolved != Custom) return Defs[resolved];
+        var b = Defs[_customBase];
+        var colors = From(b.Colors, _customColors.Where(kv => DarkColors.ContainsKey(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value));
+        bool dark = Lum(FirstColor(colors["Bg"])) < 0.25; // 바탕을 어둡게 바꾸면 제목 표시줄도 어둡게
+        return new Theme(dark, b.Font, b.RadiusM, b.RadiusL, b.RadiusXL, colors);
+    }
+
+    /// <summary>사용자 지정 테마에서 지금 실제로 쓰이는 색 (보정 뒤). 설정 화면의 색 칸에 보여 줄 값.</summary>
+    public static Dictionary<string, string> CustomEffective()
+    {
+        var t = Def(Custom);
+        return WithContrast(t.Colors, t.IsDark, _customColors);
+    }
 
     private sealed record Theme(bool IsDark, string Font, double RadiusM, double RadiusL, double RadiusXL, Dictionary<string, string> Colors);
 
@@ -98,19 +162,25 @@ public static class Themes
             ["ToastBg"] = "#26201B", ["ToastBorder"] = "#7A5428", ["GreenBadgeBg"] = "#247ED58A", ["ToolbarBg"] = "#1B1714",
             ["CheckerA"] = "#221D19", ["CheckerB"] = "#2C2520",
         }),
+        // 민트 파스텔 (기본): 앱 아이콘과 같은 색 — 민트 바탕, 남색 글자, 크림색 상단·하단, 노란 포인트
         [Mint] = new(false, "Segoe UI, Malgun Gothic", 8, 10, 14, From(LightColors, new()
         {
-            ["Bg"] = "#EEF8F5", ["Line"] = "#D7ECE6", ["Border"] = "#BFE0D7", ["BorderStrong"] = "#9FCFC2",
-            ["Text"] = "#17302B", ["TextDim"] = "#3E5E57", ["TextMuted"] = "#5E7D76", ["Label"] = "#24423C",
-            ["Accent"] = "#13A58A", ["AccentSoft"] = "#2613A58A", ["AccentLight"] = "#0E8A73", ["SelectedBg"] = "#DDF4EE",
-            ["StrongText"] = "#0E2420", ["Green"] = "#13A58A", ["GreenText"] = "#0E8A73", ["Warn"] = "#E8913A", ["WarnText"] = "#B5651A",
+            ["Bg"] = "#EEF8F4", ["Chrome"] = "#FBF6EA", ["Panel"] = "#FFFDF8", ["Card"] = "#FFFFFF", ["Input"] = "#FFFFFF",
+            ["Line"] = "#DCEFE8", ["Border"] = "#BFE3D7", ["BorderStrong"] = "#8FCDBB",
+            ["Text"] = "#1E2742", ["TextDim"] = "#46506B", ["TextMuted"] = "#626C86", ["Label"] = "#28324F",
+            ["Accent"] = "#3CC9A6", ["AccentSoft"] = "#333CC9A6", ["AccentText"] = "#1E2742", ["AccentLight"] = "#11806A",
+            ["SelectedBg"] = "#D9F4EB", ["SegmentOn"] = "#FFFFFF",
+            ["Green"] = "#2BB38E", ["GreenText"] = "#157A61", ["Warn"] = "#EBA232", ["WarnText"] = "#9A620C",
             ["Danger"] = "#E0577A", ["DangerBorder"] = "#F6C6D3",
-            ["BtnSoftBg"] = "#FFE3EC", ["BtnSoftBorder"] = "#FFB8CD", ["BtnSoftText"] = "#D03F6E", ["WarnBg"] = "#26E8913A",
-            ["ChromeText"] = "#3E5E57", ["ChromeTextActive"] = "#0E2420", ["ChromeAccent"] = "#FF6F9E",
-            ["SegmentBox"] = "#E4F3EF", ["SegmentBoxBorder"] = "#D3EAE3", ["Track"] = "#C3DCD5", ["ScrollThumb"] = "#B5D6CD",
-            ["MenuBorder"] = "#BFE0D7", ["MenuHover"] = "#E6F6F1", ["CardBorder"] = "#D7ECE6", ["CardHoverBorder"] = "#9FCFC2",
-            ["BottomBar"] = "#F7FCFA", ["CountBadge"] = "#DDF4EE", ["ToastBorder"] = "#9FCFC2", ["GreenBadgeBg"] = "#2613A58A",
-            ["CheckerB"] = "#E7F4F0",
+            ["HoverOverlay"] = "#1E2742", ["BtnBg"] = "#FFFFFF", ["BtnSoftBg"] = "#FFF2CC", ["BtnSoftBorder"] = "#F2C14E", ["BtnSoftText"] = "#6E4E00",
+            ["WarnBg"] = "#26EBA232", ["StrongText"] = "#141A2E",
+            ["ChromeText"] = "#46506B", ["ChromeTextActive"] = "#1E2742", ["ChromeAccent"] = "#3CC9A6",
+            ["SegmentBox"] = "#E6F4EF", ["SegmentBoxBorder"] = "#D3EBE3", ["Track"] = "#C6E2D9", ["Knob"] = "#FFFFFF", ["KnobOn"] = "#FFFFFF",
+            ["SliderThumb"] = "#FFFFFF", ["ScrollThumb"] = "#B9DCD1",
+            ["MenuBg"] = "#FFFFFF", ["MenuBorder"] = "#BFE3D7", ["MenuHover"] = "#E3F6EF",
+            ["CardBorder"] = "#DCEFE8", ["CardHoverBorder"] = "#8FCDBB", ["BottomBar"] = "#FBF6EA", ["CountBadge"] = "#FFF0C7",
+            ["ToastBg"] = "#FFFFFF", ["ToastBorder"] = "#8FCDBB", ["GreenBadgeBg"] = "#262BB38E", ["ToolbarBg"] = "#FFFDF8",
+            ["CheckerA"] = "#FFFFFF", ["CheckerB"] = "#E8F5F0",
         })),
         [Neon] = new(true, "Segoe UI, Malgun Gothic", 6, 8, 12, new()
         {
@@ -173,11 +243,11 @@ public static class Themes
         }),
     };
 
-    /// <summary>지금 적용된 테마 (system이면 실제로 고른 dark/light).</summary>
+    /// <summary>지금 적용된 테마.</summary>
     public static string Current { get; private set; } = Dark;
     public static bool IsDark { get; private set; } = true;
 
-    /// <summary>Windows "앱 모드"가 라이트인지.</summary>
+    /// <summary>Windows "앱 모드"가 라이트인지 (예전 "시스템 설정" 테마를 옮길 때만 씀).</summary>
     public static bool SystemUsesLight()
     {
         try
@@ -188,14 +258,14 @@ public static class Themes
         catch { return false; }
     }
 
-    public static string Resolve(string name) => Normalize(name) == System ? (SystemUsesLight() ? Light : Dark) : Normalize(name);
+    public static string Resolve(string name) => Normalize(name);
 
     /// <summary>테마를 앱 전체에 적용 (열려 있는 창 포함).</summary>
     public static void Apply(string name)
     {
         string resolved = Resolve(name);
-        var t = Defs[resolved];
-        var colors = WithContrast(t.Colors, t.IsDark);
+        var t = Def(resolved);
+        var colors = WithContrast(t.Colors, t.IsDark, resolved == Custom ? _customColors : null);
         var res = Application.Current.Resources;
         foreach (var (key, spec) in colors)
         {
@@ -235,7 +305,7 @@ public static class Themes
     private static readonly HashSet<string> DarkOnlyRules = new() { "Border", "SegmentBoxBorder", "Track", "Knob", "CardBorder", "CardHoverBorder", "ScrollThumb", "MenuBorder", "Line" };
 
     /// <summary>보정한 색 표 + 파생 색 (Icon: 아이콘, AnchorDot: 위치 버튼 점).</summary>
-    private static Dictionary<string, string> WithContrast(Dictionary<string, string> src, bool isDark)
+    private static Dictionary<string, string> WithContrast(Dictionary<string, string> src, bool isDark, IReadOnlyDictionary<string, string>? locked = null)
     {
         var c = new Dictionary<string, string>(src);
         Color Solid(string key) => FirstColor(c[key]);
@@ -245,6 +315,7 @@ public static class Themes
         {
             if (!c.ContainsKey(key) || IsGradient(c[key]) || IsGradient(c[against])) continue;
             if (!isDark && DarkOnlyRules.Contains(key)) continue;
+            if (locked != null && locked.ContainsKey(key)) continue; // 사용자가 고른 색은 그대로
             var fixedColor = EnsureContrast(Solid(key), Solid(against), min, target);
             c[key] = ToHex(fixedColor);
         }
@@ -252,6 +323,9 @@ public static class Themes
         var panel = IsGradient(c["Panel"]) ? FirstColor(c["Panel"]) : Solid("Panel");
         c["Icon"] = ToHex(EnsureContrast(Mix(FirstColor(c["Accent"]), Solid("Text"), 0.45), panel, 4.5, Solid("Text")));
         c["AnchorDot"] = ToHex(EnsureContrast(Mix(panel, FirstColor(c["Accent"]), 0.45), panel, 3.0, target));
+        if (locked != null)
+            foreach (var k in DerivedKeys)
+                if (locked.TryGetValue(k, out var v)) c[k] = v;
         return c;
     }
 
@@ -314,7 +388,7 @@ public static class Themes
     /// <summary>설정 화면의 미리보기 색: 바탕, 카드, 강조, 글자.</summary>
     public static (Brush bg, Brush card, Brush accent, Brush text) Preview(string name)
     {
-        var c = Defs[Resolve(name)].Colors;
+        var c = Def(Resolve(name)).Colors;
         return (MakeBrush(c["Bg"]), MakeBrush(c["Card"]), MakeBrush(c["Accent"]), MakeBrush(c["Text"]));
     }
 
@@ -356,6 +430,11 @@ public static class Themes
             if (missing.Count > 0) return $"{name}: missing {string.Join(", ", missing)}";
             foreach (var spec in t.Colors.Values) MakeBrush(spec);
         }
+        // 사용자 지정 화면에 모든 색이 한 번씩 나오는지
+        var listed = EditableGroups.SelectMany(g => g.keys).ToList();
+        if (listed.Count != listed.Distinct().Count()) return "custom editor lists a color twice";
+        var notListed = DarkColors.Keys.Concat(DerivedKeys).Except(listed).ToList();
+        if (notListed.Count > 0) return "custom editor is missing " + string.Join(", ", notListed);
         return null;
     }
 }

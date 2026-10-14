@@ -1562,14 +1562,6 @@ public partial class MainWindow : Window
                 BorderBrush = Res("BorderBrush"), BorderThickness = new Thickness(1), ClipToBounds = true,
             };
             var inner = new Grid();
-            if (name == Themes.System)
-            {
-                // 왼쪽 반은 라이트, 오른쪽 반은 다크 = Windows 설정에 따라 둘 중 하나
-                var (lbg, _, _, _) = Themes.Preview(Themes.Light);
-                var (dbg, _, _, _) = Themes.Preview(Themes.Dark);
-                preview.Background = dbg;
-                inner.Children.Add(new Border { Background = lbg, HorizontalAlignment = HorizontalAlignment.Left, Width = 52 });
-            }
             inner.Children.Add(new Border { Height = 10, VerticalAlignment = VerticalAlignment.Top, Background = name == Themes.Xp || name == Themes.Classic ? Themes.Preview(name).accent : System.Windows.Media.Brushes.Transparent });
             inner.Children.Add(new Border
             {
@@ -1584,9 +1576,19 @@ public partial class MainWindow : Window
                     },
                 },
             });
+            if (name == Themes.Custom)
+            {
+                // 사용자 지정: 오른쪽 아래에 팔레트 표시
+                var badge = new Border
+                {
+                    Width = 22, Height = 22, CornerRadius = new CornerRadius(11), Margin = new Thickness(0, 0, 4, 4),
+                    HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Background = accent,
+                    Child = new TextBlock { Text = "\uE790", FontFamily = (System.Windows.Media.FontFamily)FindResource("IconFont"), FontSize = 12, Foreground = card, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
+                };
+                inner.Children.Add(badge);
+            }
             preview.Child = inner;
             string labelText = Loc.T("theme." + name);
-            if (name == Themes.System) labelText += " · " + Loc.T("theme." + (Themes.SystemUsesLight() ? Themes.Light : Themes.Dark));
             var label = new TextBlock { Text = labelText, FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) };
             var stack = new StackPanel { Margin = new Thickness(2) };
             stack.Children.Add(preview);
@@ -1597,9 +1599,155 @@ public partial class MainWindow : Window
                 Padding = new Thickness(6), Margin = new Thickness(0, 0, 6, 6), IsChecked = name == current, Tag = name,
                 ToolTip = Loc.T("theme." + name + "Tip"),
             };
-            rb.Checked += (_, _) => { if (!_updating && rb.Tag is string t && t != _app.State.Settings.Theme) Dispatcher.InvokeAsync(() => _app.SetTheme(t)); };
+            rb.Checked += (_, _) =>
+            {
+                if (_updating || rb.Tag is not string t || t == _app.State.Settings.Theme) return;
+                if (t == Themes.Custom) _customEditorOpen = true;
+                Dispatcher.InvokeAsync(() => _app.SetTheme(t));
+            };
             ThemePicker.Children.Add(rb);
         }
+        BuildCustomThemePanel();
+    }
+
+    private bool? _customEditorOpen;
+
+    /// <summary>
+    /// 사용자 지정 테마: 출발 테마를 고르고, UI 색을 하나씩 바꿈. 색 칸을 누르면 팔레트(스포이드 포함)가 열리고
+    /// 바꾸는 즉시 앱 전체에 적용됨. 직접 고른 색에는 점이 붙고 ↶ 버튼으로 하나씩 되돌릴 수 있음.
+    /// </summary>
+    private void BuildCustomThemePanel()
+    {
+        if (CustomThemePanel == null) return;
+        CustomThemePanel.Children.Clear();
+        var st = _app.State.Settings;
+        bool open = _customEditorOpen ??= st.Theme == Themes.Custom;
+
+        var toggle = new System.Windows.Controls.Primitives.ToggleButton
+        {
+            Style = (Style)FindResource("SegmentToggle"), IsChecked = open, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 4, 0, 0),
+            Content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Children =
+                {
+                    new TextBlock { Text = "\uE790", FontFamily = (System.Windows.Media.FontFamily)FindResource("IconFont"), FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 7, 0) },
+                    new TextBlock { Text = Loc.T("customTheme.title"), FontSize = 13, VerticalAlignment = VerticalAlignment.Center },
+                    new TextBlock { Text = open ? "  \uE70E" : "  \uE70D", FontFamily = (System.Windows.Media.FontFamily)FindResource("IconFont"), FontSize = 10, VerticalAlignment = VerticalAlignment.Center },
+                },
+            },
+        };
+        toggle.Click += (_, _) => { _customEditorOpen = toggle.IsChecked == true; BuildCustomThemePanel(); };
+        CustomThemePanel.Children.Add(toggle);
+        if (!open) return;
+
+        CustomThemePanel.Children.Add(new TextBlock { Text = Loc.T("customTheme.desc"), Style = (Style)FindResource("Hint"), FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 10) });
+
+        // 출발 테마 + 모두 되돌리기
+        var baseRow = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
+        var resetAll = new Button { Content = Loc.T("customTheme.resetAll"), Height = 28, IsEnabled = st.CustomThemeColors.Count > 0 };
+        resetAll.Click += (_, _) => Dispatcher.InvokeAsync(_app.ResetCustomColors);
+        DockPanel.SetDock(resetAll, Dock.Right);
+        baseRow.Children.Add(resetAll);
+        var baseBox = new Border { Style = (Style)FindResource("SegmentBox"), HorizontalAlignment = HorizontalAlignment.Left };
+        var bases = new WrapPanel();
+        foreach (var b in Themes.Bases)
+        {
+            var rb = new RadioButton
+            {
+                Style = (Style)FindResource("Segment"), GroupName = "customBase", Tag = b, Content = Loc.T("theme." + b),
+                IsChecked = st.CustomThemeBase == b, Padding = new Thickness(9, 0, 9, 0),
+            };
+            rb.Checked += (_, _) => { if (!_updating && rb.Tag is string v && v != _app.State.Settings.CustomThemeBase) Dispatcher.InvokeAsync(() => _app.SetCustomBase(v)); };
+            bases.Children.Add(rb);
+        }
+        baseBox.Child = bases;
+        var baseLabel = new TextBlock { Text = Loc.T("customTheme.base"), FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
+        baseLabel.SetResourceReference(TextBlock.ForegroundProperty, "LabelBrush");
+        var baseLeft = new StackPanel { Orientation = Orientation.Horizontal };
+        baseLeft.Children.Add(baseLabel);
+        baseLeft.Children.Add(baseBox);
+        baseRow.Children.Add(baseLeft);
+        CustomThemePanel.Children.Add(baseRow);
+
+        var effective = Themes.CustomEffective();
+        foreach (var (group, keys) in Themes.EditableGroups)
+        {
+            var header = new TextBlock { Text = Loc.T("customTheme.group." + group), Style = (Style)FindResource("SectionLabel"), Margin = new Thickness(0, 12, 0, 6) };
+            CustomThemePanel.Children.Add(header);
+            var wrap = new WrapPanel();
+            foreach (var key in keys) wrap.Children.Add(CustomColorItem(key, effective.TryGetValue(key, out var spec) ? spec : "#000000", st.CustomThemeColors.ContainsKey(key)));
+            CustomThemePanel.Children.Add(wrap);
+        }
+    }
+
+    /// <summary>색 하나: [색 칸] 이름 (•) [↶]</summary>
+    private FrameworkElement CustomColorItem(string key, string spec, bool overridden)
+    {
+        var swatch = new Border
+        {
+            Width = 26, Height = 26, CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(1), ClipToBounds = true,
+            Child = new Border { Background = Themes.MakeBrush(spec), CornerRadius = new CornerRadius(5) },
+        };
+        swatch.SetResourceReference(Border.BackgroundProperty, "CheckerBrush"); // 반투명 색은 무늬 위에
+        swatch.SetResourceReference(Border.BorderBrushProperty, "BorderStrongBrush");
+        var name = new TextBlock { Text = Loc.T("themeColor." + key), FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(9, 0, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+        if (overridden) name.FontWeight = FontWeights.SemiBold;
+        var content = new DockPanel { LastChildFill = true };
+        content.Children.Add(swatch);
+        content.Children.Add(name);
+        var pick = new Button
+        {
+            Content = content, Height = 36, Padding = new Thickness(5, 0, 8, 0), HorizontalContentAlignment = HorizontalAlignment.Left,
+            ToolTip = Loc.T("themeColor." + key + "Tip") + "\n" + spec, BorderThickness = new Thickness(overridden ? 1.5 : 1),
+        };
+        if (pick.Content is FrameworkElement fe) fe.HorizontalAlignment = HorizontalAlignment.Left;
+        if (overridden) pick.SetResourceReference(Button.BorderBrushProperty, "AccentBrush");
+        pick.Click += async (_, _) =>
+        {
+            System.Windows.Media.Color current;
+            try { current = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(FirstHex(spec)); }
+            catch { current = System.Windows.Media.Colors.White; }
+            var picked = await ColorPicker.PickAsync(this, System.Windows.Media.Color.FromRgb(current.R, current.G, current.B), _app.State.Settings.RecentColors);
+            if (picked is not System.Windows.Media.Color p) return;
+            string hex = ColorPicker.ToHex(p);
+            _app.AddRecentColor(hex);
+            // 반투명 색(선택 배경·배지 등)은 원래 투명도를 유지
+            if (current.A < 255) hex = $"#{current.A:X2}{hex[1..]}";
+            _app.SetCustomColor(key, hex);
+        };
+        var cell = new DockPanel { Width = 214, Margin = new Thickness(0, 0, 6, 6) };
+        if (overridden)
+        {
+            var undo = new Button
+            {
+                Style = (Style)FindResource("BtnIcon"), Width = 28, Height = 36, Margin = new Thickness(2, 0, 0, 0), ToolTip = Loc.T("customTheme.resetOne"),
+                Content = new TextBlock { Text = "\uE7A7", FontFamily = (System.Windows.Media.FontFamily)FindResource("IconFont"), FontSize = 13 },
+            };
+            undo.Click += (_, _) => Dispatcher.InvokeAsync(() => _app.SetCustomColor(key, null));
+            DockPanel.SetDock(undo, Dock.Right);
+            cell.Children.Add(undo);
+        }
+        cell.Children.Add(pick);
+        return cell;
+    }
+
+    private static string FirstHex(string spec) => spec.Length > 2 && spec[1] == ':' ? spec[2..].Split(',')[0] : spec;
+
+    /// <summary>점검용: 사용자 지정 색 편집기를 펼침.</summary>
+    internal int OpenCustomEditorForTest()
+    {
+        _customEditorOpen = true;
+        BuildCustomThemePanel();
+        return CustomThemePanel.Children.OfType<WrapPanel>().Sum(w => w.Children.Count);
+    }
+
+    /// <summary>점검용: 설정 화면을 테마 부분까지 내림 (스크린샷용).</summary>
+    internal void ScrollToThemeForTest()
+    {
+        UpdateLayout();
+        ThemePicker.BringIntoView(new Rect(0, 0, 10, 40));
+        UpdateLayout();
     }
 
     // ── 자동 실행 지연 / 업데이트 ─────────────────────────────
