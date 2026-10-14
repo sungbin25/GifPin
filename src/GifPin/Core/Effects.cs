@@ -171,6 +171,13 @@ internal sealed class EffectState : IDisposable
     public int Squashes { get; private set; }
     public int DustPuffs { get; private set; }
     public int TrailCount => _trail.Count;
+
+    /// <summary>날고 있는 파티클·착지 먼지·잔상을 바로 지움 (효과를 끄거나 멈출 때 그 자리에 얼어붙어 남지 않게).</summary>
+    public void ClearTransient()
+    {
+        _particles.Clear();
+        _trail.Clear();
+    }
     public IReadOnlyList<(double x, double y)> Trail => _trail;
     public int SpriteCount => _sprites.Count;
     internal int CountKind(string kind) { int n = 0; foreach (var p in _particles) if (p.Kind == kind) n++; return n; }

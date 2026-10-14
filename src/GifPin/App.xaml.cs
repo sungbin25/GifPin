@@ -504,13 +504,23 @@ public partial class App : Application
         eng.SimulateHover(null, null);
         sb.Append(" hover fade ok ·");
 
-        // 3) 모든 효과 끄기
+        // 3) 효과 끄기: 날던 파티클·잔상은 바로 사라지고 새로 안 생김, 둥실둥실(대기 모션)은 계속, 다시 켜면 파티클이 나옴
+        app.UpdateActive(id, a => { a.FxFloat = true; a.FxTrail = true; a.FxShadow = true; a.FxParticles = true; a.FxParticleMode = Fx.Always; a.FxParticleRate = 20; a.FxParticleKind = Fx.Dot; });
+        await Wait(800);
+        var fxOn = await P(id);
+        if (fxOn.Particles == 0) throw new Exception("particles did not start before effects-off");
         app.SetEffectsOff(true);
-        await Wait(200);
-        if (!(await P(id)).FxPaused) throw new Exception("effects-off did not pause effects");
+        await Wait(250);
+        var fxOff = await P(id);
+        if (fxOff.Particles != 0) throw new Exception($"effects-off left {fxOff.Particles} particles on screen");
+        if (!fxOff.FxRunning || fxOff.FxPaused) throw new Exception("effects-off stopped the idle motion (float)");
+        if (fxOff.WindowHeight >= fxOn.WindowHeight && fxOn.WindowHeight > h + 40) throw new Exception("effects-off kept the large effect padding");
+        await Wait(600);
+        if ((await P(id)).Particles != 0) throw new Exception("particles were created while effects were off");
         app.SetEffectsOff(false);
-        await Wait(200);
-        if ((await P(id)).FxPaused) throw new Exception("effects did not come back on");
+        await Wait(800);
+        if ((await P(id)).Particles == 0) throw new Exception("particles did not come back after effects-on");
+        app.UpdateActive(id, a => { a.FxFloat = a.FxTrail = a.FxShadow = a.FxParticles = false; });
         sb.Append(" effects toggle ok ·");
 
         // 4) 장면: A(지금) / B(하나 더) 저장 → A 적용 → 다음 장면 = B → 매일 시각에 자동 전환

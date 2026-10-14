@@ -151,6 +151,33 @@ internal sealed unsafe class OverlayWindow : IDisposable
         UpdateFxTimer();
     }
 
+    // "효과 끄기": 파티클·잔상·그림자·빛·착지 먼지만 끈 설정으로 그림 (대기 모션·말랑말랑은 그대로)
+    private ActiveItem? _fxView, _fxViewSrc;
+
+    private ActiveItem FxItem
+    {
+        get
+        {
+            if (!_engine.ExternalFxOff) return Item;
+            if (_fxView == null || !ReferenceEquals(_fxViewSrc, Item))
+            {
+                _fxView = Item.Clone();
+                _fxView.FxParticles = _fxView.FxTrail = _fxView.FxShadow = _fxView.FxGlow = _fxView.FxDust = false;
+                _fxViewSrc = Item;
+            }
+            return _fxView;
+        }
+    }
+
+    /// <summary>"효과 끄기"가 바뀜: 남아 있던 파티클·잔상을 지우고 창 여백·프레임을 다시 맞춤.</summary>
+    internal void ExternalFxChanged()
+    {
+        _fxView = null;
+        _fx.ClearTransient();
+        UpdateFxTimer();
+        Render();
+    }
+
     private Press _press;
     private bool _held;              // 손으로 잡아서 움직임을 멈춤 (놓은 뒤 다시 출발하기 전까지 포함)
     private int _grabDx, _grabDy;    // 잡은 지점 (GIF 안쪽 좌표)
@@ -437,7 +464,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
 
         if (_fxRunning)
         {
-            _fx.Advance(dt, Item, Item.X + _subX, Item.Y + _subY, w, h, Motion.IsMoving(Item.MotionMode) ? _motion : null);
+            _fx.Advance(dt, FxItem, Item.X + _subX, Item.Y + _subY, w, h, Motion.IsMoving(Item.MotionMode) ? _motion : null);
             render = true;
         }
 
@@ -632,10 +659,14 @@ internal sealed unsafe class OverlayWindow : IDisposable
     {
         bool motionActive = Motion.IsMoving(Item.MotionMode) && (_motionRunning || _held || _press == Press.Grab);
         _fx.SuppressParticles = _engine.LightMode;
-        bool run = !_editMode && IsActive && !_engine.FxPaused && _fx.IsAnimated(Item, motionActive);
+        bool run = !_editMode && IsActive && !_engine.FxPaused && _fx.IsAnimated(FxItem, motionActive);
         if (run == _fxRunning) return;
         _fxRunning = run;
-        if (!run) Render(); // 멈춘 모습으로 한 번 그림
+        if (!run)
+        {
+            _fx.ClearTransient(); // 멈출 때 파티클·잔상이 그 자리에 얼어붙어 남지 않게
+            Render(); // 멈춘 모습으로 한 번 그림
+        }
         SyncFrameClock();
     }
 
@@ -806,10 +837,10 @@ internal sealed unsafe class OverlayWindow : IDisposable
         if (_editMode || _anim == null || _press != Press.None) return;
         _ptX = x;
         _ptY = y;
-        if (Item.FxParticles && Item.FxParticleMode == Fx.Click && !_engine.FxPaused && !_engine.LightMode)
+        if (FxItem.FxParticles && Item.FxParticleMode == Fx.Click && !_engine.FxPaused && !_engine.LightMode)
         {
             var (bw, bh) = ContentSize(Item.Scale);
-            _fx.Burst(Item, Item.X, Item.Y, bw, bh);
+            _fx.Burst(FxItem, Item.X, Item.Y, bw, bh);
             UpdateFxTimer();
         }
         SetCapture(Hwnd);
@@ -1058,7 +1089,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
         if (_anim == null || !IsShown) return;
         var (w, h) = ContentSize(Item.Scale);
         // 편집 중에는 효과 없이 핸들 여백만, 평소에는 효과가 잘리지 않을 만큼 여백
-        _pads = _editMode ? Pads.Uniform(EditPad) : EffectState.ComputePads(Item, w, h);
+        _pads = _editMode ? Pads.Uniform(EditPad) : EffectState.ComputePads(FxItem, w, h);
         int ww = w + _pads.Left + _pads.Right, wh = h + _pads.Top + _pads.Bottom;
         EnsureSurface(ww, wh);
 
@@ -1094,15 +1125,15 @@ internal sealed unsafe class OverlayWindow : IDisposable
             double originX = Item.X - _pads.Left, originY = Item.Y - _pads.Top;
             double ground = Motion.Normalize(Item.MotionMode) is Motion.Walk or Motion.Fall ? _motion.GroundDistance : 0;
             var bounds = new SKRect(0, 0, ww, wh);
-            drawn = _fx.DrawBehind(c, Item, content, originX, originY, frame, flip, ground, bounds);
+            drawn = _fx.DrawBehind(c, FxItem, content, originX, originY, frame, flip, ground, bounds);
 
             c.Save();
-            _fx.ApplyTransform(c, Item, content);
+            _fx.ApplyTransform(c, FxItem, content);
             if (flip) c.Scale(-1, 1, content.MidX, 0);
-            byte alpha = _fx.FrameAlpha(Item);
+            byte alpha = _fx.FrameAlpha(FxItem);
             var main = content;
             // 외곽 빛: 장면별로 한 번 만든 그림을 재사용하고 밝기(두근두근·깜빡임)는 투명도로만 조절
-            var glow = _fx.GlowLayer(Item, frame, _frame, w, h);
+            var glow = _fx.GlowLayer(FxItem, frame, _frame, w, h);
             if (glow is { } g)
             {
                 var gr = new SKRect(content.Left - g.margin, content.Top - g.margin, content.Right + g.margin, content.Bottom + g.margin);
@@ -1118,7 +1149,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
             drawn = drawn.IsEmpty ? mapped : SKRect.Union(drawn, mapped);
             c.Restore();
 
-            var front = _fx.DrawFront(c, Item, content, originX, originY, bounds);
+            var front = _fx.DrawFront(c, FxItem, content, originX, originY, bounds);
             if (!front.IsEmpty) drawn = SKRect.Union(drawn, front);
         }
 

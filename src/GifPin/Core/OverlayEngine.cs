@@ -636,11 +636,15 @@ public sealed class OverlayEngine : IDisposable
     // ── 모든 효과 끄기 ───────────────────────────────────────
 
     private bool _fxUserOff;
+    /// <summary>"효과 끄기": 파티클·잔상·그림자·빛·착지 먼지를 끔 (대기 모션·말랑말랑은 유지).</summary>
+    internal bool ExternalFxOff => _fxUserOff;
 
     public void SetEffectsOff(bool off) => Post(() =>
     {
+        if (_fxUserOff == off) return;
         _fxUserOff = off;
-        CheckFxPause(force: true);
+        Log.Info(off ? "Outer effects off (particles, trail, shadow, glow, dust)" : "Outer effects back on");
+        foreach (var w in _byId.Values) w.ExternalFxChanged();
     });
 
     public void Select(string? id) => Post(() =>
@@ -868,7 +872,7 @@ public sealed class OverlayEngine : IDisposable
     /// <summary>전체 화면 게임·발표 중이거나 배터리 사용 중이면 효과를 멈춘다 (1.5초마다 확인).</summary>
     private void CheckFxPause(bool force = false)
     {
-        bool paused = _fxUserOff;
+        bool paused = false;
         try
         {
             if (!paused && _pauseFxFullscreen && SHQueryUserNotificationState(out int state) == 0)
@@ -888,7 +892,7 @@ public sealed class OverlayEngine : IDisposable
         catch (Exception ex) { Log.Warn("Could not read CPU usage", ex); }
 
         if (paused == FxPaused && light == LightMode && !force) return;
-        if (paused != FxPaused) Log.Info(paused ? (_fxUserOff ? "Effects turned off" : "Effects paused (full screen or battery)") : "Effects resumed");
+        if (paused != FxPaused) Log.Info(paused ? "Effects paused (full screen or battery)" : "Effects resumed");
         if (light != LightMode) Log.Info(light ? $"Busy PC (other apps {OtherCpuPercent:0}% CPU): particles off" : "PC no longer busy: particles back on");
         FxPaused = paused;
         LightMode = light;
