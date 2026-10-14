@@ -1123,6 +1123,7 @@ public partial class MainWindow : Window
         AutostartDelaySlider.Value = s.AutostartDelaySec;
         AutostartDelayText.Text = DelayText(s.AutostartDelaySec * 1000);
         CheckUpdatesToggle.IsChecked = s.CheckUpdates;
+        StartupAnimationToggle.IsChecked = s.StartupAnimation;
         RefreshUpdateStatus();
         PerfSaver.IsChecked = s.PerfMode == PerfModes.Saver;
         PerfBalanced.IsChecked = s.PerfMode == PerfModes.Balanced;
@@ -1609,6 +1610,18 @@ public partial class MainWindow : Window
         AutostartDelayText.Text = DelayText(e.NewValue * 1000);
         if (_updating) return;
         _app.SetAutostartDelay((int)e.NewValue);
+    }
+
+    private void StartupAnimation_Click(object sender, RoutedEventArgs e)
+    {
+        if (_updating) return;
+        _app.SetStartupAnimation(StartupAnimationToggle.IsChecked == true);
+    }
+
+    private void SplashPreview_Click(object sender, RoutedEventArgs e)
+    {
+        SplashPreviewButton.IsEnabled = false;
+        var w = _app.PreviewSplash(then: () => SplashPreviewButton.IsEnabled = true);
     }
 
     private void CheckUpdates_Click(object sender, RoutedEventArgs e)

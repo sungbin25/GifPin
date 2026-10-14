@@ -880,7 +880,47 @@ public partial class App : Application
         if (colorsSeen.Count == 0 || colorsSeen.Any(c => c != 0xFFFF0000u && c != 0xFF0000FFu) || colorsSeen.Distinct().Count() < 2)
             throw new Exception("particle colors: " + string.Join(",", colorsSeen.Distinct().Select(c => c.ToString("X8"))));
         app.UpdateActive(gid, x => { x.FxGlow = false; x.FxParticles = false; x.FxParticleColor = Fx.Rainbow; });
-        sb.Append(" glow/colors ok");
+        sb.Append(" glow/colors ok ·");
+
+        // 아이콘: 모든 크기가 들어 있고 읽힘
+        {
+            var dec = System.Windows.Media.Imaging.BitmapDecoder.Create(new Uri("pack://application:,,,/Assets/GifPin.ico"),
+                System.Windows.Media.Imaging.BitmapCreateOptions.None, System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
+            var sizes = dec.Frames.Select(f => f.PixelWidth).OrderBy(x => x).ToList();
+            foreach (var need in new[] { 16, 24, 32, 48, 64, 256 })
+                if (!sizes.Contains(need)) throw new Exception("icon is missing size " + need + " (has " + string.Join(",", sizes) + ")");
+        }
+        // 시작 애니메이션: 하루 한 번 규칙 + A·B·C 각각 끝까지 재생 (중간 장면 저장)
+        {
+            var saved = (app.State.Settings.StartupAnimation, app.State.Settings.LastSplashDate);
+            app.State.Settings.StartupAnimation = true;
+            app.State.Settings.LastSplashDate = null;
+            var day = new DateTime(2026, 1, 1, 9, 0, 0);
+            if (!app.TakeSplashForToday(day)) throw new Exception("splash: first open of the day did not play");
+            if (app.TakeSplashForToday(day.AddHours(5))) throw new Exception("splash: played twice on the same day");
+            if (!app.TakeSplashForToday(day.AddDays(1))) throw new Exception("splash: did not play on the next day");
+            app.State.Settings.StartupAnimation = false;
+            if (app.TakeSplashForToday(day.AddDays(2))) throw new Exception("splash: played while turned off");
+            (app.State.Settings.StartupAnimation, app.State.Settings.LastSplashDate) = saved;
+
+            foreach (var v in new[] { GifPin.UI.SplashWindow.Variant.A, GifPin.UI.SplashWindow.Variant.B, GifPin.UI.SplashWindow.Variant.C })
+            {
+                bool done = false;
+                var started = DateTime.UtcNow;
+                var w = app.PreviewSplash(v, () => done = true);
+                int frame = 0;
+                foreach (var at in new[] { 350, 800, 1250, 2000 })
+                {
+                    int wait = at - (int)(DateTime.UtcNow - started).TotalMilliseconds;
+                    if (wait > 0) await System.Threading.Tasks.Task.Delay(wait);
+                    if (w.IsVisible) SaveShot(w, System.IO.Path.Combine(shots, $"splash-{v.ToString().ToLowerInvariant()}-{++frame}.png"));
+                }
+                for (int i = 0; i < 40 && !done; i++) await System.Threading.Tasks.Task.Delay(100);
+                if (!done || w.IsVisible) throw new Exception($"splash {v} did not finish");
+                if ((DateTime.UtcNow - started).TotalSeconds > 4.5) throw new Exception($"splash {v} took too long");
+            }
+        }
+        sb.Append(" icon/splash ok");
         return sb.ToString();
     }
 

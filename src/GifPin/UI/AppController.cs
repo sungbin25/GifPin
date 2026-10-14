@@ -105,7 +105,10 @@ public sealed class AppController
         StartUpdateClock();
         UpdateThemeWatch();
 
-        if (showWindow) ShowMain();
+        if (showWindow)
+        {
+            if (!TryPlaySplash(ShowMain)) ShowMain();
+        }
         if (Engine.HotkeyFailures.Count > 0)
             _tray.ShowBalloon(Loc.T("tray.hotkeyFailTitle"), Loc.F("tray.hotkeyFailText", string.Join(", ", Engine.HotkeyFailures)));
         Save();
@@ -288,6 +291,39 @@ public sealed class AppController
         if (e.Category != Microsoft.Win32.UserPreferenceCategory.General || State.Settings.Theme != Themes.System) return;
         _ui.InvokeAsync(FollowSystemTheme);
     }
+
+    /// <summary>오늘 처음 창을 열 때 시작 애니메이션(A·B·C 중 하나)을 보여 주고 끝나면 then. 보여 주지 않으면 false.</summary>
+    private bool TryPlaySplash(Action then)
+    {
+        if (Environment.GetEnvironmentVariable("GIFPIN_SMOKETEST") == "1") return false; // 검사에서는 따로 확인
+        if (!TakeSplashForToday(DateTime.Now)) return false;
+        try
+        {
+            var v = SplashWindow.RandomVariant();
+            Log.Info($"Startup animation {v}");
+            SplashWindow.Play(v, then);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Startup animation failed: " + ex.Message);
+            return false;
+        }
+    }
+
+    /// <summary>오늘 보여 줄 차례면 true를 돌려주고 오늘 날짜를 기록 (하루에 한 번).</summary>
+    public bool TakeSplashForToday(DateTime now)
+    {
+        if (!State.Settings.StartupAnimation) return false;
+        string today = now.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        if (State.Settings.LastSplashDate == today) return false;
+        State.Settings.LastSplashDate = today;
+        return true;
+    }
+
+    /// <summary>설정의 "미리 보기": 날짜와 상관없이 하나를 골라 보여 줌.</summary>
+    public SplashWindow PreviewSplash(SplashWindow.Variant? variant = null, Action? then = null) =>
+        SplashWindow.Play(variant ?? SplashWindow.RandomVariant(), then ?? (() => { }));
 
     public void ShowMain()
     {
@@ -1223,6 +1259,12 @@ public sealed class AppController
         }
         else if (manual) Notice?.Invoke(Loc.T("update.failed"));
         UpdateStatusChanged?.Invoke();
+    }
+
+    public void SetStartupAnimation(bool on)
+    {
+        State.Settings.StartupAnimation = on;
+        Save();
     }
 
     public void SetCheckUpdates(bool on)

@@ -251,6 +251,11 @@ public sealed class AppSettings
     public bool TrayNoticeShown { get; set; }
     public WindowBounds? Window { get; set; }
 
+    /// <summary>앱을 열 때 시작 애니메이션 (하루에 한 번)</summary>
+    public bool StartupAnimation { get; set; } = true;
+    /// <summary>시작 애니메이션을 마지막으로 보여 준 날 (yyyy-MM-dd, 로컬)</summary>
+    public string? LastSplashDate { get; set; }
+
     /// <summary>색 고르기 창의 "최근 색" (#RRGGBB, 최근 것부터)</summary>
     public List<string> RecentColors { get; set; } = new();
 
@@ -314,6 +319,7 @@ public sealed class AppSettings
         Language = Language,
         Theme = Theme,
         AppliedInstallStamp = AppliedInstallStamp,
+        LastSplashDate = LastSplashDate,
         StartWithWindows = StartWithWindows,
         AllHidden = false,
         SettingsVersion = SettingsVersion,

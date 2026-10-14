@@ -654,6 +654,9 @@ internal static class Strings
         ["color.eyedropperHint"] = ("Click to pick · Esc to cancel", "클릭해서 고르기 · Esc 취소"),
         ["color.ok"] = ("Use this color", "이 색 쓰기"),
         ["color.paletteTip"] = ("More colors: palette, color code, eyedropper", "다른 색: 팔레트·색 코드·스포이드"),
+        ["splash.title"] = ("Startup animation (once a day)", "시작 애니메이션 (하루 한 번)"),
+        ["splash.desc"] = ("The first time you open GifPin each day, a short animation plays before the main window. Click to skip.", "그날 처음 GifPin을 열면 메인 화면 전에 짧은 애니메이션이 나와요. 클릭하면 건너뛰어요."),
+        ["splash.preview"] = ("Preview", "미리 보기"),
         ["fx.colorMultiHint"] = ("Pick several colors to mix them — your own rainbow. Add any color with the palette or eyedropper.", "여러 색을 고르면 섞여서 나와요 (나만의 무지개). 팔레트·스포이드로 원하는 색도 추가할 수 있어요."),
     };
 }
