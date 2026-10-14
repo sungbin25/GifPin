@@ -1693,7 +1693,7 @@ public partial class MainWindow : Window
         swatch.SetResourceReference(Border.BorderBrushProperty, "BorderStrongBrush");
         var name = new TextBlock { Text = Loc.T("themeColor." + key), FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(9, 0, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
         if (overridden) name.FontWeight = FontWeights.SemiBold;
-        var content = new DockPanel { LastChildFill = true };
+        var content = new DockPanel { LastChildFill = true, Width = 214 - 30 - 16 }; // 왼쪽 정렬 (버튼은 내용을 가운데에 둠)
         content.Children.Add(swatch);
         content.Children.Add(name);
         var pick = new Button
@@ -1701,7 +1701,6 @@ public partial class MainWindow : Window
             Content = content, Height = 36, Padding = new Thickness(5, 0, 8, 0), HorizontalContentAlignment = HorizontalAlignment.Left,
             ToolTip = Loc.T("themeColor." + key + "Tip") + "\n" + spec, BorderThickness = new Thickness(overridden ? 1.5 : 1),
         };
-        if (pick.Content is FrameworkElement fe) fe.HorizontalAlignment = HorizontalAlignment.Left;
         if (overridden) pick.SetResourceReference(Button.BorderBrushProperty, "AccentBrush");
         pick.Click += async (_, _) =>
         {
@@ -1717,10 +1716,11 @@ public partial class MainWindow : Window
             _app.SetCustomColor(key, hex);
         };
         var cell = new DockPanel { Width = 214, Margin = new Thickness(0, 0, 6, 6) };
-        if (overridden)
         {
+            // 되돌리기 칸은 늘 자리를 차지 (줄이 가지런하게), 직접 고른 색일 때만 보임
             var undo = new Button
             {
+                Visibility = overridden ? Visibility.Visible : Visibility.Hidden,
                 Style = (Style)FindResource("BtnIcon"), Width = 28, Height = 36, Margin = new Thickness(2, 0, 0, 0), ToolTip = Loc.T("customTheme.resetOne"),
                 Content = new TextBlock { Text = "\uE7A7", FontFamily = (System.Windows.Media.FontFamily)FindResource("IconFont"), FontSize = 13 },
             };
