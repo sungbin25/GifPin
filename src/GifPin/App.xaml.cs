@@ -15,6 +15,7 @@ public partial class App : Application
     private Mutex? _mutex;
     private EventWaitHandle? _showEvent;
     private AppController? _controller;
+    private Action<bool>? _startNow;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -37,7 +38,11 @@ public partial class App : Application
         var listener = new Thread(() =>
         {
             while (_showEvent.WaitOne())
-                Dispatcher.InvokeAsync(() => _controller?.ShowMain());
+                Dispatcher.InvokeAsync(() =>
+                {
+                    if (_controller == null) _startNow?.Invoke(true); // 자동 실행 대기 중에 직접 실행함 → 바로 시작
+                    else _controller.ShowMain();
+                });
         }) { IsBackground = true, Name = "GifPin.ShowListener" };
         listener.Start();
 
@@ -67,8 +72,26 @@ public partial class App : Application
         bool fromAutostart = e.Args.Any(a => a.Equals("--tray", StringComparison.OrdinalIgnoreCase));
         bool showWindow = !fromAutostart || state.Settings.OpenWindowOnStart;
 
-        _controller = new AppController(state);
-        _controller.Start(showWindow);
+        _startNow = show =>
+        {
+            if (_controller != null) return;
+            _startNow = null;
+            _controller = new AppController(state);
+            _controller.Start(show);
+        };
+
+        // Windows 시작 시 자동 실행: 설정한 만큼 기다렸다가 시작 (로그인 직후 다른 프로그램과 겹치지 않게)
+        int delay = fromAutostart && !smoke ? Math.Clamp(state.Settings.AutostartDelaySec, 0, 300) : 0;
+        if (delay > 0)
+        {
+            Log.Info($"Started with Windows: waiting {delay} s before showing GIFs");
+            var wait = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(delay) };
+            wait.Tick += (_, _) => { wait.Stop(); _startNow?.Invoke(showWindow); };
+            wait.Start();
+            return;
+        }
+        _startNow(showWindow);
+        if (_controller == null) return;
 
         if (smoke)
         {
@@ -570,7 +593,47 @@ public partial class App : Application
         p = await P(id);
         if (eng.RuleHiddenBy != null || !p.Shown) throw new Exception("GIFs did not come back after removing the rule");
         app.SetAppRuleMode(false);
-        sb.Append(" program rules ok");
+        sb.Append(" program rules ok ·");
+
+        // 9) 업데이트: 버전 비교, 실제 확인은 결과만 기록 (GitHub API 제한으로 실패할 수 있음)
+        if (!Updates.IsNewer("0.10.0", "0.9.3") || Updates.IsNewer("0.5.2", "0.5.2") || Updates.IsNewer("0.5.1", "0.5.2") || !Updates.IsNewer("1.0", "0.9.9"))
+            throw new Exception("version comparison");
+        await app.CheckForUpdatesAsync(manual: true);
+        sb.Append($" update check: {(app.LatestRelease is { } rel ? $"latest {rel.Version}{(rel.IsNewer ? " (newer)" : "")}" : "unavailable")} ·");
+
+        // 10) 백업 → 바꾸기 → 복원하면 백업할 때로 돌아감 (복원 전 자동 백업도 생김)
+        app.SetHoverFade(false, 33);
+        app.SetAutostartDelay(30);
+        if (app.State.Settings.AutostartDelaySec != 30) throw new Exception("autostart delay not saved");
+        int libCount = app.State.Library.Count, activeCount = app.State.Active.Count;
+        string zip = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gifpin-smoke-backup.zip");
+        if (!await app.CreateBackupAsync(zip) || !System.IO.File.Exists(zip)) throw new Exception("backup file was not created");
+        app.SetHoverFade(false, 60);
+        app.AddToScreen(app.State.Library[0].Id);
+        app.SaveScene("after backup");
+        if (!await app.RestoreBackupAsync(zip)) throw new Exception("restore failed");
+        await Wait(800);
+        if (app.State.Library.Count != libCount || app.State.Active.Count != activeCount) throw new Exception($"restore: {app.State.Library.Count}/{app.State.Active.Count} vs {libCount}/{activeCount}");
+        if (app.State.Settings.HoverFadeOpacity != 33 || app.State.Scenes.Any(sc => sc.Name == "after backup")) throw new Exception("restore did not bring back the backed-up settings");
+        foreach (var x in app.State.Active)
+            if (await eng.ProbeAsync(x.Id) is not { Shown: true } && x.Visible) throw new Exception("restored GIF is not on screen");
+        if (!System.IO.Directory.Exists(Backup.BackupDir) || System.IO.Directory.GetFiles(Backup.BackupDir, "auto-before-restore-*.zip").Length == 0)
+            throw new Exception("automatic backup before restore is missing");
+        try { Backup.Restore(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "not-a-backup.zip")); throw new Exception("missing file restored"); }
+        catch (System.IO.FileNotFoundException) { }
+        sb.Append($" backup/restore ok ({libCount} photos) ·");
+
+        // 11) 설정 초기화: 옵션은 기본값, 언어·라이브러리는 그대로
+        string lang = app.State.Settings.Language;
+        app.SetNewItemSize(999);
+        app.SetHideFromCapture(true);
+        app.ResetSettings();
+        if (app.State.Settings.NewItemSize != 400 || app.State.Settings.HideFromCapture || app.State.Settings.AutostartDelaySec != 0 || app.State.Settings.Language != lang)
+            throw new Exception("settings reset");
+        if (app.State.Library.Count != libCount) throw new Exception("reset touched the library");
+        await Wait(200);
+        if ((await P(app.State.Active[0].Id)).CaptureExcluded) throw new Exception("reset did not reach the overlays");
+        sb.Append(" reset ok");
         return sb.ToString();
     }
 

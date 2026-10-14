@@ -78,16 +78,8 @@ public sealed class AppController
     public void Start(bool showWindow)
     {
         Log.Info($"GifPin {AppVersion} starting · {Environment.OSVersion} · {State.Library.Count} photos, {State.Active.Count} on screen");
-        Engine.SetPointerTiming(State.Settings.HoldToGrabMs, State.Settings.ResumeDelayMs);
         Engine.Start();
-        Engine.SetEffectsSettings(State.Settings.EffectsFps, State.Settings.PauseEffectsFullscreen, State.Settings.PauseEffectsOnBattery,
-            State.Settings.AutoLightEffects, State.Settings.AutoLightCpuPercent);
-        Engine.SetAllHidden(State.Settings.AllHidden);
-        Engine.SetHideFromCapture(State.Settings.HideFromCapture);
-        Engine.SetHoverFade(State.Settings.HoverFade, State.Settings.HoverFadeOpacity);
-        Engine.SetEffectsOff(State.Settings.EffectsOff);
-        Engine.SetAppRules(State.Settings.HideForApps, State.Settings.HideForAppsWhileRunning);
-        ApplyHotkeys();
+        ApplyEngineSettings();
 
         // 파일이 사라진 사진을 쓰는 GIF는 화면에서 내림
         int missing = State.Active.RemoveAll(a => State.FindPhoto(a.PhotoId) is not PhotoItem p || !File.Exists(Store.ResolvePath(p)));
@@ -109,11 +101,26 @@ public sealed class AppController
 
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
         StartSceneClock();
+        StartUpdateClock();
 
         if (showWindow) ShowMain();
         if (Engine.HotkeyFailures.Count > 0)
             _tray.ShowBalloon(Loc.T("tray.hotkeyFailTitle"), Loc.F("tray.hotkeyFailText", string.Join(", ", Engine.HotkeyFailures)));
         Save();
+    }
+
+    /// <summary>설정 전체를 엔진에 반영 (시작할 때, 설정 초기화·백업 복원 뒤).</summary>
+    private void ApplyEngineSettings()
+    {
+        var s = State.Settings;
+        Engine.SetPointerTiming(s.HoldToGrabMs, s.ResumeDelayMs);
+        Engine.SetEffectsSettings(s.EffectsFps, s.PauseEffectsFullscreen, s.PauseEffectsOnBattery, s.AutoLightEffects, s.AutoLightCpuPercent);
+        Engine.SetAllHidden(s.AllHidden);
+        Engine.SetHideFromCapture(s.HideFromCapture);
+        Engine.SetHoverFade(s.HoverFade, s.HoverFadeOpacity);
+        Engine.SetEffectsOff(s.EffectsOff);
+        Engine.SetAppRules(s.HideForApps, s.HideForAppsWhileRunning);
+        ApplyHotkeys();
     }
 
     public static string AppVersion => typeof(AppController).Assembly.GetName().Version?.ToString(3) ?? "?";
@@ -919,6 +926,171 @@ public sealed class AppController
         Notice?.Invoke(Loc.T(off ? "notice.effectsOff" : "notice.effectsOn"));
         _tray?.Refresh();
         SettingsChanged?.Invoke();
+        Save();
+    }
+
+    // ── 백업·복원·초기화 ─────────────────────────────────────
+
+    public async Task<bool> CreateBackupAsync(string zipPath)
+    {
+        var snapshot = System.Text.Json.JsonSerializer.Deserialize<AppState>(System.Text.Json.JsonSerializer.Serialize(State))!;
+        try
+        {
+            var (photos, missing) = await Task.Run(() => Backup.Create(zipPath, snapshot, AppVersion));
+            Log.Info($"Backup created: {zipPath} ({photos} photos, {missing} missing)");
+            Notice?.Invoke(Loc.F("notice.backupDone", photos) + (missing > 0 ? " · " + Loc.F("notice.backupMissing", missing) : ""));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Backup failed: {zipPath}", ex);
+            Notice?.Invoke(Loc.F("notice.backupFailed", ex.Message));
+            return false;
+        }
+    }
+
+    /// <summary>백업에서 복원: 지금 상태를 자동 백업한 뒤 백업 파일의 라이브러리·화면·장면·설정으로 바꿈.</summary>
+    public async Task<bool> RestoreBackupAsync(string zipPath)
+    {
+        if (IsEditing) FinishEdit(save: true);
+        var snapshot = System.Text.Json.JsonSerializer.Deserialize<AppState>(System.Text.Json.JsonSerializer.Serialize(State))!;
+        AppState restored;
+        try
+        {
+            Notice?.Invoke(Loc.T("notice.restoring"));
+            await Task.Run(() => Backup.AutoBackup(snapshot, AppVersion, "before-restore"));
+            restored = await Task.Run(() => Backup.Restore(zipPath));
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Restore failed: {zipPath}", ex);
+            Notice?.Invoke(Loc.F("notice.restoreFailed", ex.Message));
+            return false;
+        }
+        ReplaceState(restored);
+        Log.Info($"Restored backup {zipPath}: {State.Library.Count} photos, {State.Active.Count} on screen, {State.Scenes.Count} scenes");
+        Notice?.Invoke(Loc.F("notice.restored", State.Library.Count, State.Active.Count));
+        return true;
+    }
+
+    /// <summary>상태를 통째로 바꿈 (화면의 GIF를 모두 새로 띄움).</summary>
+    private void ReplaceState(AppState next)
+    {
+        foreach (var a in State.Active) Engine.Remove(a.Id);
+        bool autostart = Autostart.IsEnabled();
+        var window = State.Settings.Window;
+        State.Library = next.Library;
+        State.Active = next.Active;
+        State.Scenes = next.Scenes;
+        State.EffectPresets = next.EffectPresets;
+        State.CurrentSceneId = next.CurrentSceneId;
+        State.Settings = next.Settings;
+        State.Settings.StartWithWindows = autostart; // 자동 실행은 이 PC의 실제 상태를 따름
+        State.Settings.Window = window;
+        State.Settings.Normalize();
+        _photoVMs.Clear();
+        foreach (var p in State.Library)
+        {
+            AnimationCache.Invalidate(Store.ResolvePath(p));
+            Images.ForgetThumb(p);
+            _photoVMs[p.Id] = new PhotoVM(p);
+        }
+        SelectedActiveId = null;
+        SelectedPhotoId = null;
+        PanelMode = PanelMode.None;
+        foreach (var a in State.Active) a.Normalize();
+        MonitorList = Monitors.List();
+        EnsureAllReachable(notify: false);
+        foreach (var a in State.Active) SyncToEngine(a);
+        ApplyEngineSettings();
+        if (Loc.Normalize(State.Settings.Language) != Loc.Language) SetLanguage(State.Settings.Language);
+        RebuildVisible();
+        RebuildActives();
+        if (State.Active.Count > 0) SelectActive(State.Active[0].Id, flash: false);
+        else SelectionChanged?.Invoke();
+        _tray?.Refresh();
+        _main?.RefreshHiddenToggle();
+        SettingsChanged?.Invoke();
+        ScenesChanged?.Invoke();
+        HotkeysChanged?.Invoke();
+        Store.SaveNow(State);
+    }
+
+    /// <summary>설정만 기본값으로 (라이브러리·화면의 GIF·장면·프리셋은 그대로).</summary>
+    public void ResetSettings()
+    {
+        State.Settings = State.Settings.ResetKeepingBasics();
+        State.Settings.Normalize();
+        ApplyEngineSettings();
+        Log.Info("Settings reset to defaults");
+        _tray?.Refresh();
+        _main?.RefreshHiddenToggle();
+        SettingsChanged?.Invoke();
+        HotkeysChanged?.Invoke();
+        Notice?.Invoke(Loc.T("notice.settingsReset"));
+        Save();
+    }
+
+    // ── 업데이트 알림 ────────────────────────────────────────
+
+    /// <summary>마지막 확인 결과 (확인 전·실패는 null).</summary>
+    public Updates.Result? LatestRelease { get; private set; }
+    public bool CheckingUpdates { get; private set; }
+    public event Action? UpdateStatusChanged;
+    private DispatcherTimer? _updateClock;
+
+    private void StartUpdateClock()
+    {
+        _updateClock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) }; // 시작 직후는 피해서 한 번, 그 뒤 6시간마다
+        _updateClock.Tick += async (_, _) =>
+        {
+            _updateClock.Interval = TimeSpan.FromHours(6);
+            var last = State.Settings.LastUpdateCheck;
+            if (State.Settings.CheckUpdates && (last == null || DateTimeOffset.Now - last.Value > TimeSpan.FromHours(20)))
+                await CheckForUpdatesAsync(manual: false);
+        };
+        if (Environment.GetEnvironmentVariable("GIFPIN_SMOKETEST") != "1") _updateClock.Start();
+    }
+
+    public async Task CheckForUpdatesAsync(bool manual)
+    {
+        if (CheckingUpdates) return;
+        CheckingUpdates = true;
+        UpdateStatusChanged?.Invoke();
+        var result = await Updates.CheckAsync(AppVersion);
+        CheckingUpdates = false;
+        if (result != null)
+        {
+            LatestRelease = result;
+            State.Settings.LastUpdateCheck = DateTimeOffset.Now;
+            Save();
+            if (result.IsNewer && (manual || State.Settings.NotifiedVersion != result.Version))
+            {
+                State.Settings.NotifiedVersion = result.Version;
+                Log.Info($"New version available: {result.Version}");
+                if (!manual) _tray?.ShowBalloon(Loc.T("update.availableTitle"), Loc.F("update.availableText", result.Version), () => OpenUrl(result.Url));
+            }
+        }
+        else if (manual) Notice?.Invoke(Loc.T("update.failed"));
+        UpdateStatusChanged?.Invoke();
+    }
+
+    public void SetCheckUpdates(bool on)
+    {
+        State.Settings.CheckUpdates = on;
+        Save();
+    }
+
+    public static void OpenUrl(string url)
+    {
+        if (!url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) return;
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); }
+        catch (Exception ex) { Log.Warn($"Could not open {url}", ex); }
+    }
+
+    public void SetAutostartDelay(int seconds)
+    {
+        State.Settings.AutostartDelaySec = Math.Clamp(seconds, 0, 300);
         Save();
     }
 

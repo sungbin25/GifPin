@@ -49,6 +49,7 @@ public partial class MainWindow : Window
         _app.ScenesChanged += BuildSceneRows;
         _app.HotkeysChanged += BuildHotkeyRows;
         _app.RuleStateChanged += RefreshRuleStatus;
+        _app.UpdateStatusChanged += RefreshUpdateStatus;
         PreviewKeyDown += OnPreviewKeyDownForHotkey;
         Deactivated += (_, _) => CancelHotkeyCapture();
         Loc.Changed += OnLanguageChanged;
@@ -1104,6 +1105,10 @@ public partial class MainWindow : Window
         RuleRunning.IsChecked = s.HideForAppsWhileRunning;
         BuildAppRuleRows();
         RefreshRuleStatus();
+        AutostartDelaySlider.Value = s.AutostartDelaySec;
+        AutostartDelayText.Text = DelayText(s.AutostartDelaySec * 1000);
+        CheckUpdatesToggle.IsChecked = s.CheckUpdates;
+        RefreshUpdateStatus();
         HoldSlider.Value = s.HoldToGrabMs;
         HoldText.Text = DelayText(s.HoldToGrabMs);
         ResumeSlider.Value = s.ResumeDelayMs;
@@ -1288,6 +1293,69 @@ public partial class MainWindow : Window
     {
         if (_updating) return;
         _app.SetEffectsOff(EffectsOffToggle.IsChecked == true);
+    }
+
+    // ── 자동 실행 지연 / 업데이트 ─────────────────────────────
+
+    private void AutostartDelay_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (AutostartDelayText == null) return;
+        AutostartDelayText.Text = DelayText(e.NewValue * 1000);
+        if (_updating) return;
+        _app.SetAutostartDelay((int)e.NewValue);
+    }
+
+    private void CheckUpdates_Click(object sender, RoutedEventArgs e)
+    {
+        if (_updating) return;
+        _app.SetCheckUpdates(CheckUpdatesToggle.IsChecked == true);
+    }
+
+    private async void CheckNow_Click(object sender, RoutedEventArgs e) => await _app.CheckForUpdatesAsync(manual: true);
+
+    private void DownloadUpdate_Click(object sender, RoutedEventArgs e) => AppController.OpenUrl(_app.LatestRelease?.Url ?? Updates.ReleasesPage);
+
+    private void RefreshUpdateStatus()
+    {
+        if (UpdateStatusText == null) return;
+        var r = _app.LatestRelease;
+        CheckNowButton.IsEnabled = !_app.CheckingUpdates;
+        DownloadUpdateButton.Visibility = r is { IsNewer: true } ? Visibility.Visible : Visibility.Collapsed;
+        UpdateStatusText.Foreground = Res(r is { IsNewer: true } ? "GreenTextBrush" : "TextMutedBrush");
+        UpdateStatusText.Text = _app.CheckingUpdates ? Loc.T("update.checking")
+            : r is { IsNewer: true } ? Loc.F("update.newVersion", r.Version, AppController.AppVersion)
+            : r != null ? Loc.F("update.upToDate", AppController.AppVersion)
+            : _app.State.Settings.LastUpdateCheck is DateTimeOffset t ? Loc.F("update.lastChecked", t.LocalDateTime.ToString("g", CultureInfo.CurrentCulture))
+            : Loc.F("update.current", AppController.AppVersion);
+    }
+
+    // ── 백업·복원·초기화 ─────────────────────────────────────
+
+    private async void BackupCreate_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            FileName = Backup.DefaultFileName(),
+            Filter = Loc.T("backup.filter") + "|*.zip",
+            DefaultExt = ".zip",
+        };
+        if (dlg.ShowDialog(this) != true) return;
+        ShowToast(Loc.T("notice.backingUp"));
+        await _app.CreateBackupAsync(dlg.FileName);
+    }
+
+    private async void BackupRestore_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog { Filter = Loc.T("backup.filter") + "|*.zip" };
+        if (dlg.ShowDialog(this) != true) return;
+        if (MessageBox.Show(this, Loc.T("backup.restoreQuestion"), "GifPin", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        await _app.RestoreBackupAsync(dlg.FileName);
+    }
+
+    private void ResetSettings_Click(object sender, RoutedEventArgs e)
+    {
+        if (MessageBox.Show(this, Loc.T("backup.resetQuestion"), "GifPin", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        _app.ResetSettings();
     }
 
     // ── 새 GIF 기본값 ────────────────────────────────────────

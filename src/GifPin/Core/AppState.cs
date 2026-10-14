@@ -272,9 +272,30 @@ public sealed class AppSettings
     /// <summary>false = 그 프로그램이 앞에 있을 때만, true = 실행 중이기만 해도</summary>
     public bool HideForAppsWhileRunning { get; set; }
 
+    /// <summary>새 버전이 나왔는지 하루 한 번 확인</summary>
+    public bool CheckUpdates { get; set; } = true;
+    public DateTimeOffset? LastUpdateCheck { get; set; }
+    /// <summary>이미 알린 새 버전 (같은 버전은 다시 알리지 않음)</summary>
+    public string? NotifiedVersion { get; set; }
+    /// <summary>Windows 시작 시 자동 실행할 때 이만큼(초) 기다렸다가 GIF를 띄움</summary>
+    public int AutostartDelaySec { get; set; }
+
+    /// <summary>"설정 초기화": 언어·창 위치·자동 실행처럼 사용자가 의도해서 바꾼 앱 정보는 남기고 나머지를 기본값으로.</summary>
+    public AppSettings ResetKeepingBasics() => new()
+    {
+        Language = Language,
+        StartWithWindows = StartWithWindows,
+        AllHidden = false,
+        SettingsVersion = SettingsVersion,
+        TrayNoticeShown = TrayNoticeShown,
+        Window = Window,
+        Hotkeys = Core.Hotkeys.Normalize(null),
+    };
+
     /// <summary>저장된 값을 허용 범위로 바로잡음.</summary>
     public void Normalize()
     {
+        AutostartDelaySec = Math.Clamp(AutostartDelaySec, 0, 300);
         HoverFadeOpacity = Math.Clamp(HoverFadeOpacity, 0, 90);
         Hotkeys = Core.Hotkeys.Normalize(Hotkeys);
         NewItemSize = Math.Clamp(NewItemSize, 32, 2000);

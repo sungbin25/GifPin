@@ -28,6 +28,8 @@ public sealed class TrayIcon : IDisposable
             Visible = true,
         };
         _icon.MouseDoubleClick += (_, e) => { if (e.Button == Forms.MouseButtons.Left) _app.ShowMain(); };
+        _icon.BalloonTipClicked += (_, _) => { var a = _balloonClick; _balloonClick = null; a?.Invoke(); };
+        _icon.BalloonTipClosed += (_, _) => _balloonClick = null;
         Rebuild();
     }
 
@@ -100,8 +102,12 @@ public sealed class TrayIcon : IDisposable
         _menu.Items.Add(Item(Loc.T("tray.quit"), _app.Quit, _app.HotkeyText(Hotkeys.Quit)));
     }
 
-    public void ShowBalloon(string title, string text)
+    private Action? _balloonClick;
+
+    /// <summary>알림 풍선. onClick이 있으면 풍선을 눌렀을 때 실행 (예: 다운로드 페이지 열기).</summary>
+    public void ShowBalloon(string title, string text, Action? onClick = null)
     {
+        _balloonClick = onClick;
         _icon.BalloonTipTitle = title;
         _icon.BalloonTipText = text;
         _icon.ShowBalloonTip(4000);
