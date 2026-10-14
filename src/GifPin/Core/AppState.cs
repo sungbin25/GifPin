@@ -251,6 +251,11 @@ public sealed class AppSettings
     public bool TrayNoticeShown { get; set; }
     public WindowBounds? Window { get; set; }
 
+    /// <summary>화면 테마: system | dark | light | midnight | mint | neon | xp | classic</summary>
+    public string Theme { get; set; } = "dark";
+    /// <summary>설치 프로그램에서 고른 언어를 마지막으로 적용한 설치 표시 (같은 설치는 한 번만 적용)</summary>
+    public string? AppliedInstallStamp { get; set; }
+
     /// <summary>화면 녹화·공유·캡처에 GIF가 찍히지 않게 (내 화면에만 보임)</summary>
     public bool HideFromCapture { get; set; }
     /// <summary>클릭 통과 GIF 위에 마우스를 올리면 흐려짐</summary>
@@ -304,6 +309,8 @@ public sealed class AppSettings
     public AppSettings ResetKeepingBasics() => new()
     {
         Language = Language,
+        Theme = Theme,
+        AppliedInstallStamp = AppliedInstallStamp,
         StartWithWindows = StartWithWindows,
         AllHidden = false,
         SettingsVersion = SettingsVersion,
@@ -316,6 +323,7 @@ public sealed class AppSettings
     public void Normalize()
     {
         AutostartDelaySec = Math.Clamp(AutostartDelaySec, 0, 300);
+        Theme = Theme is "system" or "dark" or "light" or "midnight" or "mint" or "neon" or "xp" or "classic" ? Theme : "dark";
         MaxParticlesTotal = Math.Clamp(MaxParticlesTotal, 20, 3000);
         GifFpsCap = GifFpsCap <= 0 ? 0 : Math.Clamp(GifFpsCap, 10, 60);
         RenderQuality = RenderQuality is "low" or "high" ? RenderQuality : "medium";

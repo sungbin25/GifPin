@@ -39,13 +39,16 @@ ArchitecturesInstallIn64BitMode=x64compatible
 CloseApplications=force
 RestartApplications=no
 MinVersion=10.0.17763
+; 언어 선택 창은 항상 영어로 띄움 (목록 첫 번째 = English가 기본 선택). 한국어를 고르면 이후 화면과 앱이 한국어
+ShowLanguageDialog=yes
+LanguageDetectionMethod=none
 
 [Languages]
 #define HasKorean FileExists(AddBackslash(CompilerPath) + "Languages\Korean.isl")
+Name: "english"; MessagesFile: "compiler:Default.isl"
 #if HasKorean
 Name: "korean"; MessagesFile: "compiler:Languages\Korean.isl"
 #endif
-Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [CustomMessages]
 english.DesktopIcon=Create a desktop shortcut
@@ -84,6 +87,9 @@ Name: "{autodesktop}\GifPin"; Filename: "{app}\GifPin.exe"; Tasks: desktopicon
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "GifPin"; ValueData: """{app}\GifPin.exe"" --tray"; Tasks: autostart
+; 설치할 때 고른 언어 → GifPin이 처음 실행될 때(설치할 때마다 한 번) 그 언어로 시작
+Root: HKCU; Subkey: "Software\GifPin"; ValueType: string; ValueName: "InstallLanguage"; ValueData: "{language}"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\GifPin"; ValueType: string; ValueName: "InstallStamp"; ValueData: "{code:InstallStamp}"
 ; 앱 설정에서 자동 실행을 켰더라도 제거할 때 함께 지움
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "GifPin"; Flags: uninsdeletevalue
 
@@ -96,6 +102,12 @@ Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM GifPin.exe"; Flags: runhidde
 [Code]
 var
   DownloadPage: TDownloadWizardPage;
+
+{ 이번 설치를 구별하는 값 (앱이 같은 설치의 언어를 두 번 적용하지 않게) }
+function InstallStamp(Param: String): String;
+begin
+  Result := GetDateTimeString('yyyymmddhhnnss', #0, #0);
+end;
 
 { 폴더 이름이 "8."로 시작하는 Microsoft.WindowsDesktop.App 버전 폴더가 있는가 }
 function HasRuntimeFolder(const Root: String): Boolean;

@@ -100,6 +100,7 @@ public sealed class AppController
         if (State.Settings.StartWithWindows) Autostart.Apply(true); // 설치 위치가 바뀌었을 수 있어 경로 갱신
 
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+        Microsoft.Win32.SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
         StartSceneClock();
         StartUpdateClock();
 
@@ -225,6 +226,32 @@ public sealed class AppController
         Save();
     }
 
+    // ── 테마 ─────────────────────────────────────────────────
+
+    /// <summary>테마가 바뀜 (코드로 만든 화면 요소를 다시 만들 때).</summary>
+    public event Action? ThemeChanged;
+
+    public void SetTheme(string theme)
+    {
+        State.Settings.Theme = Themes.Normalize(theme);
+        Themes.Apply(State.Settings.Theme);
+        ThemeChanged?.Invoke();
+        Save();
+    }
+
+    /// <summary>"시스템 설정 따르기"일 때 Windows의 라이트/다크가 바뀌면 따라감.</summary>
+    private void OnUserPreferenceChanged(object? sender, Microsoft.Win32.UserPreferenceChangedEventArgs e)
+    {
+        if (e.Category != Microsoft.Win32.UserPreferenceCategory.General || State.Settings.Theme != Themes.System) return;
+        _ui.InvokeAsync(() =>
+        {
+            string before = Themes.Current;
+            if (Themes.Resolve(Themes.System) == before) return;
+            Themes.Apply(Themes.System);
+            ThemeChanged?.Invoke();
+        });
+    }
+
     public void ShowMain()
     {
         if (IsEditing) return;
@@ -253,6 +280,7 @@ public sealed class AppController
         IsQuitting = true;
         Log.Info("Quitting");
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+        Microsoft.Win32.SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
         if (IsEditing) FinishEdit(save: true);
         if (_main != null) State.Settings.Window = _main.CurrentBounds();
         Store.SaveNow(State);
@@ -1085,6 +1113,8 @@ public sealed class AppController
         foreach (var a in State.Active) SyncToEngine(a);
         ApplyEngineSettings();
         if (Loc.Normalize(State.Settings.Language) != Loc.Language) SetLanguage(State.Settings.Language);
+        Themes.Apply(State.Settings.Theme);
+        ThemeChanged?.Invoke();
         RebuildVisible();
         RebuildActives();
         if (State.Active.Count > 0) SelectActive(State.Active[0].Id, flash: false);
@@ -1103,6 +1133,8 @@ public sealed class AppController
         State.Settings = State.Settings.ResetKeepingBasics();
         State.Settings.Normalize();
         ApplyEngineSettings();
+        Themes.Apply(State.Settings.Theme);
+        ThemeChanged?.Invoke();
         Log.Info("Settings reset to defaults");
         _tray?.Refresh();
         _main?.RefreshHiddenToggle();

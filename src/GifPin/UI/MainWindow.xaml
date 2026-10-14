@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="GifPin" Width="1280" Height="780" MinWidth="980" MinHeight="620"
         WindowStartupLocation="CenterScreen"
-        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}"
-        FontFamily="{StaticResource UiFont}" FontSize="13"
+        Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextBrush}"
+        FontFamily="{DynamicResource UiFont}" FontSize="13"
         Icon="/Assets/GifPin.ico" AllowDrop="True"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
 
@@ -13,7 +13,7 @@
 
     <!-- 라이브러리 카드 -->
     <DataTemplate x:Key="PhotoCardTemplate">
-      <Border x:Name="Card" Width="164" Margin="0,0,14,14" CornerRadius="10" Background="{StaticResource CardBrush}"
+      <Border x:Name="Card" Width="164" Margin="0,0,14,14" CornerRadius="10" Background="{DynamicResource CardBrush}"
               BorderThickness="2" BorderBrush="Transparent" Cursor="Hand"
               MouseLeftButtonDown="Card_MouseDown" MouseEnter="Card_MouseEnter" MouseLeave="Card_MouseLeave">
         <Border.ContextMenu>
@@ -26,25 +26,25 @@
             <MenuItem Header="{DynamicResource s.card.exportPack}" Click="CardMenu_ExportPack"/>
             <MenuItem Header="{DynamicResource s.card.openFolder}" Click="CardMenu_OpenFolder"/>
             <Separator/>
-            <MenuItem Header="{DynamicResource s.card.remove}" Click="CardMenu_Remove" Foreground="{StaticResource DangerBrush}"/>
+            <MenuItem Header="{DynamicResource s.card.remove}" Click="CardMenu_Remove" Foreground="{DynamicResource DangerBrush}"/>
           </ContextMenu>
         </Border.ContextMenu>
         <StackPanel>
           <Grid Height="148">
-            <Border CornerRadius="8,8,0,0" Background="{StaticResource CheckerBrush}">
+            <Border CornerRadius="8,8,0,0" Background="{DynamicResource CheckerBrush}">
               <Image Source="{Binding Display}" Stretch="Uniform" StretchDirection="DownOnly" Margin="8"
                      RenderOptions.BitmapScalingMode="HighQuality"/>
             </Border>
             <Border x:Name="InUseBadge" Visibility="Collapsed" HorizontalAlignment="Left" VerticalAlignment="Top"
-                    Margin="8" Padding="8,3" CornerRadius="10" Background="{StaticResource BadgeBgBrush}">
+                    Margin="8" Padding="8,3" CornerRadius="10" Background="{DynamicResource BadgeBgBrush}">
               <StackPanel Orientation="Horizontal">
-                <Ellipse Width="6" Height="6" Fill="{StaticResource GreenBrush}" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                <TextBlock Text="{DynamicResource s.card.inUse}" FontSize="11" FontWeight="Bold" Foreground="{StaticResource GreenTextBrush}"/>
+                <Ellipse Width="6" Height="6" Fill="{DynamicResource GreenBrush}" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                <TextBlock Text="{DynamicResource s.card.inUse}" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource GreenTextBrush}"/>
               </StackPanel>
             </Border>
             <Button Style="{StaticResource BtnIcon}" Width="28" Height="28" Background="#990A0E12"
                     HorizontalAlignment="Right" VerticalAlignment="Top" Margin="4" Click="Card_Star" ToolTip="{DynamicResource s.card.favorite}">
-              <TextBlock x:Name="Star" Text="&#xE734;" FontFamily="{StaticResource IconFont}" FontSize="13" Foreground="{StaticResource TextMutedBrush}"/>
+              <TextBlock x:Name="Star" Text="&#xE734;" FontFamily="{DynamicResource IconFont}" FontSize="13" Foreground="{DynamicResource TextMutedBrush}"/>
             </Button>
             <Grid x:Name="HoverBar" VerticalAlignment="Bottom" Margin="8" Visibility="Collapsed">
               <Grid.ColumnDefinitions>
@@ -59,7 +59,7 @@
           </Grid>
           <StackPanel Margin="10,8,10,10">
             <TextBlock Text="{Binding Name}" FontSize="12.5" TextTrimming="CharacterEllipsis"/>
-            <TextBlock Text="{Binding Meta}" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,3,0,0"/>
+            <TextBlock Text="{Binding Meta}" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" Margin="0,3,0,0"/>
           </StackPanel>
         </StackPanel>
       </Border>
@@ -73,10 +73,10 @@
         </DataTrigger>
         <Trigger SourceName="Card" Property="IsMouseOver" Value="True">
           <Setter TargetName="HoverBar" Property="Visibility" Value="Visible"/>
-          <Setter TargetName="Card" Property="BorderBrush" Value="#3A4152"/>
+          <Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource CardHoverBorderBrush}"/>
         </Trigger>
         <DataTrigger Binding="{Binding IsSelected}" Value="True">
-          <Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+          <Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
         </DataTrigger>
       </DataTemplate.Triggers>
     </DataTemplate>
@@ -84,20 +84,20 @@
     <!-- 화면 배치 바 타일 -->
     <DataTemplate x:Key="ActiveTileTemplate">
       <Border x:Name="Tile" Margin="0,0,12,0" Padding="6,6,10,6" CornerRadius="10" BorderThickness="2"
-              BorderBrush="#22262F" Background="{StaticResource PanelBrush}" Cursor="Hand" MouseLeftButtonDown="Tile_MouseDown">
+              BorderBrush="{DynamicResource CardBorderBrush}" Background="{DynamicResource PanelBrush}" Cursor="Hand" MouseLeftButtonDown="Tile_MouseDown">
         <StackPanel Orientation="Horizontal">
-          <Border Width="64" Height="64" CornerRadius="8" Background="{StaticResource CheckerBrush}" Opacity="{Binding TileOpacity}">
+          <Border Width="64" Height="64" CornerRadius="8" Background="{DynamicResource CheckerBrush}" Opacity="{Binding TileOpacity}">
             <Image Source="{Binding Thumb}" Stretch="Uniform" Margin="4" RenderOptions.BitmapScalingMode="HighQuality"/>
           </Border>
           <StackPanel Margin="10,0,0,0" VerticalAlignment="Center" Width="130">
             <TextBlock Text="{Binding Name}" FontSize="12" TextTrimming="CharacterEllipsis"/>
-            <TextBlock Text="{Binding Meta}" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,3,0,6" TextTrimming="CharacterEllipsis"/>
+            <TextBlock Text="{Binding Meta}" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" Margin="0,3,0,6" TextTrimming="CharacterEllipsis"/>
             <StackPanel Orientation="Horizontal">
               <Button Width="26" Height="26" Padding="0" Click="Tile_Eye" ToolTip="{Binding EyeTip}">
-                <TextBlock Text="&#xE7B3;" FontFamily="{StaticResource IconFont}" FontSize="12"/>
+                <TextBlock Text="&#xE7B3;" FontFamily="{DynamicResource IconFont}" FontSize="12"/>
               </Button>
               <Button Width="26" Height="26" Padding="0" Margin="4,0,0,0" Click="Tile_Remove" ToolTip="{DynamicResource s.panel.removeFromScreen}">
-                <TextBlock Text="&#xE711;" FontFamily="{StaticResource IconFont}" FontSize="10"/>
+                <TextBlock Text="&#xE711;" FontFamily="{DynamicResource IconFont}" FontSize="10"/>
               </Button>
             </StackPanel>
           </StackPanel>
@@ -105,22 +105,22 @@
       </Border>
       <DataTemplate.Triggers>
         <DataTrigger Binding="{Binding IsSelected}" Value="True">
-          <Setter TargetName="Tile" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
-          <Setter TargetName="Tile" Property="Background" Value="{StaticResource SelectedBgBrush}"/>
+          <Setter TargetName="Tile" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+          <Setter TargetName="Tile" Property="Background" Value="{DynamicResource SelectedBgBrush}"/>
         </DataTrigger>
       </DataTemplate.Triggers>
     </DataTemplate>
 
     <Style x:Key="SettingsCard" TargetType="Border">
-      <Setter Property="Background" Value="{StaticResource PanelBrush}"/>
-      <Setter Property="BorderBrush" Value="#22262F"/>
+      <Setter Property="Background" Value="{DynamicResource PanelBrush}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}"/>
       <Setter Property="BorderThickness" Value="1"/>
-      <Setter Property="CornerRadius" Value="12"/>
+      <Setter Property="CornerRadius" Value="{DynamicResource RadiusXL}"/>
     </Style>
     <Style x:Key="SettingsHeader" TargetType="TextBlock">
       <Setter Property="FontSize" Value="13"/>
       <Setter Property="FontWeight" Value="Bold"/>
-      <Setter Property="Foreground" Value="{StaticResource TextDimBrush}"/>
+      <Setter Property="Foreground" Value="{DynamicResource TextDimBrush}"/>
       <Setter Property="Margin" Value="0,22,0,8"/>
     </Style>
   </Window.Resources>
@@ -132,7 +132,7 @@
     </Grid.RowDefinitions>
 
     <!-- 탭 바 -->
-    <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Background="{StaticResource ChromeBrush}">
+    <Border BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,0,0,1" Background="{DynamicResource ChromeBrush}">
       <DockPanel Margin="12,0,16,0" LastChildFill="False">
         <Image Source="/Assets/GifPin.ico" Width="20" Height="20" Margin="4,0,8,0" DockPanel.Dock="Left"/>
         <RadioButton x:Name="TabLibrary" Style="{StaticResource TabRadio}" GroupName="tabs" Content="{DynamicResource s.tab.library}"
@@ -142,13 +142,13 @@
         <Button DockPanel.Dock="Right" Style="{StaticResource BtnPrimary}" Height="36" Padding="16,0"
                 Margin="8,0,0,0" Click="EditMode_Click" ToolTip="{DynamicResource s.top.editTip}">
           <StackPanel Orientation="Horizontal">
-            <TextBlock Text="&#xE7C2;" FontFamily="{StaticResource IconFont}" FontSize="14" Margin="0,0,8,0" VerticalAlignment="Center"/>
+            <TextBlock Text="&#xE7C2;" FontFamily="{DynamicResource IconFont}" FontSize="14" Margin="0,0,8,0" VerticalAlignment="Center"/>
             <TextBlock Text="{DynamicResource s.top.edit}" VerticalAlignment="Center"/>
           </StackPanel>
         </Button>
-        <Border DockPanel.Dock="Right" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12,0" Height="36">
+        <Border DockPanel.Dock="Right" BorderBrush="{DynamicResource ChromeTextBrush}" BorderThickness="1" CornerRadius="{DynamicResource RadiusL}" Padding="12,0" Height="36">
           <ToggleButton x:Name="HiddenToggle" Style="{StaticResource Switch}" Content="{DynamicResource s.top.hideAll}" FontSize="13"
-                        Foreground="{StaticResource LabelBrush}" Click="HiddenToggle_Click"/>
+                        Foreground="{DynamicResource ChromeTextActiveBrush}" Click="HiddenToggle_Click"/>
         </Border>
       </DockPanel>
     </Border>
@@ -172,21 +172,21 @@
           <DockPanel LastChildFill="True">
             <Button DockPanel.Dock="Left" Style="{StaticResource BtnSecondary}" Height="36" Padding="14,0" Click="AddFiles_Click">
               <StackPanel Orientation="Horizontal">
-                <TextBlock Text="&#xE710;" FontFamily="{StaticResource IconFont}" FontSize="12" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                <TextBlock Text="&#xE710;" FontFamily="{DynamicResource IconFont}" FontSize="12" Margin="0,0,8,0" VerticalAlignment="Center"/>
                 <TextBlock Text="{DynamicResource s.lib.add}" VerticalAlignment="Center" FontWeight="SemiBold"/>
               </StackPanel>
             </Button>
             <Button DockPanel.Dock="Left" Height="36" Padding="12,0" Margin="8,0,0,0" Click="Sprite_Click" ToolTip="{DynamicResource s.lib.spriteTip}">
               <StackPanel Orientation="Horizontal">
-                <TextBlock Text="&#xE8B9;" FontFamily="{StaticResource IconFont}" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                <TextBlock Text="&#xE8B9;" FontFamily="{DynamicResource IconFont}" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"/>
                 <TextBlock Text="{DynamicResource s.lib.sprite}" VerticalAlignment="Center"/>
               </StackPanel>
             </Button>
             <Button x:Name="PackButton" DockPanel.Dock="Left" Height="36" Padding="12,0" Margin="8,0,0,0" Click="PackButton_Click" ToolTip="{DynamicResource s.lib.packTip}">
               <StackPanel Orientation="Horizontal">
-                <TextBlock Text="&#xE7B8;" FontFamily="{StaticResource IconFont}" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                <TextBlock Text="&#xE7B8;" FontFamily="{DynamicResource IconFont}" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"/>
                 <TextBlock Text="{DynamicResource s.lib.pack}" VerticalAlignment="Center"/>
-                <TextBlock Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="9" Margin="8,1,0,0" VerticalAlignment="Center"/>
+                <TextBlock Text="&#xE70D;" FontFamily="{DynamicResource IconFont}" FontSize="9" Margin="8,1,0,0" VerticalAlignment="Center"/>
               </StackPanel>
               <Button.ContextMenu>
                 <ContextMenu>
@@ -200,16 +200,16 @@
             </Button>
             <Button x:Name="SceneButton" DockPanel.Dock="Left" Height="36" Padding="12,0" Margin="8,0,0,0" Click="SceneButton_Click" ToolTip="{DynamicResource s.lib.sceneTip}">
               <StackPanel Orientation="Horizontal">
-                <TextBlock Text="&#xE7C4;" FontFamily="{StaticResource IconFont}" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                <TextBlock Text="&#xE7C4;" FontFamily="{DynamicResource IconFont}" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"/>
                 <TextBlock x:Name="SceneButtonText" Text="{DynamicResource s.set.scenes}" VerticalAlignment="Center" MaxWidth="140" TextTrimming="CharacterEllipsis"/>
-                <TextBlock Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="9" Margin="8,1,0,0" VerticalAlignment="Center"/>
+                <TextBlock Text="&#xE70D;" FontFamily="{DynamicResource IconFont}" FontSize="9" Margin="8,1,0,0" VerticalAlignment="Center"/>
               </StackPanel>
             </Button>
             <Grid Margin="12,0,0,0" Height="36">
               <TextBox x:Name="SearchBox" Height="36" Padding="30,0,8,0" TextChanged="SearchBox_TextChanged"/>
-              <TextBlock Text="&#xE721;" FontFamily="{StaticResource IconFont}" FontSize="13" Foreground="{StaticResource TextMutedBrush}"
+              <TextBlock Text="&#xE721;" FontFamily="{DynamicResource IconFont}" FontSize="13" Foreground="{DynamicResource TextMutedBrush}"
                          Margin="11,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"/>
-              <TextBlock x:Name="SearchPlaceholder" Text="{DynamicResource s.lib.search}" Foreground="{StaticResource TextMutedBrush}"
+              <TextBlock x:Name="SearchPlaceholder" Text="{DynamicResource s.lib.search}" Foreground="{DynamicResource TextMutedBrush}"
                          Margin="32,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"/>
             </Grid>
           </DockPanel>
@@ -224,7 +224,7 @@
             <Button x:Name="SortButton" DockPanel.Dock="Right" Height="34" Click="SortButton_Click">
               <StackPanel Orientation="Horizontal">
                 <TextBlock x:Name="SortLabel" VerticalAlignment="Center"/>
-                <TextBlock Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="9" Margin="8,1,0,0" VerticalAlignment="Center"/>
+                <TextBlock Text="&#xE70D;" FontFamily="{DynamicResource IconFont}" FontSize="9" Margin="8,1,0,0" VerticalAlignment="Center"/>
               </StackPanel>
               <Button.ContextMenu>
                 <ContextMenu>
@@ -248,19 +248,19 @@
           </ItemsControl>
         </ScrollViewer>
         <StackPanel x:Name="EmptyLibrary" Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed">
-          <TextBlock Text="&#xEB9F;" FontFamily="{StaticResource IconFont}" FontSize="40" Foreground="#3A4152" HorizontalAlignment="Center"/>
-          <TextBlock x:Name="EmptyText" Foreground="{StaticResource TextMutedBrush}" Margin="0,14,0,0" HorizontalAlignment="Center" TextAlignment="Center"/>
+          <TextBlock Text="&#xEB9F;" FontFamily="{DynamicResource IconFont}" FontSize="40" Foreground="{DynamicResource CardHoverBorderBrush}" HorizontalAlignment="Center"/>
+          <TextBlock x:Name="EmptyText" Foreground="{DynamicResource TextMutedBrush}" Margin="0,14,0,0" HorizontalAlignment="Center" TextAlignment="Center"/>
         </StackPanel>
 
         <!-- 화면 배치 바 -->
-        <Border Grid.Row="2" Background="#0C0E12" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="20,12,20,14">
+        <Border Grid.Row="2" Background="{DynamicResource BottomBarBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,1,0,0" Padding="20,12,20,14">
           <StackPanel>
             <DockPanel Margin="0,0,0,10">
               <TextBlock Text="{DynamicResource s.bar.title}" FontWeight="Bold" VerticalAlignment="Center"/>
-              <Border CornerRadius="10" Background="#1F2A3F" Padding="7,1" Margin="8,0,0,0" VerticalAlignment="Center">
-                <TextBlock x:Name="ActiveCount" Text="0" FontSize="11.5" Foreground="{StaticResource AccentLightBrush}"/>
+              <Border CornerRadius="10" Background="{DynamicResource CountBadgeBrush}" Padding="7,1" Margin="8,0,0,0" VerticalAlignment="Center">
+                <TextBlock x:Name="ActiveCount" Text="0" FontSize="11.5" Foreground="{DynamicResource AccentLightBrush}"/>
               </Border>
-              <TextBlock FontSize="12" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Right" VerticalAlignment="Center"
+              <TextBlock FontSize="12" Foreground="{DynamicResource TextMutedBrush}" HorizontalAlignment="Right" VerticalAlignment="Center"
                          Text="{DynamicResource s.bar.hint}" TextTrimming="CharacterEllipsis" Margin="16,0,0,0"/>
             </DockPanel>
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
@@ -272,10 +272,10 @@
                     </ItemsPanelTemplate>
                   </ItemsControl.ItemsPanel>
                 </ItemsControl>
-                <Button Width="80" Height="80" BorderBrush="{StaticResource BorderStrongBrush}" Click="AddFiles_Click"
-                        ToolTip="{DynamicResource s.lib.add}" Foreground="{StaticResource TextMutedBrush}">
+                <Button Width="80" Height="80" BorderBrush="{DynamicResource BorderStrongBrush}" Click="AddFiles_Click"
+                        ToolTip="{DynamicResource s.lib.add}" Foreground="{DynamicResource TextMutedBrush}">
                   <StackPanel>
-                    <TextBlock Text="&#xE710;" FontFamily="{StaticResource IconFont}" FontSize="16" HorizontalAlignment="Center"/>
+                    <TextBlock Text="&#xE710;" FontFamily="{DynamicResource IconFont}" FontSize="16" HorizontalAlignment="Center"/>
                     <TextBlock Text="{DynamicResource s.bar.add}" FontSize="11" Margin="0,4,0,0" HorizontalAlignment="Center"/>
                   </StackPanel>
                 </Button>
@@ -286,23 +286,23 @@
 
         <!-- 안내 토스트 -->
         <Border x:Name="Toast" Grid.Row="1" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="20,0,20,16"
-                Background="#1E2330" BorderBrush="#34406A" BorderThickness="1" CornerRadius="18" Padding="16,8" Visibility="Collapsed">
+                Background="{DynamicResource ToastBgBrush}" BorderBrush="{DynamicResource ToastBorderBrush}" BorderThickness="1" CornerRadius="18" Padding="16,8" Visibility="Collapsed">
           <TextBlock x:Name="ToastText" FontSize="12.5" TextWrapping="Wrap"/>
         </Border>
       </Grid>
 
       <!-- 속성 패널 -->
-      <Border Grid.Column="1" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1,0,0,0">
+      <Border Grid.Column="1" Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1,0,0,0">
         <Grid>
           <TextBlock x:Name="PanelEmpty" Text="{DynamicResource s.panel.empty}" TextWrapping="Wrap" Margin="24,0"
-                     TextAlignment="Center" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                     TextAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" HorizontalAlignment="Center"/>
           <DockPanel x:Name="PanelContent" LastChildFill="True">
 
             <!-- 아래 버튼들 -->
             <StackPanel DockPanel.Dock="Bottom" Margin="16,10,16,16">
               <Button Height="38" Click="BgRemove_Click">
                 <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="&#xEF3C;" FontFamily="{StaticResource IconFont}" FontSize="13" Foreground="{StaticResource AccentLightBrush}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                  <TextBlock Text="&#xEF3C;" FontFamily="{DynamicResource IconFont}" FontSize="13" Foreground="{DynamicResource AccentLightBrush}" Margin="0,0,8,0" VerticalAlignment="Center"/>
                   <TextBlock Text="{DynamicResource s.panel.removeBg}" VerticalAlignment="Center"/>
                 </StackPanel>
               </Button>
@@ -326,17 +326,17 @@
               <StackPanel Margin="16,16,12,0">
                 <!-- 머리말 -->
                 <DockPanel>
-                  <Border x:Name="ScreenBadge" DockPanel.Dock="Right" CornerRadius="11" Background="#243DD68C" Padding="8,2" VerticalAlignment="Center">
-                    <TextBlock x:Name="ScreenBadgeText" FontSize="11" FontWeight="Bold" Foreground="{StaticResource GreenTextBrush}"/>
+                  <Border x:Name="ScreenBadge" DockPanel.Dock="Right" CornerRadius="11" Background="{DynamicResource GreenBadgeBgBrush}" Padding="8,2" VerticalAlignment="Center">
+                    <TextBlock x:Name="ScreenBadgeText" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource GreenTextBrush}"/>
                   </Border>
                   <StackPanel>
-                    <TextBlock x:Name="PanelSubtitle" FontSize="11.5" Foreground="{StaticResource TextMutedBrush}"/>
+                    <TextBlock x:Name="PanelSubtitle" FontSize="11.5" Foreground="{DynamicResource TextMutedBrush}"/>
                     <TextBlock x:Name="PanelTitle" FontSize="15" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
                   </StackPanel>
                 </DockPanel>
 
-                <Border Height="140" Margin="0,12,0,0" CornerRadius="10" Background="{StaticResource CheckerBrush}"
-                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                <Border Height="140" Margin="0,12,0,0" CornerRadius="10" Background="{DynamicResource CheckerBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
                   <Image x:Name="PreviewImage" Stretch="Uniform" StretchDirection="DownOnly" Margin="10"
                          RenderOptions.BitmapScalingMode="HighQuality" RenderTransformOrigin="0.5,0.5">
                     <Image.RenderTransform>
@@ -344,7 +344,7 @@
                     </Image.RenderTransform>
                   </Image>
                 </Border>
-                <TextBlock x:Name="PanelInfo" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                <TextBlock x:Name="PanelInfo" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" Margin="0,6,0,0" TextWrapping="Wrap"/>
 
                 <ToggleButton x:Name="PixelToggle" Style="{StaticResource SwitchBox}" Margin="0,10,0,0" Click="PixelToggle_Click"
                               Content="{DynamicResource s.panel.pixelArt}" ToolTip="{DynamicResource s.panel.pixelArtTip}"/>
@@ -356,7 +356,7 @@
                     <Button x:Name="MonitorButton" DockPanel.Dock="Right" Height="30" Padding="10,0" Click="MonitorButton_Click">
                       <StackPanel Orientation="Horizontal">
                         <TextBlock x:Name="MonitorLabel" FontSize="12" VerticalAlignment="Center"/>
-                        <TextBlock Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="9" Margin="8,1,0,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="&#xE70D;" FontFamily="{DynamicResource IconFont}" FontSize="9" Margin="8,1,0,0" VerticalAlignment="Center"/>
                       </StackPanel>
                       <Button.ContextMenu>
                         <ContextMenu/>
@@ -375,27 +375,27 @@
                       <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <Grid>
-                      <TextBox x:Name="XBox" Padding="24,0,6,0" FontFamily="{StaticResource MonoFont}" KeyDown="PosBox_KeyDown" LostKeyboardFocus="PosBox_LostFocus"/>
-                      <TextBlock Text="X" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="11.5" Foreground="{StaticResource TextMutedBrush}" IsHitTestVisible="False"/>
+                      <TextBox x:Name="XBox" Padding="24,0,6,0" FontFamily="{DynamicResource MonoFont}" KeyDown="PosBox_KeyDown" LostKeyboardFocus="PosBox_LostFocus"/>
+                      <TextBlock Text="X" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="11.5" Foreground="{DynamicResource TextMutedBrush}" IsHitTestVisible="False"/>
                     </Grid>
                     <Grid Grid.Column="2">
-                      <TextBox x:Name="YBox" Padding="24,0,6,0" FontFamily="{StaticResource MonoFont}" KeyDown="PosBox_KeyDown" LostKeyboardFocus="PosBox_LostFocus"/>
-                      <TextBlock Text="Y" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="11.5" Foreground="{StaticResource TextMutedBrush}" IsHitTestVisible="False"/>
+                      <TextBox x:Name="YBox" Padding="24,0,6,0" FontFamily="{DynamicResource MonoFont}" KeyDown="PosBox_KeyDown" LostKeyboardFocus="PosBox_LostFocus"/>
+                      <TextBlock Text="Y" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="11.5" Foreground="{DynamicResource TextMutedBrush}" IsHitTestVisible="False"/>
                     </Grid>
-                    <Border Grid.Column="4" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="7" Padding="3">
+                    <Border Grid.Column="4" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="7" Padding="3">
                       <UniformGrid x:Name="AnchorGrid" Rows="3" Columns="3" Width="44" Height="28"/>
                     </Border>
                   </Grid>
 
                   <DockPanel Margin="0,14,0,0">
                     <Button DockPanel.Dock="Right" Height="24" Padding="8,0" FontSize="11" Content="{DynamicResource s.panel.originalSize}" Margin="8,0,0,0" Click="ResetScale_Click"/>
-                    <TextBlock x:Name="ScaleText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="ScaleText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}" VerticalAlignment="Center"/>
                     <TextBlock Text="{DynamicResource s.panel.size}" Style="{StaticResource SectionLabel}" VerticalAlignment="Center"/>
                   </DockPanel>
                   <Slider x:Name="ScaleSlider" Minimum="10" Maximum="400" Margin="0,4,0,0" ValueChanged="ScaleSlider_ValueChanged"/>
 
                   <DockPanel Margin="0,10,0,0">
-                    <TextBlock x:Name="OpacityText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                    <TextBlock x:Name="OpacityText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                     <TextBlock Text="{DynamicResource s.panel.opacity}" Style="{StaticResource SectionLabel}"/>
                   </DockPanel>
                   <Slider x:Name="OpacitySlider" Minimum="10" Maximum="100" Margin="0,4,0,0" ValueChanged="OpacitySlider_ValueChanged"/>
@@ -447,7 +447,7 @@
                   <StackPanel x:Name="MotionOptions">
                     <StackPanel x:Name="MotionSpeedRow">
                       <DockPanel Margin="0,10,0,0">
-                        <TextBlock x:Name="MotionSpeedText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock x:Name="MotionSpeedText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.panel.motionSpeed}" Style="{StaticResource SectionLabel}"/>
                       </DockPanel>
                       <Slider x:Name="MotionSpeedSlider" Minimum="20" Maximum="600" Margin="0,4,0,0" ValueChanged="MotionSpeed_ValueChanged"/>
@@ -474,25 +474,25 @@
                         </Border>
                         <StackPanel x:Name="JumpHeightFixedPanel">
                           <DockPanel Margin="0,6,0,0">
-                            <TextBlock x:Name="JumpHeightText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock x:Name="JumpHeightText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                             <TextBlock Text="{DynamicResource s.panel.height}" Style="{StaticResource Hint}"/>
                           </DockPanel>
                           <Slider x:Name="JumpHeightSlider" Minimum="20" Maximum="800" SmallChange="10" LargeChange="50" Margin="0,2,0,0" ValueChanged="JumpHeight_ValueChanged"/>
                         </StackPanel>
                         <StackPanel x:Name="JumpHeightRandPanel">
                           <DockPanel Margin="0,6,0,0">
-                            <TextBlock x:Name="JumpHeightMinText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock x:Name="JumpHeightMinText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                             <TextBlock Text="{DynamicResource s.range.min}" Style="{StaticResource Hint}"/>
                           </DockPanel>
                           <Slider x:Name="JumpHeightMinSlider" Minimum="20" Maximum="800" TickFrequency="10" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
                           <DockPanel Margin="0,6,0,0">
-                            <TextBlock x:Name="JumpHeightMaxText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock x:Name="JumpHeightMaxText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                             <TextBlock Text="{DynamicResource s.range.max}" Style="{StaticResource Hint}"/>
                           </DockPanel>
                           <Slider x:Name="JumpHeightMaxSlider" Minimum="20" Maximum="800" TickFrequency="10" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
                         </StackPanel>
                         <DockPanel Margin="0,10,0,0">
-                          <TextBlock x:Name="JumpIntervalText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                          <TextBlock x:Name="JumpIntervalText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                           <TextBlock Text="{DynamicResource s.panel.jumpInterval}" Style="{StaticResource SectionLabel}"/>
                         </DockPanel>
                         <Slider x:Name="JumpIntervalSlider" Minimum="0.5" Maximum="10" TickFrequency="0.5" IsSnapToTickEnabled="True" Margin="0,4,0,0" ValueChanged="JumpInterval_ValueChanged"/>
@@ -505,7 +505,7 @@
                         </Border>
                         <StackPanel x:Name="JumpDirFixedPanel">
                           <DockPanel Margin="0,6,0,0">
-                            <TextBlock x:Name="JumpAngleText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock x:Name="JumpAngleText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                             <TextBlock Text="{DynamicResource s.panel.angle}" Style="{StaticResource Hint}"/>
                           </DockPanel>
                           <Slider x:Name="JumpAngleSlider" Minimum="-75" Maximum="75" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,2,0,0" ValueChanged="JumpAngle_ValueChanged"/>
@@ -513,7 +513,7 @@
                         </StackPanel>
                         <StackPanel x:Name="JumpDirRandPanel">
                           <DockPanel Margin="0,6,0,0">
-                            <TextBlock x:Name="JumpAngleRangeText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock x:Name="JumpAngleRangeText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                             <TextBlock Text="{DynamicResource s.panel.angleRange}" Style="{StaticResource Hint}"/>
                           </DockPanel>
                           <Slider x:Name="JumpAngleRangeSlider" Minimum="0" Maximum="75" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
@@ -525,7 +525,7 @@
                     <!-- 미끄러짐 -->
                     <StackPanel x:Name="SlideOptions">
                       <DockPanel Margin="0,10,0,0">
-                        <TextBlock x:Name="FrictionText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock x:Name="FrictionText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.panel.friction}" Style="{StaticResource SectionLabel}"/>
                       </DockPanel>
                       <Slider x:Name="FrictionSlider" Minimum="1" Maximum="10" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,4,0,0" ValueChanged="Friction_ValueChanged"/>
@@ -542,7 +542,7 @@
                         </Border>
                         <StackPanel x:Name="PushDirFixedPanel">
                           <DockPanel Margin="0,6,0,0">
-                            <TextBlock x:Name="PushAngleText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock x:Name="PushAngleText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                             <TextBlock Text="{DynamicResource s.panel.angle}" Style="{StaticResource Hint}"/>
                           </DockPanel>
                           <Slider x:Name="PushAngleSlider" Minimum="0" Maximum="355" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
@@ -557,19 +557,19 @@
                         </Border>
                         <StackPanel x:Name="PushForceFixedPanel">
                           <DockPanel Margin="0,6,0,0">
-                            <TextBlock x:Name="PushForceText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock x:Name="PushForceText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                             <TextBlock Text="{DynamicResource s.panel.force}" Style="{StaticResource Hint}"/>
                           </DockPanel>
                           <Slider x:Name="PushForceSlider" Minimum="100" Maximum="5000" TickFrequency="50" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
                         </StackPanel>
                         <StackPanel x:Name="PushForceRandPanel">
                           <DockPanel Margin="0,6,0,0">
-                            <TextBlock x:Name="PushForceMinText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock x:Name="PushForceMinText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                             <TextBlock Text="{DynamicResource s.range.min}" Style="{StaticResource Hint}"/>
                           </DockPanel>
                           <Slider x:Name="PushForceMinSlider" Minimum="100" Maximum="5000" TickFrequency="50" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
                           <DockPanel Margin="0,6,0,0">
-                            <TextBlock x:Name="PushForceMaxText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock x:Name="PushForceMaxText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                             <TextBlock Text="{DynamicResource s.range.max}" Style="{StaticResource Hint}"/>
                           </DockPanel>
                           <Slider x:Name="PushForceMaxSlider" Minimum="100" Maximum="5000" TickFrequency="50" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
@@ -583,19 +583,19 @@
                         </Border>
                         <StackPanel x:Name="PushIntervalFixedPanel">
                           <DockPanel Margin="0,6,0,0">
-                            <TextBlock x:Name="PushIntervalText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock x:Name="PushIntervalText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                             <TextBlock Text="{DynamicResource s.panel.every}" Style="{StaticResource Hint}"/>
                           </DockPanel>
                           <Slider x:Name="PushIntervalSlider" Minimum="0.5" Maximum="60" TickFrequency="0.5" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
                         </StackPanel>
                         <StackPanel x:Name="PushIntervalRandPanel">
                           <DockPanel Margin="0,6,0,0">
-                            <TextBlock x:Name="PushIntervalMinText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock x:Name="PushIntervalMinText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                             <TextBlock Text="{DynamicResource s.range.min}" Style="{StaticResource Hint}"/>
                           </DockPanel>
                           <Slider x:Name="PushIntervalMinSlider" Minimum="0.5" Maximum="60" TickFrequency="0.5" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
                           <DockPanel Margin="0,6,0,0">
-                            <TextBlock x:Name="PushIntervalMaxText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock x:Name="PushIntervalMaxText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                             <TextBlock Text="{DynamicResource s.range.max}" Style="{StaticResource Hint}"/>
                           </DockPanel>
                           <Slider x:Name="PushIntervalMaxSlider" Minimum="0.5" Maximum="60" TickFrequency="0.5" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
@@ -621,12 +621,12 @@
                                   ToolTip="{DynamicResource s.fx.floatTip}" Click="FxToggle_Click"/>
                     <StackPanel x:Name="FxFloatOpts" Margin="14,0,0,6">
                       <DockPanel Margin="0,6,0,0">
-                        <TextBlock x:Name="FxFloatAmpText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock x:Name="FxFloatAmpText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.fx.amplitude}" Style="{StaticResource Hint}"/>
                       </DockPanel>
                       <Slider Tag="FxFloatAmp" Minimum="2" Maximum="60" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
                       <DockPanel Margin="0,6,0,0">
-                        <TextBlock x:Name="FxFloatPeriodText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock x:Name="FxFloatPeriodText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.fx.period}" Style="{StaticResource Hint}"/>
                       </DockPanel>
                       <Slider Tag="FxFloatPeriod" Minimum="0.5" Maximum="10" TickFrequency="0.1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
@@ -635,12 +635,12 @@
                                   ToolTip="{DynamicResource s.fx.breatheTip}" Click="FxToggle_Click"/>
                     <StackPanel x:Name="FxBreatheOpts" Margin="14,0,0,6">
                       <DockPanel Margin="0,6,0,0">
-                        <TextBlock x:Name="FxBreatheAmountText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock x:Name="FxBreatheAmountText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.fx.amount}" Style="{StaticResource Hint}"/>
                       </DockPanel>
                       <Slider Tag="FxBreatheAmount" Minimum="1" Maximum="30" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
                       <DockPanel Margin="0,6,0,0">
-                        <TextBlock x:Name="FxBreathePeriodText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock x:Name="FxBreathePeriodText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.fx.period}" Style="{StaticResource Hint}"/>
                       </DockPanel>
                       <Slider Tag="FxBreathePeriod" Minimum="0.5" Maximum="10" TickFrequency="0.1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
@@ -649,12 +649,12 @@
                                   ToolTip="{DynamicResource s.fx.swayTip}" Click="FxToggle_Click"/>
                     <StackPanel x:Name="FxSwayOpts" Margin="14,0,0,6">
                       <DockPanel Margin="0,6,0,0">
-                        <TextBlock x:Name="FxSwayAngleText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock x:Name="FxSwayAngleText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.fx.angle}" Style="{StaticResource Hint}"/>
                       </DockPanel>
                       <Slider Tag="FxSwayAngle" Minimum="1" Maximum="45" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
                       <DockPanel Margin="0,6,0,0">
-                        <TextBlock x:Name="FxSwayPeriodText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock x:Name="FxSwayPeriodText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.fx.period}" Style="{StaticResource Hint}"/>
                       </DockPanel>
                       <Slider Tag="FxSwayPeriod" Minimum="0.5" Maximum="10" TickFrequency="0.1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
@@ -663,7 +663,7 @@
                                   ToolTip="{DynamicResource s.fx.spinTip}" Click="FxToggle_Click"/>
                     <StackPanel x:Name="FxSpinOpts" Margin="14,0,0,6">
                       <DockPanel Margin="0,6,0,0">
-                        <TextBlock x:Name="FxSpinSpeedText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock x:Name="FxSpinSpeedText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.fx.spinSpeed}" Style="{StaticResource Hint}"/>
                       </DockPanel>
                       <Slider Tag="FxSpinSpeed" Minimum="10" Maximum="720" TickFrequency="10" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
@@ -678,12 +678,12 @@
                                   ToolTip="{DynamicResource s.fx.blinkTip}" Click="FxToggle_Click"/>
                     <StackPanel x:Name="FxBlinkOpts" Margin="14,0,0,6">
                       <DockPanel Margin="0,6,0,0">
-                        <TextBlock x:Name="FxBlinkMinText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock x:Name="FxBlinkMinText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.fx.blinkMin}" Style="{StaticResource Hint}"/>
                       </DockPanel>
                       <Slider Tag="FxBlinkMin" Minimum="0" Maximum="90" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
                       <DockPanel Margin="0,6,0,0">
-                        <TextBlock x:Name="FxBlinkPeriodText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock x:Name="FxBlinkPeriodText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.fx.period}" Style="{StaticResource Hint}"/>
                       </DockPanel>
                       <Slider Tag="FxBlinkPeriod" Minimum="0.3" Maximum="10" TickFrequency="0.1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
@@ -693,7 +693,7 @@
                                   ToolTip="{DynamicResource s.fx.squashTip}" Click="FxToggle_Click"/>
                     <StackPanel x:Name="FxSquashOpts" Margin="14,0,0,6">
                       <DockPanel Margin="0,6,0,0">
-                        <TextBlock x:Name="FxSquashAmountText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock x:Name="FxSquashAmountText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.fx.amount}" Style="{StaticResource Hint}"/>
                       </DockPanel>
                       <Slider Tag="FxSquashAmount" Minimum="5" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
@@ -704,17 +704,17 @@
                                   ToolTip="{DynamicResource s.fx.trailTip}" Click="FxToggle_Click"/>
                     <StackPanel x:Name="FxTrailOpts" Margin="14,0,0,6">
                       <DockPanel Margin="0,6,0,0">
-                        <TextBlock x:Name="FxTrailCountText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock x:Name="FxTrailCountText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.fx.trailCount}" Style="{StaticResource Hint}"/>
                       </DockPanel>
                       <Slider Tag="FxTrailCount" Minimum="2" Maximum="10" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
                       <DockPanel Margin="0,6,0,0">
-                        <TextBlock x:Name="FxTrailOpacityText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock x:Name="FxTrailOpacityText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.fx.trailOpacity}" Style="{StaticResource Hint}"/>
                       </DockPanel>
                       <Slider Tag="FxTrailOpacity" Minimum="10" Maximum="80" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
                       <DockPanel Margin="0,6,0,0">
-                        <TextBlock x:Name="FxTrailSpacingText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock x:Name="FxTrailSpacingText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.fx.trailSpacing}" Style="{StaticResource Hint}"/>
                       </DockPanel>
                       <Slider Tag="FxTrailSpacing" Minimum="4" Maximum="120" TickFrequency="2" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
@@ -725,12 +725,12 @@
                                   ToolTip="{DynamicResource s.fx.shadowTip}" Click="FxToggle_Click"/>
                     <StackPanel x:Name="FxShadowOpts" Margin="14,0,0,6">
                       <DockPanel Margin="0,6,0,0">
-                        <TextBlock x:Name="FxShadowOpacityText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock x:Name="FxShadowOpacityText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.fx.opacity}" Style="{StaticResource Hint}"/>
                       </DockPanel>
                       <Slider Tag="FxShadowOpacity" Minimum="10" Maximum="90" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
                       <DockPanel Margin="0,6,0,0">
-                        <TextBlock x:Name="FxShadowSizeText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock x:Name="FxShadowSizeText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.fx.size}" Style="{StaticResource Hint}"/>
                       </DockPanel>
                       <Slider Tag="FxShadowSize" Minimum="30" Maximum="150" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
@@ -768,12 +768,12 @@
                         </UniformGrid>
                       </Border>
                       <DockPanel Margin="0,6,0,0">
-                        <TextBlock x:Name="FxGlowSizeText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock x:Name="FxGlowSizeText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.fx.glowSize}" Style="{StaticResource Hint}"/>
                       </DockPanel>
                       <Slider Tag="FxGlowSize" Minimum="2" Maximum="40" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
                       <DockPanel Margin="0,6,0,0">
-                        <TextBlock x:Name="FxGlowStrengthText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock x:Name="FxGlowStrengthText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.fx.strength}" Style="{StaticResource Hint}"/>
                       </DockPanel>
                       <Slider Tag="FxGlowStrength" Minimum="10" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
@@ -807,7 +807,7 @@
                                       ToolTip="{DynamicResource s.fx.keepColorsTip}" Click="FxToggle_Click"/>
                         <ToggleButton Style="{StaticResource SwitchBox}" Margin="0,8,0,0" Tag="FxParticleAnimate" Content="{DynamicResource s.fx.animate}"
                                       ToolTip="{DynamicResource s.fx.animateTip}" Click="FxToggle_Click"/>
-                        <TextBlock x:Name="ParticleCpuWarn" Text="{DynamicResource s.fx.cpuWarn}" Foreground="{StaticResource WarnTextBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                        <TextBlock x:Name="ParticleCpuWarn" Text="{DynamicResource s.fx.cpuWarn}" Foreground="{DynamicResource WarnTextBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
                       </StackPanel>
                       <TextBlock Text="{DynamicResource s.fx.when}" Style="{StaticResource Hint}" Margin="0,8,0,0"/>
                       <Border Style="{StaticResource SegmentBox}" Margin="0,4,0,0" Padding="2">
@@ -874,17 +874,17 @@
                       </Border>
                       </StackPanel>
                       <DockPanel Margin="0,6,0,0">
-                        <TextBlock x:Name="FxParticleRateText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock x:Name="FxParticleRateText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.fx.rate}" Style="{StaticResource Hint}"/>
                       </DockPanel>
                       <Slider Tag="FxParticleRate" Minimum="1" Maximum="60" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
                       <DockPanel Margin="0,6,0,0">
-                        <TextBlock x:Name="FxParticleSizeText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock x:Name="FxParticleSizeText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.fx.size}" Style="{StaticResource Hint}"/>
                       </DockPanel>
                       <Slider Tag="FxParticleSize" Minimum="4" Maximum="48" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
                       <DockPanel Margin="0,6,0,0">
-                        <TextBlock x:Name="FxParticleLifeText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                        <TextBlock x:Name="FxParticleLifeText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.fx.life}" Style="{StaticResource Hint}"/>
                       </DockPanel>
                       <Slider Tag="FxParticleLife" Minimum="0.5" Maximum="5" TickFrequency="0.1" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
@@ -923,23 +923,23 @@
           <StackPanel>
             <ToggleButton x:Name="StartWithWindowsToggle" Style="{StaticResource Switch}" Margin="18,14" Click="StartWithWindows_Click">
               <StackPanel>
-                <TextBlock Text="{DynamicResource s.set.autostart}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource s.set.autostart}" FontSize="14" Foreground="{DynamicResource TextBrush}"/>
                 <TextBlock Text="{DynamicResource s.set.autostartDesc}" Style="{StaticResource Hint}" FontSize="12" Margin="0,2,0,0"/>
-                <TextBlock x:Name="AutostartBlockedText" Text="{DynamicResource s.set.autostartBlocked}" Foreground="{StaticResource WarnTextBrush}"
+                <TextBlock x:Name="AutostartBlockedText" Text="{DynamicResource s.set.autostartBlocked}" Foreground="{DynamicResource WarnTextBrush}"
                            FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0" Visibility="Collapsed"/>
               </StackPanel>
             </ToggleButton>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <ToggleButton x:Name="OpenOnStartToggle" Style="{StaticResource Switch}" Margin="18,14" Click="OpenOnStart_Click">
               <StackPanel>
-                <TextBlock Text="{DynamicResource s.set.openOnStart}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource s.set.openOnStart}" FontSize="14" Foreground="{DynamicResource TextBrush}"/>
                 <TextBlock Text="{DynamicResource s.set.openOnStartDesc}" Style="{StaticResource Hint}" FontSize="12" Margin="0,2,0,0"/>
               </StackPanel>
             </ToggleButton>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <DockPanel Margin="18,14">
               <StackPanel DockPanel.Dock="Right" Width="240" Margin="16,0,0,0" VerticalAlignment="Center">
-                <TextBlock x:Name="AutostartDelayText" HorizontalAlignment="Right" FontFamily="{StaticResource MonoFont}"/>
+                <TextBlock x:Name="AutostartDelayText" HorizontalAlignment="Right" FontFamily="{DynamicResource MonoFont}"/>
                 <Slider x:Name="AutostartDelaySlider" Minimum="0" Maximum="120" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,4,0,0" ValueChanged="AutostartDelay_ValueChanged"/>
               </StackPanel>
               <StackPanel VerticalAlignment="Center">
@@ -947,10 +947,10 @@
                 <TextBlock Text="{DynamicResource s.set.autostartDelayDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
               </StackPanel>
             </DockPanel>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <ToggleButton x:Name="CheckUpdatesToggle" Style="{StaticResource Switch}" Margin="18,14,18,6" Click="CheckUpdates_Click">
               <StackPanel>
-                <TextBlock Text="{DynamicResource s.update.title}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource s.update.title}" FontSize="14" Foreground="{DynamicResource TextBrush}"/>
                 <TextBlock Text="{DynamicResource s.update.desc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
               </StackPanel>
             </ToggleButton>
@@ -967,22 +967,28 @@
         <TextBlock Text="{DynamicResource s.set.display}" Style="{StaticResource SettingsHeader}"/>
         <Border Style="{StaticResource SettingsCard}">
           <StackPanel>
+            <StackPanel Margin="18,14">
+              <TextBlock Text="{DynamicResource s.theme.title}" FontSize="14"/>
+              <TextBlock Text="{DynamicResource s.theme.desc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,10"/>
+              <WrapPanel x:Name="ThemePicker"/>
+            </StackPanel>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <ToggleButton x:Name="HideFromCaptureToggle" Style="{StaticResource Switch}" Margin="18,14" Click="HideFromCapture_Click">
               <StackPanel>
-                <TextBlock Text="{DynamicResource s.set.hideCapture}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource s.set.hideCapture}" FontSize="14" Foreground="{DynamicResource TextBrush}"/>
                 <TextBlock Text="{DynamicResource s.set.hideCaptureDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
               </StackPanel>
             </ToggleButton>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <ToggleButton x:Name="HoverFadeToggle" Style="{StaticResource Switch}" Margin="18,14,18,6" Click="HoverFade_Click">
               <StackPanel>
-                <TextBlock Text="{DynamicResource s.set.hoverFade}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource s.set.hoverFade}" FontSize="14" Foreground="{DynamicResource TextBrush}"/>
                 <TextBlock Text="{DynamicResource s.set.hoverFadeDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
               </StackPanel>
             </ToggleButton>
             <StackPanel x:Name="HoverFadeOptions" Margin="18,0,18,14">
               <DockPanel>
-                <TextBlock x:Name="HoverFadeText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                <TextBlock x:Name="HoverFadeText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                 <TextBlock Text="{DynamicResource s.set.hoverFadeAmount}" Style="{StaticResource Hint}"/>
               </DockPanel>
               <Slider x:Name="HoverFadeSlider" Minimum="0" Maximum="90" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,4,0,0" ValueChanged="HoverFadeSlider_ValueChanged"/>
@@ -1009,7 +1015,7 @@
           <StackPanel>
             <DockPanel Margin="18,14">
               <StackPanel DockPanel.Dock="Right" Width="240" Margin="16,0,0,0" VerticalAlignment="Center">
-                <TextBlock x:Name="NewItemSizeText" HorizontalAlignment="Right" FontFamily="{StaticResource MonoFont}"/>
+                <TextBlock x:Name="NewItemSizeText" HorizontalAlignment="Right" FontFamily="{DynamicResource MonoFont}"/>
                 <Slider x:Name="NewItemSizeSlider" Minimum="64" Maximum="1200" TickFrequency="8" IsSnapToTickEnabled="True" Margin="0,4,0,0" ValueChanged="NewItemSize_ValueChanged"/>
               </StackPanel>
               <StackPanel VerticalAlignment="Center">
@@ -1017,7 +1023,7 @@
                 <TextBlock Text="{DynamicResource s.newItem.sizeDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
               </StackPanel>
             </DockPanel>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <DockPanel Margin="18,14">
               <Border DockPanel.Dock="Right" Style="{StaticResource SegmentBox}" VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal">
@@ -1027,14 +1033,14 @@
               </Border>
               <TextBlock Text="{DynamicResource s.newItem.layer}" FontSize="14" VerticalAlignment="Center"/>
             </DockPanel>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <ToggleButton x:Name="NewClickThroughToggle" Style="{StaticResource Switch}" Margin="18,14" Click="NewClickThrough_Click">
               <StackPanel>
-                <TextBlock Text="{DynamicResource s.newItem.clickThrough}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource s.newItem.clickThrough}" FontSize="14" Foreground="{DynamicResource TextBrush}"/>
                 <TextBlock Text="{DynamicResource s.newItem.clickThroughDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
               </StackPanel>
             </ToggleButton>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <DockPanel Margin="18,14">
               <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                 <Button Height="30" x:Name="TemplateFromButton" Content="{DynamicResource s.newItem.fromGif}" Click="TemplateFromSelected_Click"/>
@@ -1064,7 +1070,7 @@
               </StackPanel>
             </DockPanel>
             <StackPanel x:Name="AppRuleRows"/>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <DockPanel Margin="18,12">
               <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                 <Button x:Name="AddRunningAppButton" Height="30" Content="{DynamicResource s.rules.addRunning}" Click="AddRunningApp_Click"/>
@@ -1080,7 +1086,7 @@
           <StackPanel>
             <ToggleButton x:Name="EffectsOffToggle" Style="{StaticResource Switch}" Margin="18,14" Click="EffectsOff_Click">
               <StackPanel>
-                <TextBlock Text="{DynamicResource s.set.effectsOff}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource s.set.effectsOff}" FontSize="14" Foreground="{DynamicResource TextBrush}"/>
                 <TextBlock Text="{DynamicResource s.set.effectsOffDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
               </StackPanel>
             </ToggleButton>
@@ -1103,7 +1109,7 @@
               </Border>
               <TextBlock x:Name="PerfModeHint" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"/>
             </StackPanel>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <DockPanel Margin="18,14">
               <Border DockPanel.Dock="Right" Style="{StaticResource SegmentBox}" VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal">
@@ -1116,39 +1122,39 @@
                 <TextBlock Text="{DynamicResource s.set.fxFpsDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
               </StackPanel>
             </DockPanel>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <ToggleButton x:Name="AutoLightToggle" Style="{StaticResource Switch}" Margin="18,14,18,6" Click="FxPause_Click">
               <StackPanel>
-                <TextBlock Text="{DynamicResource s.set.autoLight}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource s.set.autoLight}" FontSize="14" Foreground="{DynamicResource TextBrush}"/>
                 <TextBlock Text="{DynamicResource s.set.autoLightDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
               </StackPanel>
             </ToggleButton>
             <StackPanel x:Name="AutoLightOptions" Margin="18,0,18,14">
               <DockPanel>
-                <TextBlock x:Name="AutoLightCpuText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+                <TextBlock x:Name="AutoLightCpuText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                 <TextBlock Text="{DynamicResource s.set.autoLightCpu}" Style="{StaticResource Hint}"/>
               </DockPanel>
               <Slider x:Name="AutoLightCpuSlider" Minimum="50" Maximum="95" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,4,0,0" ValueChanged="AutoLightCpu_ValueChanged"/>
               <TextBlock x:Name="AutoLightStatus" Style="{StaticResource Hint}" FontSize="12" Margin="0,4,0,0"/>
             </StackPanel>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <ToggleButton x:Name="PauseFxFullscreenToggle" Style="{StaticResource Switch}" Margin="18,14" Click="FxPause_Click">
               <StackPanel>
-                <TextBlock Text="{DynamicResource s.set.fxPauseFullscreen}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource s.set.fxPauseFullscreen}" FontSize="14" Foreground="{DynamicResource TextBrush}"/>
                 <TextBlock Text="{DynamicResource s.set.fxPauseFullscreenDesc}" Style="{StaticResource Hint}" FontSize="12" Margin="0,2,0,0"/>
               </StackPanel>
             </ToggleButton>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <ToggleButton x:Name="PauseFxBatteryToggle" Style="{StaticResource Switch}" Margin="18,14" Click="FxPause_Click">
               <StackPanel>
-                <TextBlock Text="{DynamicResource s.set.fxPauseBattery}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource s.set.fxPauseBattery}" FontSize="14" Foreground="{DynamicResource TextBrush}"/>
                 <TextBlock Text="{DynamicResource s.set.fxPauseBatteryDesc}" Style="{StaticResource Hint}" FontSize="12" Margin="0,2,0,0"/>
               </StackPanel>
             </ToggleButton>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <DockPanel Margin="18,14">
               <StackPanel DockPanel.Dock="Right" Width="240" Margin="16,0,0,0" VerticalAlignment="Center">
-                <TextBlock x:Name="ParticleCapText" HorizontalAlignment="Right" FontFamily="{StaticResource MonoFont}"/>
+                <TextBlock x:Name="ParticleCapText" HorizontalAlignment="Right" FontFamily="{DynamicResource MonoFont}"/>
                 <Slider x:Name="ParticleCapSlider" Minimum="20" Maximum="2000" TickFrequency="20" IsSnapToTickEnabled="True" Margin="0,4,0,0" ValueChanged="ParticleCap_ValueChanged"/>
               </StackPanel>
               <StackPanel VerticalAlignment="Center">
@@ -1156,7 +1162,7 @@
                 <TextBlock Text="{DynamicResource s.perf.particleCapDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
               </StackPanel>
             </DockPanel>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <DockPanel Margin="18,14">
               <Border DockPanel.Dock="Right" Style="{StaticResource SegmentBox}" VerticalAlignment="Center" Margin="16,0,0,0">
                 <StackPanel Orientation="Horizontal">
@@ -1170,7 +1176,7 @@
                 <TextBlock Text="{DynamicResource s.perf.gifCapDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
               </StackPanel>
             </DockPanel>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <DockPanel Margin="18,14">
               <Border DockPanel.Dock="Right" Style="{StaticResource SegmentBox}" VerticalAlignment="Center" Margin="16,0,0,0">
                 <StackPanel Orientation="Horizontal">
@@ -1184,10 +1190,10 @@
                 <TextBlock Text="{DynamicResource s.perf.qualityDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
               </StackPanel>
             </DockPanel>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <DockPanel Margin="18,14">
               <StackPanel DockPanel.Dock="Right" Width="240" Margin="16,0,0,0" VerticalAlignment="Center">
-                <TextBlock x:Name="MemoryText" HorizontalAlignment="Right" FontFamily="{StaticResource MonoFont}"/>
+                <TextBlock x:Name="MemoryText" HorizontalAlignment="Right" FontFamily="{DynamicResource MonoFont}"/>
                 <Slider x:Name="MemorySlider" Minimum="64" Maximum="2048" TickFrequency="64" IsSnapToTickEnabled="True" Margin="0,4,0,0" ValueChanged="Memory_ValueChanged"/>
               </StackPanel>
               <StackPanel VerticalAlignment="Center">
@@ -1195,31 +1201,31 @@
                 <TextBlock Text="{DynamicResource s.perf.memoryDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
               </StackPanel>
             </DockPanel>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <ToggleButton x:Name="UnloadHiddenToggle" Style="{StaticResource Switch}" Margin="18,14" Click="PerfToggle_Click">
               <StackPanel>
-                <TextBlock Text="{DynamicResource s.perf.unloadHidden}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource s.perf.unloadHidden}" FontSize="14" Foreground="{DynamicResource TextBrush}"/>
                 <TextBlock Text="{DynamicResource s.perf.unloadHiddenDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
               </StackPanel>
             </ToggleButton>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <ToggleButton x:Name="PauseOccludedToggle" Style="{StaticResource Switch}" Margin="18,14" Click="PerfToggle_Click">
               <StackPanel>
-                <TextBlock Text="{DynamicResource s.perf.pauseOccluded}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource s.perf.pauseOccluded}" FontSize="14" Foreground="{DynamicResource TextBrush}"/>
                 <TextBlock Text="{DynamicResource s.perf.pauseOccludedDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
               </StackPanel>
             </ToggleButton>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <ToggleButton x:Name="PauseLockedToggle" Style="{StaticResource Switch}" Margin="18,14" Click="PerfToggle_Click">
               <StackPanel>
-                <TextBlock Text="{DynamicResource s.perf.pauseLocked}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource s.perf.pauseLocked}" FontSize="14" Foreground="{DynamicResource TextBrush}"/>
                 <TextBlock Text="{DynamicResource s.perf.pauseLockedDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
               </StackPanel>
             </ToggleButton>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <ToggleButton x:Name="LibraryPreviewToggle" Style="{StaticResource Switch}" Margin="18,14" Click="LibraryPreview_Click">
               <StackPanel>
-                <TextBlock Text="{DynamicResource s.perf.libraryPreview}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource s.perf.libraryPreview}" FontSize="14" Foreground="{DynamicResource TextBrush}"/>
                 <TextBlock Text="{DynamicResource s.perf.libraryPreviewDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
               </StackPanel>
             </ToggleButton>
@@ -1232,7 +1238,7 @@
             <TextBlock Text="{DynamicResource s.set.mouseHint}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="18,14,18,0"/>
             <DockPanel Margin="18,12,18,14">
               <StackPanel DockPanel.Dock="Right" Width="240" Margin="16,0,0,0" VerticalAlignment="Center">
-                <TextBlock x:Name="HoldText" HorizontalAlignment="Right" FontFamily="{StaticResource MonoFont}"/>
+                <TextBlock x:Name="HoldText" HorizontalAlignment="Right" FontFamily="{DynamicResource MonoFont}"/>
                 <Slider x:Name="HoldSlider" Minimum="0" Maximum="1000" TickFrequency="50" IsSnapToTickEnabled="True" Margin="0,4,0,0" ValueChanged="HoldSlider_ValueChanged"/>
               </StackPanel>
               <StackPanel VerticalAlignment="Center">
@@ -1240,10 +1246,10 @@
                 <TextBlock Text="{DynamicResource s.set.holdDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
               </StackPanel>
             </DockPanel>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <DockPanel Margin="18,14">
               <StackPanel DockPanel.Dock="Right" Width="240" Margin="16,0,0,0" VerticalAlignment="Center">
-                <TextBlock x:Name="ResumeText" HorizontalAlignment="Right" FontFamily="{StaticResource MonoFont}"/>
+                <TextBlock x:Name="ResumeText" HorizontalAlignment="Right" FontFamily="{DynamicResource MonoFont}"/>
                 <Slider x:Name="ResumeSlider" Minimum="0" Maximum="3000" TickFrequency="100" IsSnapToTickEnabled="True" Margin="0,4,0,0" ValueChanged="ResumeSlider_ValueChanged"/>
               </StackPanel>
               <StackPanel VerticalAlignment="Center">
@@ -1273,13 +1279,13 @@
               <Button DockPanel.Dock="Right" Height="30" Content="{DynamicResource s.set.openFolder}" Click="OpenDataFolder_Click" Margin="12,0,0,0"/>
               <StackPanel>
                 <TextBlock Text="{DynamicResource s.set.dataFolder}" FontSize="14"/>
-                <TextBlock x:Name="DataFolderText" FontFamily="{StaticResource MonoFont}" Style="{StaticResource Hint}" Margin="0,2,0,0"/>
+                <TextBlock x:Name="DataFolderText" FontFamily="{DynamicResource MonoFont}" Style="{StaticResource Hint}" Margin="0,2,0,0"/>
               </StackPanel>
             </DockPanel>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <ToggleButton x:Name="CopyOnAddToggle" Style="{StaticResource Switch}" Margin="18,14" Click="CopyOnAdd_Click">
               <StackPanel>
-                <TextBlock Text="{DynamicResource s.set.copyOnAdd}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource s.set.copyOnAdd}" FontSize="14" Foreground="{DynamicResource TextBrush}"/>
                 <TextBlock Text="{DynamicResource s.set.copyOnAddDesc}" Style="{StaticResource Hint}" FontSize="12" Margin="0,2,0,0"/>
               </StackPanel>
             </ToggleButton>
@@ -1296,7 +1302,7 @@
                 <TextBlock Text="{DynamicResource s.backup.createDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
               </StackPanel>
             </DockPanel>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <DockPanel Margin="18,12">
               <Button DockPanel.Dock="Right" Height="32" MinWidth="120" Content="{DynamicResource s.backup.restore}" Click="BackupRestore_Click" Margin="12,0,0,0"/>
               <StackPanel>
@@ -1304,7 +1310,7 @@
                 <TextBlock Text="{DynamicResource s.backup.restoreDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
               </StackPanel>
             </DockPanel>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <DockPanel Margin="18,12">
               <Button DockPanel.Dock="Right" Height="32" MinWidth="120" Style="{StaticResource BtnDanger}" Content="{DynamicResource s.backup.reset}" Click="ResetSettings_Click" Margin="12,0,0,0"/>
               <StackPanel>
@@ -1325,7 +1331,7 @@
                 <TextBlock Text="{DynamicResource s.rec.gatherDesc}" Style="{StaticResource Hint}" FontSize="12" Margin="0,2,0,0"/>
               </StackPanel>
             </DockPanel>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <DockPanel Margin="18,12">
               <Button DockPanel.Dock="Right" Height="32" MinWidth="120" Content="{DynamicResource s.rec.showAll}" Click="RecoverShow_Click" Margin="12,0,0,0"/>
               <StackPanel>
@@ -1333,7 +1339,7 @@
                 <TextBlock Text="{DynamicResource s.rec.showAllDesc}" Style="{StaticResource Hint}" FontSize="12" Margin="0,2,0,0"/>
               </StackPanel>
             </DockPanel>
-            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <Border Height="1" Background="{DynamicResource LineBrush}"/>
             <DockPanel Margin="18,12">
               <Button DockPanel.Dock="Right" Height="32" MinWidth="120" Content="{DynamicResource s.rec.clickThroughOff}" Click="RecoverClick_Click" Margin="12,0,0,0"/>
               <StackPanel>
@@ -1347,9 +1353,9 @@
         <TextBlock Text="{DynamicResource s.set.diagnostics}" Style="{StaticResource SettingsHeader}"/>
         <Border Style="{StaticResource SettingsCard}">
           <StackPanel Margin="18,14">
-            <TextBlock x:Name="DiagText" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap"/>
+            <TextBlock x:Name="DiagText" FontFamily="{DynamicResource MonoFont}" FontSize="11.5" Foreground="{DynamicResource TextDimBrush}" TextWrapping="Wrap"/>
             <TextBlock Text="{DynamicResource s.perf.monitor}" FontSize="13" FontWeight="SemiBold" Margin="0,14,0,4"/>
-            <TextBlock x:Name="PerfMonitorText" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap"/>
+            <TextBlock x:Name="PerfMonitorText" FontFamily="{DynamicResource MonoFont}" FontSize="11.5" Foreground="{DynamicResource TextDimBrush}" TextWrapping="Wrap"/>
             <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
               <Button Height="32" Content="{DynamicResource s.diag.openLogs}" Click="OpenLogs_Click"/>
               <Button Height="32" Margin="8,0,0,0" Content="{DynamicResource s.diag.copy}" Click="CopyDiagnostics_Click"/>

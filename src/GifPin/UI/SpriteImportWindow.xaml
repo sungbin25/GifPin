@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="{DynamicResource s.sprite.title}" Width="820" Height="600" MinWidth="760" MinHeight="560"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}"
-        FontFamily="{StaticResource UiFont}" FontSize="13" Icon="/Assets/GifPin.ico" AllowDrop="True"
+        Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextBrush}"
+        FontFamily="{DynamicResource UiFont}" FontSize="13" Icon="/Assets/GifPin.ico" AllowDrop="True"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
   <Grid>
     <Grid.ColumnDefinitions>
@@ -16,17 +16,17 @@
     <DockPanel Margin="20,18,20,16">
       <TextBlock DockPanel.Dock="Top" Text="{DynamicResource s.sprite.preview}" Style="{StaticResource SectionLabel}" Margin="0,0,0,8"/>
       <TextBlock x:Name="InfoText" DockPanel.Dock="Bottom" Style="{StaticResource Hint}" Margin="0,8,0,0"/>
-      <Border CornerRadius="10" Background="{StaticResource CheckerBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+      <Border CornerRadius="10" Background="{DynamicResource CheckerBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
         <Grid>
           <Image x:Name="PreviewImage" Stretch="Uniform" Margin="16" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
           <TextBlock x:Name="PreviewHint" Text="{DynamicResource s.sprite.dropHint}" TextWrapping="Wrap" TextAlignment="Center" Margin="24"
-                     HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
+                     HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}"/>
         </Grid>
       </Border>
     </DockPanel>
 
     <!-- 설정 -->
-    <Border Grid.Column="1" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1,0,0,0">
+    <Border Grid.Column="1" Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1,0,0,0">
       <DockPanel Margin="18,18,18,16">
         <StackPanel DockPanel.Dock="Bottom">
           <TextBlock Text="{DynamicResource s.sprite.name}" Style="{StaticResource SectionLabel}"/>
@@ -38,7 +38,7 @@
               <ColumnDefinition Width="8"/>
               <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
-            <Button Height="40" Content="{DynamicResource s.common.cancel}" BorderBrush="{StaticResource BorderStrongBrush}" Click="Cancel_Click"/>
+            <Button Height="40" Content="{DynamicResource s.common.cancel}" BorderBrush="{DynamicResource BorderStrongBrush}" Click="Cancel_Click"/>
             <Button x:Name="SaveButton" Grid.Column="2" Height="40" Style="{StaticResource BtnPrimary}" Content="{DynamicResource s.sprite.save}" Click="Save_Click" IsEnabled="False"/>
           </Grid>
         </StackPanel>
@@ -66,22 +66,22 @@
               </Grid.ColumnDefinitions>
               <StackPanel>
                 <TextBlock Text="{DynamicResource s.sprite.columns}" Style="{StaticResource Hint}"/>
-                <TextBox x:Name="ColsBox" Margin="0,4,0,0" FontFamily="{StaticResource MonoFont}" TextChanged="Option_Changed"/>
+                <TextBox x:Name="ColsBox" Margin="0,4,0,0" FontFamily="{DynamicResource MonoFont}" TextChanged="Option_Changed"/>
               </StackPanel>
               <StackPanel Grid.Column="2">
                 <TextBlock Text="{DynamicResource s.sprite.rows}" Style="{StaticResource Hint}"/>
-                <TextBox x:Name="RowsBox" Margin="0,4,0,0" FontFamily="{StaticResource MonoFont}" TextChanged="Option_Changed"/>
+                <TextBox x:Name="RowsBox" Margin="0,4,0,0" FontFamily="{DynamicResource MonoFont}" TextChanged="Option_Changed"/>
               </StackPanel>
               <StackPanel Grid.Column="4">
                 <TextBlock Text="{DynamicResource s.sprite.count}" Style="{StaticResource Hint}"/>
-                <TextBox x:Name="CountBox" Margin="0,4,0,0" FontFamily="{StaticResource MonoFont}" TextChanged="Option_Changed"/>
+                <TextBox x:Name="CountBox" Margin="0,4,0,0" FontFamily="{DynamicResource MonoFont}" TextChanged="Option_Changed"/>
               </StackPanel>
             </Grid>
             <TextBlock Text="{DynamicResource s.sprite.gridHint}" Style="{StaticResource Hint}" Margin="0,6,0,0"/>
           </StackPanel>
 
           <DockPanel Margin="0,16,0,0">
-            <TextBlock x:Name="FpsText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+            <TextBlock x:Name="FpsText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
             <TextBlock Text="{DynamicResource s.sprite.fps}" Style="{StaticResource SectionLabel}"/>
           </DockPanel>
           <Slider x:Name="FpsSlider" Minimum="1" Maximum="60" Value="12" IsSnapToTickEnabled="True" TickFrequency="1" Margin="0,4,0,0" ValueChanged="Fps_ValueChanged"/>

@@ -3,61 +3,61 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="GifPin" WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ResizeMode="NoResize" SizeToContent="WidthAndHeight" Topmost="True" ShowInTaskbar="False"
-        FontFamily="{StaticResource UiFont}" FontSize="13" Foreground="{StaticResource TextBrush}"
+        FontFamily="{DynamicResource UiFont}" FontSize="13" Foreground="{DynamicResource TextBrush}"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
   <Window.Resources>
     <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
   </Window.Resources>
 
   <StackPanel Margin="16">
-    <Border x:Name="Bar" Background="#12151B" BorderBrush="#2E3441" BorderThickness="1" CornerRadius="14" Padding="14,8,8,8"
+    <Border x:Name="Bar" Background="{DynamicResource ToolbarBgBrush}" BorderBrush="{DynamicResource MenuBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,8,8,8"
             MouseLeftButtonDown="Bar_MouseDown">
       <Border.Effect>
         <DropShadowEffect BlurRadius="24" ShadowDepth="8" Opacity="0.45" Color="Black"/>
       </Border.Effect>
       <StackPanel Orientation="Horizontal">
-        <Border CornerRadius="13" Background="#294C8DFF" Padding="10,4" VerticalAlignment="Center">
+        <Border CornerRadius="13" Background="{DynamicResource AccentSoftBrush}" Padding="10,4" VerticalAlignment="Center">
           <StackPanel Orientation="Horizontal">
-            <Ellipse Width="7" Height="7" Fill="{StaticResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-            <TextBlock Text="{DynamicResource s.edit.badge}" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentLightBrush}"/>
+            <Ellipse Width="7" Height="7" Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <TextBlock Text="{DynamicResource s.edit.badge}" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource AccentLightBrush}"/>
           </StackPanel>
         </Border>
 
-        <Button x:Name="PickButton" Margin="12,0,0,0" Height="40" Padding="4,0,10,0" Background="#181C24" Click="PickButton_Click"
+        <Button x:Name="PickButton" Margin="12,0,0,0" Height="40" Padding="4,0,10,0" Background="{DynamicResource BtnBgBrush}" Click="PickButton_Click"
                 ToolTip="{DynamicResource s.edit.pickTip}">
           <StackPanel Orientation="Horizontal">
-            <Border Width="32" Height="32" CornerRadius="6" Background="{StaticResource CheckerBrush}">
+            <Border Width="32" Height="32" CornerRadius="6" Background="{DynamicResource CheckerBrush}">
               <Image x:Name="SelThumb" Stretch="Uniform" Margin="2"/>
             </Border>
             <TextBlock x:Name="SelName" Margin="8,0,0,0" VerticalAlignment="Center" MaxWidth="180" TextTrimming="CharacterEllipsis"/>
-            <TextBlock Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="9" Margin="8,1,0,0" VerticalAlignment="Center"/>
+            <TextBlock Text="&#xE70D;" FontFamily="{DynamicResource IconFont}" FontSize="9" Margin="8,1,0,0" VerticalAlignment="Center"/>
           </StackPanel>
           <Button.ContextMenu>
             <ContextMenu/>
           </Button.ContextMenu>
         </Button>
 
-        <Border Width="1" Height="28" Background="{StaticResource BorderBrush}" Margin="12,0"/>
+        <Border Width="1" Height="28" Background="{DynamicResource BorderBrush}" Margin="12,0"/>
 
-        <TextBlock Text="{DynamicResource s.panel.size}" Foreground="{StaticResource TextDimBrush}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0"/>
+        <TextBlock Text="{DynamicResource s.panel.size}" Foreground="{DynamicResource TextDimBrush}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0"/>
         <Button Width="32" Height="32" Padding="0" Click="Smaller_Click" ToolTip="-10%">
-          <TextBlock Text="&#xE738;" FontFamily="{StaticResource IconFont}" FontSize="11"/>
+          <TextBlock Text="&#xE738;" FontFamily="{DynamicResource IconFont}" FontSize="11"/>
         </Button>
-        <TextBlock x:Name="ScaleText" Width="58" TextAlignment="Center" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}"/>
+        <TextBlock x:Name="ScaleText" Width="58" TextAlignment="Center" VerticalAlignment="Center" FontFamily="{DynamicResource MonoFont}"/>
         <Button Width="32" Height="32" Padding="0" Click="Bigger_Click" ToolTip="+10%">
-          <TextBlock Text="&#xE710;" FontFamily="{StaticResource IconFont}" FontSize="11"/>
+          <TextBlock Text="&#xE710;" FontFamily="{DynamicResource IconFont}" FontSize="11"/>
         </Button>
         <Button Height="32" Margin="6,0,0,0" Content="{DynamicResource s.panel.originalSize}" FontSize="12" Click="Reset_Click"/>
 
-        <Border Width="1" Height="28" Background="{StaticResource BorderBrush}" Margin="12,0"/>
+        <Border Width="1" Height="28" Background="{DynamicResource BorderBrush}" Margin="12,0"/>
 
-        <Button Height="40" Padding="16,0" Content="{DynamicResource s.common.cancel}" BorderBrush="{StaticResource BorderStrongBrush}" Click="Cancel_Click" ToolTip="{DynamicResource s.edit.cancelTip}"/>
+        <Button Height="40" Padding="16,0" Content="{DynamicResource s.common.cancel}" BorderBrush="{DynamicResource BorderStrongBrush}" Click="Cancel_Click" ToolTip="{DynamicResource s.edit.cancelTip}"/>
         <Button Height="40" Padding="18,0" Margin="8,0,0,0" Style="{StaticResource BtnPrimary}" Content="{DynamicResource s.edit.done}" Click="Done_Click" ToolTip="{DynamicResource s.edit.doneTip}"/>
       </StackPanel>
     </Border>
 
     <Border HorizontalAlignment="Center" Margin="0,10,0,0" Background="#C70C0E12" CornerRadius="15" Padding="14,6" IsHitTestVisible="False">
-      <TextBlock FontSize="12" Foreground="{StaticResource LabelBrush}" Text="{DynamicResource s.edit.hint}"/>
+      <TextBlock FontSize="12" Foreground="{DynamicResource LabelBrush}" Text="{DynamicResource s.edit.hint}"/>
     </Border>
   </StackPanel>
 </Window>

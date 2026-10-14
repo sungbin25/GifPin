@@ -98,7 +98,8 @@ jobs:
         run: |
           $setup = Get-ChildItem dist\GifPin-Setup-*.exe | Select-Object -First 1
           $log = Join-Path $env:RUNNER_TEMP 'gifpin-setup.log'
-          $p = Start-Process -FilePath $setup.FullName -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/LOG=$log" -PassThru -Wait
+          # 한국어로 설치 → 설치한 GifPin이 한국어로 시작해야 함
+          $p = Start-Process -FilePath $setup.FullName -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/LANG=korean',"/LOG=$log" -PassThru -Wait
           $text = Get-Content $log -Raw
           if ($p.ExitCode -ne 0) { Write-Host "::error title=Installer::exit code $($p.ExitCode)"; Get-Content $log -Tail 40; exit 1 }
           if ($text -notmatch 'Desktop Runtime is already installed|Runtime installer finished with code 0') { Write-Host "::error title=Installer::runtime check not in log"; Get-Content $log -Tail 40; exit 1 }
@@ -115,8 +116,10 @@ jobs:
           if (-not $alive -or $new -notmatch 'GifPin ${{ steps.ver.outputs.version }} starting') {
             Write-Host "::error title=Installer::installed GifPin did not start (alive=$alive)"; Write-Host $new; exit 1
           }
+          $lang = (Get-Content (Join-Path $data 'state.json') -Raw | ConvertFrom-Json).Settings.Language
+          if ($lang -ne 'ko') { Write-Host "::error title=Installer::installed in Korean but GifPin started in '$lang'"; exit 1 }
           $size = [math]::Round($setup.Length / 1MB, 1)
-          Write-Host "::notice title=Installer::installer $size MB · runtime check ok · installed app started"
+          Write-Host "::notice title=Installer::installer $size MB · runtime check ok · installed app started in Korean"
 
       - uses: actions/upload-artifact@v4
         with:

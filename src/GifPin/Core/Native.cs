@@ -259,10 +259,13 @@ internal static unsafe class Native
         return info.rcWork;
     }
 
-    /// <summary>창 제목 표시줄을 어두운 테마로 (Windows 10 2004+ / 11).</summary>
+    /// <summary>지금 테마가 어두운지 (창 제목 표시줄 색을 맞춤).</summary>
+    public static bool DarkTitleBars = true;
+
+    /// <summary>창 제목 표시줄을 테마에 맞게 어둡게/밝게 (Windows 10 2004+ / 11).</summary>
     public static void UseDarkTitleBar(IntPtr hwnd)
     {
-        int on = 1;
+        int on = DarkTitleBars ? 1 : 0;
         if (DwmSetWindowAttribute(hwnd, 20, ref on, sizeof(int)) != 0)
             DwmSetWindowAttribute(hwnd, 19, ref on, sizeof(int));
     }

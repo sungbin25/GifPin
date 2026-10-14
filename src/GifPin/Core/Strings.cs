@@ -621,5 +621,25 @@ internal static class Strings
         ["lib.overwriteScene"] = ("Update \"{0}\" with current screen", "\"{0}\"을(를) 지금 화면으로 덮어쓰기"),
         ["lib.deleteScene"] = ("Delete scene", "장면 삭제"),
         ["lib.sceneSettings"] = ("Scene settings (daily times)…", "장면 설정 (자동 전환 시각)…"),
+
+        // v0.7.0: 테마
+        ["theme.title"] = ("Theme", "테마"),
+        ["theme.desc"] = ("Changes the look of GifPin's windows right away. GIFs on your screen are not affected.", "GifPin 창의 모양을 바로 바꿔요. 화면에 띄운 GIF에는 영향이 없어요."),
+        ["theme.system"] = ("System", "시스템 설정"),
+        ["theme.systemTip"] = ("Follows the Windows light/dark app mode", "Windows의 라이트/다크 앱 모드를 따라가요"),
+        ["theme.dark"] = ("Dark", "다크"),
+        ["theme.darkTip"] = ("Dark gray with blue accents (default)", "짙은 남회색과 파란 강조색 (기본)"),
+        ["theme.light"] = ("Light", "라이트"),
+        ["theme.lightTip"] = ("White cards on light gray", "연회색 바탕에 흰 카드"),
+        ["theme.midnight"] = ("Midnight", "미드나잇"),
+        ["theme.midnightTip"] = ("Pure black, saves power on OLED screens", "순수 검정 바탕, OLED 화면에서 전력 절약"),
+        ["theme.mint"] = ("Mint", "민트 파스텔"),
+        ["theme.mintTip"] = ("Soft mint with teal and pink accents", "부드러운 민트 바탕, 청록·분홍 포인트"),
+        ["theme.neon"] = ("Neon", "네온"),
+        ["theme.neonTip"] = ("Deep purple night with magenta and cyan", "보랏빛 밤에 마젠타·시안 강조색"),
+        ["theme.xp"] = ("Windows XP", "Windows XP"),
+        ["theme.xpTip"] = ("Beige windows, blue gradients and Tahoma, like the 2000s Luna style", "베이지 창, 파란 그라데이션, Tahoma 글꼴 — 2000년대 Luna 느낌"),
+        ["theme.classic"] = ("Classic", "클래식"),
+        ["theme.classicTip"] = ("Gray, square Windows 98 style", "회색 각진 Windows 98 느낌"),
     };
 }

@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="{DynamicResource s.bg.title}" Width="960" Height="640" MinWidth="860" MinHeight="580"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="True"
-        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}"
-        FontFamily="{StaticResource UiFont}" FontSize="13" Icon="/Assets/GifPin.ico"
+        Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextBrush}"
+        FontFamily="{DynamicResource UiFont}" FontSize="13" Icon="/Assets/GifPin.ico"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
   <Window.Resources>
     <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
@@ -34,7 +34,7 @@
             <TextBlock x:Name="PickHint" DockPanel.Dock="Right" Text="{DynamicResource s.bg.clickToPick}" Style="{StaticResource Hint}" VerticalAlignment="Center"/>
             <TextBlock Text="{DynamicResource s.bg.original}" Style="{StaticResource SectionLabel}" VerticalAlignment="Center"/>
           </DockPanel>
-          <Border CornerRadius="10" Background="{StaticResource CheckerBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" ClipToBounds="True">
+          <Border CornerRadius="10" Background="{DynamicResource CheckerBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" ClipToBounds="True">
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
               <Image x:Name="OrigImage" Stretch="None" Cursor="Cross" HorizontalAlignment="Center" VerticalAlignment="Center"
                      MouseLeftButtonDown="Preview_MouseDown">
@@ -57,7 +57,7 @@
             </Border>
             <TextBlock Text="{DynamicResource s.bg.result}" Style="{StaticResource SectionLabel}" VerticalAlignment="Center"/>
           </DockPanel>
-          <Border x:Name="ResultBg" CornerRadius="10" Background="{StaticResource CheckerBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" ClipToBounds="True">
+          <Border x:Name="ResultBg" CornerRadius="10" Background="{DynamicResource CheckerBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" ClipToBounds="True">
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
               <Image x:Name="ResultImage" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center"
                      MouseLeftButtonDown="Preview_MouseDown">
@@ -70,13 +70,13 @@
         </DockPanel>
 
         <TextBlock x:Name="LoadingText" Grid.ColumnSpan="3" Text="{DynamicResource s.common.loading}" HorizontalAlignment="Center" VerticalAlignment="Center"
-                   Foreground="{StaticResource TextMutedBrush}"/>
+                   Foreground="{DynamicResource TextMutedBrush}"/>
       </Grid>
 
       <!-- 프레임 컨트롤 -->
       <DockPanel Grid.Row="1" Margin="0,12,0,0" Height="40">
-        <Button x:Name="PlayButton" DockPanel.Dock="Left" Width="36" Height="36" Padding="0" Background="#181C24" Click="Play_Click" ToolTip="{DynamicResource s.bg.playPause}">
-          <TextBlock x:Name="PlayIcon" Text="&#xE769;" FontFamily="{StaticResource IconFont}" FontSize="12"/>
+        <Button x:Name="PlayButton" DockPanel.Dock="Left" Width="36" Height="36" Padding="0" Background="{DynamicResource BtnBgBrush}" Click="Play_Click" ToolTip="{DynamicResource s.bg.playPause}">
+          <TextBlock x:Name="PlayIcon" Text="&#xE769;" FontFamily="{DynamicResource IconFont}" FontSize="12"/>
         </Button>
         <Border DockPanel.Dock="Right" Style="{StaticResource SegmentBox}" Padding="2" Margin="12,0,0,0">
           <StackPanel Orientation="Horizontal">
@@ -85,14 +85,14 @@
           </StackPanel>
         </Border>
         <TextBlock x:Name="FrameText" DockPanel.Dock="Right" Width="70" TextAlignment="Right" VerticalAlignment="Center"
-                   FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource LabelBrush}"/>
+                   FontFamily="{DynamicResource MonoFont}" Foreground="{DynamicResource LabelBrush}"/>
         <Slider x:Name="FrameSlider" Margin="12,0,0,0" VerticalAlignment="Center" Minimum="0" Maximum="0"
                 IsSnapToTickEnabled="True" TickFrequency="1" ValueChanged="FrameSlider_ValueChanged"/>
       </DockPanel>
     </Grid>
 
     <!-- 설정 패널 -->
-    <Border Grid.Column="1" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1,0,0,0">
+    <Border Grid.Column="1" Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1,0,0,0">
       <DockPanel Margin="18,18,18,16">
 
         <StackPanel DockPanel.Dock="Bottom">
@@ -109,44 +109,44 @@
               <ColumnDefinition Width="8"/>
               <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
-            <Button x:Name="CancelButton" Height="40" Content="{DynamicResource s.common.cancel}" BorderBrush="{StaticResource BorderStrongBrush}" Click="Cancel_Click"/>
+            <Button x:Name="CancelButton" Height="40" Content="{DynamicResource s.common.cancel}" BorderBrush="{DynamicResource BorderStrongBrush}" Click="Cancel_Click"/>
             <Button x:Name="SaveButton" Grid.Column="2" Height="40" Style="{StaticResource BtnPrimary}" Content="{DynamicResource s.common.save}" Click="Save_Click" IsEnabled="False"/>
           </Grid>
         </StackPanel>
 
         <StackPanel x:Name="SettingsPanel">
           <DockPanel>
-            <Border x:Name="AutoBadge" DockPanel.Dock="Right" CornerRadius="10" Background="#244C8DFF" Padding="8,2" Visibility="Collapsed">
-              <TextBlock Text="{DynamicResource s.bg.autoDetected}" FontSize="11" FontWeight="Bold" Foreground="{StaticResource AccentLightBrush}"/>
+            <Border x:Name="AutoBadge" DockPanel.Dock="Right" CornerRadius="10" Background="{DynamicResource AccentSoftBrush}" Padding="8,2" Visibility="Collapsed">
+              <TextBlock Text="{DynamicResource s.bg.autoDetected}" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource AccentLightBrush}"/>
             </Border>
             <TextBlock Text="{DynamicResource s.bg.color}" Style="{StaticResource SectionLabel}"/>
           </DockPanel>
           <DockPanel Margin="0,8,0,0">
-            <Border x:Name="Swatch" DockPanel.Dock="Left" Width="36" Height="36" CornerRadius="8" BorderBrush="#3A4152" BorderThickness="1" Background="White"/>
+            <Border x:Name="Swatch" DockPanel.Dock="Left" Width="36" Height="36" CornerRadius="8" BorderBrush="{DynamicResource CardHoverBorderBrush}" BorderThickness="1" Background="White"/>
             <Button x:Name="PickButton" DockPanel.Dock="Right" Style="{StaticResource BtnSoftAccent}" Height="36" Padding="10,0" Margin="8,0,0,0" Click="PickButton_Click"
                     ToolTip="{DynamicResource s.bg.eyedropperTip}">
               <StackPanel Orientation="Horizontal">
-                <TextBlock Text="&#xEF3C;" FontFamily="{StaticResource IconFont}" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                <TextBlock Text="&#xEF3C;" FontFamily="{DynamicResource IconFont}" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center"/>
                 <TextBlock Text="{DynamicResource s.bg.eyedropper}" VerticalAlignment="Center"/>
               </StackPanel>
             </Button>
-            <TextBox x:Name="HexBox" Margin="8,0,0,0" FontFamily="{StaticResource MonoFont}" KeyDown="HexBox_KeyDown" LostKeyboardFocus="HexBox_LostFocus"/>
+            <TextBox x:Name="HexBox" Margin="8,0,0,0" FontFamily="{DynamicResource MonoFont}" KeyDown="HexBox_KeyDown" LostKeyboardFocus="HexBox_LostFocus"/>
           </DockPanel>
           <TextBlock x:Name="TransparentNotice" Text="{DynamicResource s.bg.alreadyTransparent}"
-                     Style="{StaticResource Hint}" Foreground="{StaticResource WarnTextBrush}" Margin="0,8,0,0" Visibility="Collapsed"/>
+                     Style="{StaticResource Hint}" Foreground="{DynamicResource WarnTextBrush}" Margin="0,8,0,0" Visibility="Collapsed"/>
 
           <DockPanel Margin="0,20,0,0">
-            <TextBlock x:Name="TolText" DockPanel.Dock="Right" FontFamily="{StaticResource MonoFont}"/>
+            <TextBlock x:Name="TolText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
             <TextBlock Text="{DynamicResource s.bg.tolerance}" Style="{StaticResource SectionLabel}"/>
           </DockPanel>
           <Slider x:Name="TolSlider" Minimum="0" Maximum="100" Value="15" Margin="0,4,0,0"
                   IsSnapToTickEnabled="True" TickFrequency="1" ValueChanged="TolSlider_ValueChanged"/>
           <TextBlock Text="{DynamicResource s.bg.toleranceHint}" Style="{StaticResource Hint}" Margin="0,2,0,0"/>
 
-          <Border Margin="0,20,0,0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="10" Background="{StaticResource InputBrush}" Padding="12">
+          <Border Margin="0,20,0,0" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Background="{DynamicResource InputBrush}" Padding="12">
             <ToggleButton x:Name="ConnectedToggle" Style="{StaticResource Switch}" IsChecked="True" Click="Setting_Changed">
               <StackPanel>
-                <TextBlock Text="{DynamicResource s.bg.connected}" FontSize="13" FontWeight="Bold" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource s.bg.connected}" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource TextBrush}"/>
                 <TextBlock Text="{DynamicResource s.bg.connectedHint}" Style="{StaticResource Hint}" Margin="0,3,0,0"/>
               </StackPanel>
             </ToggleButton>

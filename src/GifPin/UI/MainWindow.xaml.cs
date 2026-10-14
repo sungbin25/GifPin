@@ -52,6 +52,7 @@ public partial class MainWindow : Window
         _app.HotkeysChanged += BuildHotkeyRows;
         _app.RuleStateChanged += RefreshRuleStatus;
         _app.UpdateStatusChanged += RefreshUpdateStatus;
+        _app.ThemeChanged += OnLanguageChanged; // 코드로 만든 줄·메뉴도 새 색으로 다시 만듦
         PreviewKeyDown += OnPreviewKeyDownForHotkey;
         Deactivated += (_, _) => CancelHotkeyCapture();
         Loc.Changed += OnLanguageChanged;
@@ -62,6 +63,7 @@ public partial class MainWindow : Window
         BuildHotkeyRows();
         BuildSceneRows();
         RefreshSceneButton();
+        BuildThemePicker();
         RestoreSavedBounds();
         RefreshSettings();
         RefreshHiddenToggle();
@@ -79,6 +81,7 @@ public partial class MainWindow : Window
 
     private void OnLanguageChanged()
     {
+        BuildThemePicker();
         UpdateCounts();
         UpdateSortLabel();
         BuildHotkeyRows();
@@ -1400,6 +1403,59 @@ public partial class MainWindow : Window
         {
             _perfTimer.Stop();
             _perfTimer = null;
+        }
+    }
+
+    // ── 테마 ─────────────────────────────────────────────────
+
+    /// <summary>테마 고르기: 테마마다 작은 미리보기(바탕·카드·강조색)와 이름.</summary>
+    private void BuildThemePicker()
+    {
+        if (ThemePicker == null) return;
+        ThemePicker.Children.Clear();
+        string current = _app.State.Settings.Theme;
+        foreach (var name in Themes.All)
+        {
+            var (bg, card, accent, text) = Themes.Preview(name);
+            var preview = new Border
+            {
+                Width = 104, Height = 58, CornerRadius = new CornerRadius(6), Background = bg,
+                BorderBrush = Res("BorderBrush"), BorderThickness = new Thickness(1), ClipToBounds = true,
+            };
+            var inner = new Grid();
+            inner.Children.Add(new Border { Height = 10, VerticalAlignment = VerticalAlignment.Top, Background = name == Themes.Xp || name == Themes.Classic ? Themes.Preview(name).accent : bg });
+            inner.Children.Add(new Border
+            {
+                Margin = new Thickness(8, 16, 8, 8), CornerRadius = new CornerRadius(4), Background = card,
+                Child = new StackPanel
+                {
+                    Margin = new Thickness(6, 5, 6, 0),
+                    Children =
+                    {
+                        new Border { Height = 4, Width = 40, HorizontalAlignment = HorizontalAlignment.Left, Background = text, Opacity = 0.7, CornerRadius = new CornerRadius(2) },
+                        new Border { Height = 8, Width = 30, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 5, 0, 0), Background = accent, CornerRadius = new CornerRadius(3) },
+                    },
+                },
+            });
+            if (name == Themes.System)
+            {
+                // 반은 라이트, 반은 다크
+                var (lbg, lcard, _, _) = Themes.Preview(Themes.Light);
+                inner.Children.Insert(0, new Border { Background = lbg, HorizontalAlignment = HorizontalAlignment.Left, Width = 52 });
+            }
+            preview.Child = inner;
+            var label = new TextBlock { Text = Loc.T("theme." + name), FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) };
+            var stack = new StackPanel { Margin = new Thickness(2) };
+            stack.Children.Add(preview);
+            stack.Children.Add(label);
+            var rb = new RadioButton
+            {
+                Style = (Style)FindResource("Segment"), GroupName = "theme", Content = stack, Height = double.NaN,
+                Padding = new Thickness(6), Margin = new Thickness(0, 0, 6, 6), IsChecked = name == current, Tag = name,
+                ToolTip = Loc.T("theme." + name + "Tip"),
+            };
+            rb.Checked += (_, _) => { if (!_updating && rb.Tag is string t && t != _app.State.Settings.Theme) Dispatcher.InvokeAsync(() => _app.SetTheme(t)); };
+            ThemePicker.Children.Add(rb);
         }
     }
 

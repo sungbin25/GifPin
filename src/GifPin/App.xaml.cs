@@ -67,8 +67,17 @@ public partial class App : Application
         };
 
         var state = Store.Load();
+        // 설치 프로그램에서 고른 언어 (새로 설치했을 때 한 번)
+        if (InstallerInfo.PendingLanguage(state.Settings.AppliedInstallStamp) is { } fromInstaller)
+        {
+            state.Settings.Language = fromInstaller.language;
+            state.Settings.AppliedInstallStamp = fromInstaller.stamp;
+            Log.Info($"Language from installer: {fromInstaller.language}");
+            Store.SaveNow(state);
+        }
         Loc.SetLanguage(state.Settings.Language);
         AppController.ApplyLanguageResources();
+        Themes.Apply(state.Settings.Theme);
         bool fromAutostart = e.Args.Any(a => a.Equals("--tray", StringComparison.OrdinalIgnoreCase));
         bool showWindow = !fromAutostart || state.Settings.OpenWindowOnStart;
 
@@ -798,7 +807,30 @@ public partial class App : Application
         var main = Current.Windows.OfType<GifPin.UI.MainWindow>().FirstOrDefault() ?? throw new Exception("main window missing");
         int menus = main.SmokeMenus();
         app.DeleteScene(tmpScene.Id);
-        sb.Append($" menus ok ({menus})");
+        sb.Append($" menus ok ({menus}) ·");
+
+        // 9) 테마: 모든 테마의 색 정의가 빠짐없고, 바꿔도 창이 다시 그려짐 (코드로 만든 줄 포함)
+        if (Themes.CheckDefinitions() is string themeError) throw new Exception("theme definitions: " + themeError);
+        foreach (var t in Themes.All)
+        {
+            app.SetTheme(t);
+            main.UpdateLayout();
+            if (Current.Resources["BgBrush"] is not System.Windows.Media.Brush) throw new Exception($"theme {t}: background missing");
+        }
+        app.SetTheme(Themes.Light);
+        if (Themes.IsDark || Native.DarkTitleBars) throw new Exception("light theme still dark");
+        app.SetTheme(Themes.Dark);
+        if (!Themes.IsDark) throw new Exception("dark theme not dark");
+        sb.Append($" themes ok ({Themes.All.Count}) ·");
+
+        // 10) 설치 프로그램에서 고른 언어: 새 설치 표시면 적용 대상, 이미 적용한 설치면 아님
+        InstallerInfo.WriteForTest("korean", "smoke-1");
+        if (InstallerInfo.PendingLanguage(null) is not { language: "ko" }) throw new Exception("installer language (korean) not read");
+        if (InstallerInfo.PendingLanguage("smoke-1") != null) throw new Exception("installer language applied twice");
+        InstallerInfo.WriteForTest("english", "smoke-2");
+        if (InstallerInfo.PendingLanguage("smoke-1") is not { language: "en" }) throw new Exception("installer language (english) not read");
+        InstallerInfo.ClearForTest();
+        sb.Append(" installer language ok");
         return sb.ToString();
     }
 
