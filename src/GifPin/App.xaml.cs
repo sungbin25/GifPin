@@ -856,6 +856,24 @@ public partial class App : Application
         string gid = app.State.Active[0].Id;
         app.UpdateActive(gid, x => { x.Visible = true; x.FxGlow = true; x.FxGlowColor = "#00FF00"; x.FxGlowStrength = 300; x.FxGlowPulse = false; });
         if (app.State.Active[0].FxGlowStrength != 300) throw new Exception("glow strength above 100% was clamped");
+        // 화면 캡처: 같은 GIF의 빛 100% / 300% (테마 스크린샷과 같은 폴더)
+        {
+            var it = app.State.Active[0];
+            var (sw, sh) = app.ShownSize(it);
+            app.Relocate(gid, 300, 300);
+            foreach (var strength in new[] { 100, 300 })
+            {
+                app.UpdateActive(gid, x => { x.FxGlowStrength = strength; x.FxGlowSize = 16; x.FxGlowColor = "#FFD54F"; });
+                await System.Threading.Tasks.Task.Delay(600);
+                using var bmp = new System.Drawing.Bitmap(sw + 160, sh + 160);
+                using (var g = System.Drawing.Graphics.FromImage(bmp)) g.CopyFromScreen(300 - 80, 300 - 80, 0, 0, bmp.Size);
+                bmp.Save(System.IO.Path.Combine(shots, $"glow-{strength}.png"), System.Drawing.Imaging.ImageFormat.Png);
+            }
+            var picker = GifPin.UI.ColorPicker.ShowForShot();
+            await System.Threading.Tasks.Task.Delay(300);
+            SaveShot(picker, System.IO.Path.Combine(shots, "color-picker.png"));
+            picker.Close();
+        }
         app.UpdateActive(gid, x => { x.FxParticles = true; x.FxParticleMode = Fx.Always; x.FxParticleRate = 30; x.FxParticleKind = Fx.Dot; x.FxParticleColor = "#FF0000,#0000FF"; });
         await System.Threading.Tasks.Task.Delay(1000);
         var colorsSeen = await eng.ParticleColorsAsync(gid);

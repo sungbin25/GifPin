@@ -263,6 +263,15 @@ public sealed class ColorPicker : Window
         return (h, max == 0 ? 0 : d / max, max);
     }
 
+    /// <summary>점검용: 스크린샷을 찍으려고 띄운 창 (닫는 것은 부른 쪽).</summary>
+    internal static Window ShowForShot()
+    {
+        var w = new ColorPicker(Color.FromRgb(0x4C, 0x8D, 0xFF), new[] { "#FF6F9E", "#13A58A", "#FFD54F" });
+        w.Show();
+        w.UpdateLayout();
+        return w;
+    }
+
     /// <summary>점검용: 창을 띄웠다 닫기.</summary>
     internal static void SmokeOpenClose()
     {
