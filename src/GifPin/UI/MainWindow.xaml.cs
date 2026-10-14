@@ -1746,7 +1746,11 @@ public partial class MainWindow : Window
     internal void ScrollToThemeForTest()
     {
         UpdateLayout();
-        ThemePicker.BringIntoView(new Rect(0, 0, 10, 40));
+        if (SettingsView.Content is UIElement content)
+        {
+            var y = CustomThemePanel.TranslatePoint(new Point(0, 0), content).Y;
+            SettingsView.ScrollToVerticalOffset(Math.Max(0, y - 40));
+        }
         UpdateLayout();
     }
 
