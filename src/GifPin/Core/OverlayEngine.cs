@@ -184,7 +184,12 @@ public sealed class OverlayEngine : IDisposable
     {
         _overlayProc = OverlayProc;
         _msgProc = MsgProc;
-        _winEventProc = (_, _, hwnd, _, _, _, _) => { if (!_byHwnd.ContainsKey(hwnd)) BringAllToTop(); };
+        _winEventProc = (_, _, hwnd, _, _, _, _) =>
+        {
+            if (_byHwnd.ContainsKey(hwnd)) return;
+            BringAllToTop();
+            CheckAppRules();
+        };
     }
 
     /// <summary>등록하지 못한 단축키 이름 (다른 프로그램이 사용 중).</summary>
@@ -278,6 +283,7 @@ public sealed class OverlayEngine : IDisposable
                     if ((nuint)wParam == TIMER_HOVER) { CheckHover(); return IntPtr.Zero; }
                     BringAllToTop();
                     CheckFxPause();
+                    CheckAppRules();
                     return IntPtr.Zero;
             }
         }
@@ -315,7 +321,7 @@ public sealed class OverlayEngine : IDisposable
                 _byHwnd[w.Hwnd] = w;
                 w.SetEditMode(_editMode);
                 w.SetSelected(_selectedId == snapshot.Id);
-                w.SetGlobalHidden(_allHidden);
+                w.SetGlobalHidden(_allHidden || RuleHiddenBy != null);
                 w.SetCaptureExcluded(_hideFromCapture);
                 UpdateHoverTimer();
             }
@@ -608,8 +614,43 @@ public sealed class OverlayEngine : IDisposable
     public void SetAllHidden(bool hidden) => Post(() =>
     {
         _allHidden = hidden;
-        foreach (var w in _byId.Values) w.SetGlobalHidden(hidden);
+        ApplyGlobalHidden();
     });
+
+    private void ApplyGlobalHidden()
+    {
+        foreach (var w in _byId.Values) w.SetGlobalHidden(_allHidden || RuleHiddenBy != null);
+    }
+
+    // ── 프로그램별 숨기기 ────────────────────────────────────
+
+    private readonly AppRules _rules = new();
+    /// <summary>지금 이 프로그램 때문에 모두 숨긴 상태 (없으면 null).</summary>
+    public string? RuleHiddenBy { get; private set; }
+    /// <summary>프로그램별 숨기기 상태가 바뀜 (엔진 스레드).</summary>
+    public event Action<string?>? RuleHiddenChanged;
+
+    public void SetAppRules(IReadOnlyList<string> apps, bool whileRunning)
+    {
+        var copy = apps.ToList();
+        Post(() =>
+        {
+            _rules.Configure(copy, whileRunning);
+            CheckAppRules();
+        });
+    }
+
+    private void CheckAppRules()
+    {
+        string? by;
+        try { by = _rules.Check(RuleHiddenBy); }
+        catch (Exception ex) { Log.Warn("Could not check program rules", ex); return; }
+        if (by == RuleHiddenBy) return;
+        Log.Info(by != null ? $"Program rule: hiding GIFs for {by}" : "Program rule ended: showing GIFs");
+        RuleHiddenBy = by;
+        ApplyGlobalHidden();
+        RuleHiddenChanged?.Invoke(by);
+    }
 
     /// <summary>위치를 강제로 옮김 (움직이는 GIF 포함).</summary>
     public void Relocate(string id, int x, int y) => Post(() =>
@@ -775,4 +816,6 @@ public sealed record OverlayProbe(ActiveItem Item, bool MotionRunning, bool Held
     public bool CaptureExcluded { get; init; }
     public double FadeOpacity { get; init; }
     public bool FxPaused { get; init; }
+    public bool Shown { get; init; }
+    public bool GifPlaying { get; init; }
 }

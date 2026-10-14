@@ -48,6 +48,7 @@ public partial class MainWindow : Window
         _app.SettingsChanged += RefreshSettings;
         _app.ScenesChanged += BuildSceneRows;
         _app.HotkeysChanged += BuildHotkeyRows;
+        _app.RuleStateChanged += RefreshRuleStatus;
         PreviewKeyDown += OnPreviewKeyDownForHotkey;
         Deactivated += (_, _) => CancelHotkeyCapture();
         Loc.Changed += OnLanguageChanged;
@@ -391,6 +392,7 @@ public partial class MainWindow : Window
             ScreenBadgeText.Text = Loc.F("panel.screenN", index);
             ActiveProps.Visibility = Visibility.Visible;
             ActiveButtons.Visibility = Visibility.Visible;
+            StyleButton.Visibility = Visibility.Visible;
             PhotoButtons.Visibility = Visibility.Collapsed;
             FillActiveValues(active);
             _previewPlayer.Speed = active.Speed;
@@ -401,6 +403,7 @@ public partial class MainWindow : Window
             ScreenBadge.Visibility = Visibility.Collapsed;
             ActiveProps.Visibility = Visibility.Collapsed;
             ActiveButtons.Visibility = Visibility.Collapsed;
+            StyleButton.Visibility = Visibility.Collapsed;
             PhotoButtons.Visibility = Visibility.Visible;
             var sel = _app.SelectedActive;
             var selPhoto = _app.State.FindPhoto(sel?.PhotoId);
@@ -1090,6 +1093,17 @@ public partial class MainWindow : Window
         HoverFadeOptions.Visibility = s.HoverFade ? Visibility.Visible : Visibility.Collapsed;
         HoverFadeSlider.Value = s.HoverFadeOpacity;
         HoverFadeText.Text = $"{s.HoverFadeOpacity}%";
+        NewItemSizeSlider.Value = s.NewItemSize;
+        NewItemSizeText.Text = $"{s.NewItemSize} px";
+        var template = s.NewItemTemplate ?? new ActiveItem();
+        NewLayerTop.IsChecked = Layers.Normalize(template.Layer) == Layers.Top;
+        NewLayerDesktop.IsChecked = Layers.Normalize(template.Layer) == Layers.Desktop;
+        NewClickThroughToggle.IsChecked = template.ClickThrough;
+        TemplateSummaryText.Text = _app.TemplateSummary();
+        RuleForeground.IsChecked = !s.HideForAppsWhileRunning;
+        RuleRunning.IsChecked = s.HideForAppsWhileRunning;
+        BuildAppRuleRows();
+        RefreshRuleStatus();
         HoldSlider.Value = s.HoldToGrabMs;
         HoldText.Text = DelayText(s.HoldToGrabMs);
         ResumeSlider.Value = s.ResumeDelayMs;
@@ -1274,6 +1288,149 @@ public partial class MainWindow : Window
     {
         if (_updating) return;
         _app.SetEffectsOff(EffectsOffToggle.IsChecked == true);
+    }
+
+    // ── 새 GIF 기본값 ────────────────────────────────────────
+
+    private void NewItemSize_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (NewItemSizeText == null) return;
+        NewItemSizeText.Text = $"{e.NewValue:0} px";
+        if (_updating) return;
+        _app.SetNewItemSize((int)e.NewValue);
+    }
+
+    private void NewLayer_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_updating || sender is not RadioButton rb || rb.Tag is not string layer) return;
+        _app.ChangeTemplate(t => t.Layer = Layers.Normalize(layer));
+    }
+
+    private void NewClickThrough_Click(object sender, RoutedEventArgs e)
+    {
+        if (_updating) return;
+        bool on = NewClickThroughToggle.IsChecked == true;
+        _app.ChangeTemplate(t => t.ClickThrough = on);
+    }
+
+    private void TemplateFromSelected_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_app.TemplateFromSelected()) ShowToast(Loc.T("newItem.selectFirst"));
+    }
+
+    private void TemplateReset_Click(object sender, RoutedEventArgs e) => _app.ClearTemplate();
+
+    // ── 프로그램별 숨기기 ────────────────────────────────────
+
+    private void RuleMode_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_updating || sender is not RadioButton rb || rb.Tag is not string mode) return;
+        _app.SetAppRuleMode(mode == "run");
+    }
+
+    private void BuildAppRuleRows()
+    {
+        AppRuleRows.Children.Clear();
+        foreach (var exe in _app.State.Settings.HideForApps)
+        {
+            AppRuleRows.Children.Add(new Border { Height = 1, Background = Res("LineBrush") });
+            var dock = new DockPanel { Margin = new Thickness(18, 8, 18, 8) };
+            string name = exe;
+            var remove = new Button { Content = Loc.T("rules.remove"), Height = 28, Padding = new Thickness(10, 0, 10, 0), FontSize = 12 };
+            remove.Click += (_, _) => _app.RemoveAppRule(name);
+            DockPanel.SetDock(remove, Dock.Right);
+            dock.Children.Add(remove);
+            dock.Children.Add(new TextBlock { Text = exe, FontFamily = (System.Windows.Media.FontFamily)FindResource("MonoFont"), VerticalAlignment = VerticalAlignment.Center });
+            AppRuleRows.Children.Add(dock);
+        }
+    }
+
+    private void RefreshRuleStatus()
+    {
+        if (RuleStatusText == null) return;
+        var by = _app.Engine.RuleHiddenBy;
+        RuleStatusText.Text = _app.State.Settings.HideForApps.Count == 0 ? Loc.T("rules.empty")
+            : by != null ? Loc.F("rules.hiddenNow", by) : Loc.T("rules.notNow");
+        RuleStatusText.Foreground = Res(by != null ? "WarnTextBrush" : "TextMutedBrush");
+    }
+
+    private void AddRunningApp_Click(object sender, RoutedEventArgs e)
+    {
+        var menu = new ContextMenu();
+        var apps = AppRules.RunningWindowedApps();
+        foreach (var (exe, title) in apps)
+        {
+            string name = exe;
+            var item = new MenuItem { Header = $"{exe}  —  {(title.Length > 40 ? title[..40] + "…" : title)}" };
+            item.Click += (_, _) => _app.AddAppRule(name);
+            menu.Items.Add(item);
+        }
+        if (apps.Count == 0) menu.Items.Add(new MenuItem { Header = Loc.T("rules.noneRunning"), IsEnabled = false });
+        menu.PlacementTarget = AddRunningAppButton;
+        menu.Placement = PlacementMode.Bottom;
+        menu.IsOpen = true;
+    }
+
+    private void BrowseApp_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog { Filter = Loc.T("rules.exeFilter") + "|*.exe", Title = Loc.T("rules.browse") };
+        if (dlg.ShowDialog(this) == true) _app.AddAppRule(dlg.FileName);
+    }
+
+    // ── 설정 복사·붙여넣기 / 효과 프리셋 ───────────────────────
+
+    private void OpenMenu(Button target, ContextMenu menu)
+    {
+        menu.PlacementTarget = target;
+        menu.Placement = PlacementMode.Bottom;
+        menu.IsOpen = true;
+    }
+
+    private static MenuItem MenuEntry(string header, Action onClick, bool enabled = true)
+    {
+        var item = new MenuItem { Header = header, IsEnabled = enabled };
+        item.Click += (_, _) => onClick();
+        return item;
+    }
+
+    private void StyleButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_app.SelectedActiveId is not string id) return;
+        bool has = _app.CopiedStyle != null;
+        var menu = new ContextMenu();
+        menu.Items.Add(MenuEntry(Loc.T("style.copy"), () => _app.CopyStyle(id)));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(MenuEntry(Loc.T("style.paste"), () => _app.PasteStyle(id, effectsOnly: false), has));
+        menu.Items.Add(MenuEntry(Loc.T("style.pasteEffects"), () => _app.PasteStyle(id, effectsOnly: true), has));
+        menu.Items.Add(MenuEntry(Loc.T("style.pasteAll"), () => _app.PasteStyleToAll(effectsOnly: false), has && _app.State.Active.Count > 1));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(MenuEntry(Loc.T("style.asDefault"), () => _app.TemplateFromSelected()));
+        OpenMenu(StyleButton, menu);
+    }
+
+    private void PresetButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_app.SelectedActiveId is not string id) return;
+        var menu = new ContextMenu();
+        foreach (var preset in _app.AllPresets())
+        {
+            string pid = preset.Id;
+            menu.Items.Add(MenuEntry((preset.BuiltIn ? "✦ " : "") + preset.Name, () => _app.ApplyPreset(id, pid)));
+        }
+        menu.Items.Add(new Separator());
+        menu.Items.Add(MenuEntry(Loc.T("preset.save"), () =>
+        {
+            var name = TextPrompt.Ask(this, Loc.T("preset.save"), Loc.T("preset.nameLabel"), Loc.F("preset.defaultName", _app.State.EffectPresets.Count + 1));
+            if (name != null) _app.SavePreset(id, name);
+        }));
+        var del = new MenuItem { Header = Loc.T("preset.delete"), IsEnabled = _app.State.EffectPresets.Count > 0 };
+        foreach (var preset in _app.State.EffectPresets.ToList())
+        {
+            string pid = preset.Id;
+            del.Items.Add(MenuEntry(preset.Name, () => _app.DeletePreset(pid)));
+        }
+        menu.Items.Add(del);
+        OpenMenu(PresetButton, menu);
     }
 
     // ── 장면 ─────────────────────────────────────────────────

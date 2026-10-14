@@ -70,6 +70,7 @@ public sealed class AppController
         Engine.Clicked += id => _ui.InvokeAsync(() => SelectActive(id, flash: false));
         Engine.HotkeyPressed += id => _ui.InvokeAsync(() => OnHotkey(id));
         Engine.LoadFailed += (id, msg) => _ui.InvokeAsync(() => Notice?.Invoke(Loc.F("notice.loadFailed", msg)));
+        Engine.RuleHiddenChanged += by => _ui.InvokeAsync(() => { RuleStateChanged?.Invoke(); _tray?.Refresh(); });
     }
 
     // ── 시작 / 종료 ──────────────────────────────────────────
@@ -85,6 +86,7 @@ public sealed class AppController
         Engine.SetHideFromCapture(State.Settings.HideFromCapture);
         Engine.SetHoverFade(State.Settings.HoverFade, State.Settings.HoverFadeOpacity);
         Engine.SetEffectsOff(State.Settings.EffectsOff);
+        Engine.SetAppRules(State.Settings.HideForApps, State.Settings.HideForAppsWhileRunning);
         ApplyHotkeys();
 
         // 파일이 사라진 사진을 쓰는 GIF는 화면에서 내림
@@ -428,19 +430,22 @@ public sealed class AppController
     {
         var p = State.FindPhoto(photoId);
         if (p == null) return;
-        double scale = Math.Max(p.Width, p.Height) > 400 ? 400.0 / Math.Max(p.Width, p.Height) : 1.0;
-        if (p.Pixelated && Math.Max(p.Width, p.Height) < 96) scale = Math.Floor(160.0 / Math.Max(p.Width, p.Height)); // 작은 도트는 정수배로 키움
+        int maxSide = Math.Max(1, Math.Max(p.Width, p.Height));
+        int limit = State.Settings.NewItemSize;
+        double scale = maxSide > limit ? (double)limit / maxSide : 1.0;
+        if (p.Pixelated && maxSide < 96) scale = Math.Floor(160.0 / maxSide); // 작은 도트는 정수배로 키움
+        scale = Math.Clamp(scale, 0.1, 4.0);
         int w = (int)Math.Round(p.Width * scale), h = (int)Math.Round(p.Height * scale);
         var mon = Monitors.Primary(MonitorList.Count > 0 ? MonitorList : Monitors.List());
         int offset = (State.Active.Count % 6) * 28;
-        var a = new ActiveItem
-        {
-            Id = Store.NewId("a"),
-            PhotoId = p.Id,
-            Scale = Math.Round(scale, 3),
-            X = mon.WorkRight - w - 24 - offset,
-            Y = mon.WorkBottom - h - 24 - offset,
-        };
+        var a = new ActiveItem();
+        if (State.Settings.NewItemTemplate is ActiveItem template) a.CopyStyleFrom(template); // 새 GIF 기본값 (움직임·효과·층…)
+        a.Id = Store.NewId("a");
+        a.PhotoId = p.Id;
+        a.Scale = Math.Round(scale, 3);
+        a.X = mon.WorkRight - w - 24 - offset;
+        a.Y = mon.WorkBottom - h - 24 - offset;
+        a.FxParticleImages = string.Join(",", Fx.ParticleImageIds(a).Where(id => State.FindPhoto(id) != null)); // 지워진 사진은 뺌
         State.Active.Add(a);
         p.LastUsedAt = DateTimeOffset.Now;
         SyncToEngine(a);
@@ -915,6 +920,149 @@ public sealed class AppController
         _tray?.Refresh();
         SettingsChanged?.Invoke();
         Save();
+    }
+
+    // ── 새 GIF 기본값 ────────────────────────────────────────
+
+    /// <summary>새 GIF 기본값 템플릿 (없으면 기본 설정으로 새로 만듦 — 고치면 저장됨).</summary>
+    public ActiveItem EditableTemplate => State.Settings.NewItemTemplate ??= new ActiveItem();
+
+    public void SetNewItemSize(int px)
+    {
+        State.Settings.NewItemSize = Math.Clamp(px, 32, 2000);
+        Save();
+    }
+
+    public void ChangeTemplate(Action<ActiveItem> change)
+    {
+        change(EditableTemplate);
+        EditableTemplate.Normalize();
+        Save();
+        SettingsChanged?.Invoke();
+    }
+
+    /// <summary>선택한 GIF의 움직임·효과·표시 방식을 새 GIF 기본값으로.</summary>
+    public bool TemplateFromSelected()
+    {
+        if (SelectedActive is not ActiveItem a) return false;
+        var t = new ActiveItem();
+        t.CopyStyleFrom(a);
+        State.Settings.NewItemTemplate = t;
+        Save();
+        Notice?.Invoke(Loc.T("notice.templateSaved"));
+        SettingsChanged?.Invoke();
+        return true;
+    }
+
+    public void ClearTemplate()
+    {
+        State.Settings.NewItemTemplate = null;
+        Save();
+        SettingsChanged?.Invoke();
+    }
+
+    /// <summary>기본값 요약 ("걷기 · 효과 2개 · 바탕화면").</summary>
+    public string TemplateSummary()
+    {
+        var t = State.Settings.NewItemTemplate;
+        if (t == null) return Loc.T("newItem.summaryDefault");
+        var parts = new List<string> { Loc.T("motion." + Motion.Normalize(t.MotionMode)) };
+        int fx = t.EnabledEffectCount();
+        parts.Add(fx == 0 ? Loc.T("newItem.noEffects") : Loc.F("newItem.effectsN", fx));
+        return string.Join(" · ", parts);
+    }
+
+    // ── 설정 복사·붙여넣기 / 효과 프리셋 ───────────────────────
+
+    /// <summary>복사해 둔 설정 (앱 안에서만).</summary>
+    public ActiveItem? CopiedStyle { get; private set; }
+
+    public void CopyStyle(string activeId)
+    {
+        var a = State.Active.FirstOrDefault(x => x.Id == activeId);
+        if (a == null) return;
+        CopiedStyle = a.Clone();
+        Notice?.Invoke(Loc.T("notice.styleCopied"));
+    }
+
+    public void PasteStyle(string activeId, bool effectsOnly)
+    {
+        if (CopiedStyle is not ActiveItem src) return;
+        UpdateActive(activeId, a => a.CopyStyleFrom(src, effectsOnly));
+        Notice?.Invoke(Loc.T(effectsOnly ? "notice.effectsPasted" : "notice.stylePasted"));
+        SelectionChanged?.Invoke();
+    }
+
+    public void PasteStyleToAll(bool effectsOnly)
+    {
+        if (CopiedStyle is not ActiveItem src) return;
+        foreach (var a in State.Active.ToList()) UpdateActive(a.Id, x => x.CopyStyleFrom(src, effectsOnly));
+        Notice?.Invoke(Loc.F("notice.stylePastedAll", State.Active.Count));
+        SelectionChanged?.Invoke();
+    }
+
+    /// <summary>기본 프리셋 + 내가 저장한 프리셋.</summary>
+    public IEnumerable<EffectPreset> AllPresets() => EffectPreset.BuiltIns().Concat(State.EffectPresets);
+
+    public void ApplyPreset(string activeId, string presetId)
+    {
+        var preset = AllPresets().FirstOrDefault(x => x.Id == presetId);
+        if (preset == null) return;
+        UpdateActive(activeId, a => a.CopyStyleFrom(preset.Values, effectsOnly: true));
+        Notice?.Invoke(Loc.F("notice.presetApplied", preset.Name));
+        SelectionChanged?.Invoke();
+    }
+
+    public EffectPreset? SavePreset(string activeId, string name)
+    {
+        var a = State.Active.FirstOrDefault(x => x.Id == activeId);
+        if (a == null || string.IsNullOrWhiteSpace(name)) return null;
+        var values = new ActiveItem();
+        values.CopyStyleFrom(a, effectsOnly: true);
+        var existing = State.EffectPresets.FirstOrDefault(x => string.Equals(x.Name, name.Trim(), StringComparison.CurrentCultureIgnoreCase));
+        if (existing != null) existing.Values = values; // 같은 이름이면 덮어씀
+        else State.EffectPresets.Add(existing = new EffectPreset { Id = Store.NewId("e"), Name = name.Trim(), Values = values });
+        Save();
+        Notice?.Invoke(Loc.F("notice.presetSaved", existing.Name));
+        return existing;
+    }
+
+    public void DeletePreset(string presetId)
+    {
+        if (State.EffectPresets.RemoveAll(x => x.Id == presetId) > 0) Save();
+    }
+
+    // ── 프로그램별 숨기기 ────────────────────────────────────
+
+    /// <summary>프로그램 규칙 때문에 숨김 상태가 바뀜.</summary>
+    public event Action? RuleStateChanged;
+
+    public void AddAppRule(string exe)
+    {
+        string name = AppRules.NormalizeName(exe);
+        if (State.Settings.HideForApps.Any(x => string.Equals(x, name, StringComparison.OrdinalIgnoreCase))) return;
+        State.Settings.HideForApps.Add(name);
+        ApplyAppRules();
+    }
+
+    public void RemoveAppRule(string exe)
+    {
+        State.Settings.HideForApps.RemoveAll(x => string.Equals(x, exe, StringComparison.OrdinalIgnoreCase));
+        ApplyAppRules();
+    }
+
+    public void SetAppRuleMode(bool whileRunning)
+    {
+        State.Settings.HideForAppsWhileRunning = whileRunning;
+        ApplyAppRules();
+    }
+
+    private void ApplyAppRules()
+    {
+        State.Settings.Normalize();
+        Engine.SetAppRules(State.Settings.HideForApps, State.Settings.HideForAppsWhileRunning);
+        Save();
+        SettingsChanged?.Invoke();
     }
 
     // ── 장면 (저장한 화면 배치) ────────────────────────────────

@@ -161,6 +161,26 @@ public sealed class ActiveItem
 
     public ActiveItem Clone() => (ActiveItem)MemberwiseClone();
 
+    /// <summary>"모양" 설정이 아닌 것: 어느 사진·어디·얼마나 크게·보이는지 (설정 복사·기본값·프리셋에서 제외).</summary>
+    private static readonly HashSet<string> PlacementProps = new() { nameof(Id), nameof(PhotoId), nameof(X), nameof(Y), nameof(Scale), nameof(Visible) };
+
+    private static readonly System.Reflection.PropertyInfo[] StyleProps = typeof(ActiveItem).GetProperties()
+        .Where(p => p.CanRead && p.CanWrite && !PlacementProps.Contains(p.Name)).ToArray();
+
+    /// <summary>
+    /// 다른 GIF의 설정(움직임·효과·표시 방식)을 가져옴. 위치·크기·사진은 그대로.
+    /// effectsOnly면 효과 레이어(Fx…)만.
+    /// </summary>
+    public void CopyStyleFrom(ActiveItem src, bool effectsOnly = false)
+    {
+        foreach (var p in StyleProps)
+            if (!effectsOnly || p.Name.StartsWith("Fx", StringComparison.Ordinal)) p.SetValue(this, p.GetValue(src));
+        Normalize();
+    }
+
+    /// <summary>켜져 있는 효과 이름들 (요약 표시용).</summary>
+    public int EnabledEffectCount() => new[] { FxFloat, FxBreathe, FxSway, FxSpin, FxBlink, FxSquash, FxDust, FxTrail, FxShadow, FxGlow, FxParticles }.Count(b => b);
+
     /// <summary>
     /// 모든 값을 허용 범위로 바로잡음. 화면에서 바꿀 때뿐 아니라 저장 파일을 불러올 때도 실행
     /// (파일이 손상되거나 손으로 고친 값 때문에 매 프레임 오류·과부하가 나지 않게).
@@ -242,11 +262,56 @@ public sealed class AppSettings
     /// <summary>전역 단축키: 동작 → "Ctrl+Alt+E" (빈 글자 = 없음)</summary>
     public Dictionary<string, string> Hotkeys { get; set; } = new();
 
+    /// <summary>새 GIF를 화면에 올릴 때의 크기: 긴 변이 이보다 크면 이만큼으로 줄임 (px)</summary>
+    public int NewItemSize { get; set; } = 400;
+    /// <summary>새 GIF에 적용할 설정 (움직임·효과·층·클릭 통과 등). null = 기본값</summary>
+    public ActiveItem? NewItemTemplate { get; set; }
+
+    /// <summary>이 프로그램이 앞에 있거나(또는 실행 중이면) GIF를 모두 숨김 (실행 파일 이름, 예: "POWERPNT.EXE")</summary>
+    public List<string> HideForApps { get; set; } = new();
+    /// <summary>false = 그 프로그램이 앞에 있을 때만, true = 실행 중이기만 해도</summary>
+    public bool HideForAppsWhileRunning { get; set; }
+
     /// <summary>저장된 값을 허용 범위로 바로잡음.</summary>
     public void Normalize()
     {
         HoverFadeOpacity = Math.Clamp(HoverFadeOpacity, 0, 90);
         Hotkeys = Core.Hotkeys.Normalize(Hotkeys);
+        NewItemSize = Math.Clamp(NewItemSize, 32, 2000);
+        NewItemTemplate?.Normalize();
+        HideForApps = (HideForApps ?? new()).Where(a => !string.IsNullOrWhiteSpace(a))
+            .Select(AppRules.NormalizeName).Distinct(StringComparer.OrdinalIgnoreCase).Take(50).ToList();
+    }
+}
+
+/// <summary>이름 붙여 저장한 효과 조합.</summary>
+public sealed class EffectPreset
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    /// <summary>효과 값 (Fx… 속성만 씀)</summary>
+    public ActiveItem Values { get; set; } = new();
+    /// <summary>앱에 들어 있는 기본 프리셋 (저장되지 않음, 지울 수 없음)</summary>
+    [JsonIgnore] public bool BuiltIn { get; set; }
+
+    /// <summary>기본 프리셋: 이름은 문구 키(preset.*)로 현재 언어에 맞춰 표시.</summary>
+    public static IReadOnlyList<EffectPreset> BuiltIns()
+    {
+        EffectPreset Make(string key, Action<ActiveItem> set)
+        {
+            var v = new ActiveItem();
+            set(v);
+            v.Normalize();
+            return new EffectPreset { Id = "builtin:" + key, Name = Loc.T("preset." + key), Values = v, BuiltIn = true };
+        }
+        return new[]
+        {
+            Make("sparkle", v => { v.FxParticles = true; v.FxParticleKind = Fx.Sparkle; v.FxParticleStyle = Fx.Rise; v.FxParticleRate = 5; v.FxGlow = true; v.FxGlowColor = "#FFF3B0"; v.FxGlowSize = 8; v.FxGlowStrength = 55; v.FxGlowPulse = true; }),
+            Make("love", v => { v.FxParticles = true; v.FxParticleKind = Fx.Heart; v.FxParticleColor = "#FF6FA5"; v.FxParticleRate = 3; v.FxBreathe = true; v.FxBreatheAmount = 5; v.FxBreathePeriod = 1.2; }),
+            Make("ghost", v => { v.FxFloat = true; v.FxFloatAmp = 12; v.FxBlink = true; v.FxBlinkMin = 55; v.FxBlinkPeriod = 3; v.FxTrail = true; v.FxTrailCount = 4; v.FxTrailOpacity = 30; }),
+            Make("bouncy", v => { v.FxSquash = true; v.FxSquashAmount = 35; v.FxDust = true; v.FxShadow = true; }),
+            Make("dreamy", v => { v.FxFloat = true; v.FxFloatAmp = 8; v.FxFloatPeriod = 3.5; v.FxShadow = true; v.FxParticles = true; v.FxParticleKind = Fx.Dot; v.FxParticleRate = 4; v.FxParticleColor = Fx.Rainbow; }),
+        };
     }
 }
 
@@ -278,6 +343,7 @@ public sealed class AppState
     public List<ActiveItem> Active { get; set; } = new();
     public AppSettings Settings { get; set; } = new();
     public List<Scene> Scenes { get; set; } = new();
+    public List<EffectPreset> EffectPresets { get; set; } = new();
     /// <summary>마지막으로 적용한 장면 (다음 장면 단축키용)</summary>
     public string? CurrentSceneId { get; set; }
 
@@ -339,6 +405,9 @@ public static class Store
         s.Library ??= new();
         s.Active ??= new();
         s.Scenes ??= new();
+        s.EffectPresets ??= new();
+        s.EffectPresets.RemoveAll(x => x == null || x.Values == null);
+        foreach (var ep in s.EffectPresets) { ep.Values.Normalize(); if (string.IsNullOrEmpty(ep.Id)) ep.Id = NewId("e"); }
         s.Scenes.RemoveAll(sc => sc == null);
         foreach (var sc in s.Scenes)
         {

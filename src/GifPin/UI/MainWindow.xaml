@@ -299,6 +299,7 @@
                   <TextBlock Text="{DynamicResource s.panel.removeBg}" VerticalAlignment="Center"/>
                 </StackPanel>
               </Button>
+              <Button x:Name="StyleButton" Height="34" Margin="0,8,0,0" Content="{DynamicResource s.panel.copyPaste}" Click="StyleButton_Click"/>
               <Grid x:Name="ActiveButtons" Margin="0,8,0,0">
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="*"/>
@@ -603,6 +604,7 @@
                   <!-- 효과 레이어 -->
                   <DockPanel Margin="0,18,0,0">
                     <Button DockPanel.Dock="Right" Height="24" Padding="10,0" FontSize="12" Content="{DynamicResource s.fx.allOff}" Click="FxAllOff_Click"/>
+                    <Button x:Name="PresetButton" DockPanel.Dock="Right" Height="24" Padding="10,0" FontSize="12" Margin="0,0,6,0" Content="{DynamicResource s.fx.presets}" Click="PresetButton_Click"/>
                     <TextBlock Text="{DynamicResource s.fx.title}" Style="{StaticResource SectionLabel}" VerticalAlignment="Center"/>
                   </DockPanel>
                   <TextBlock Text="{DynamicResource s.fx.hint}" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,4,0,0"/>
@@ -967,6 +969,77 @@
               </StackPanel>
             </DockPanel>
             <StackPanel x:Name="SceneRows"/>
+          </StackPanel>
+        </Border>
+
+        <TextBlock Text="{DynamicResource s.set.newItem}" Style="{StaticResource SettingsHeader}"/>
+        <Border Style="{StaticResource SettingsCard}">
+          <StackPanel>
+            <DockPanel Margin="18,14">
+              <StackPanel DockPanel.Dock="Right" Width="240" Margin="16,0,0,0" VerticalAlignment="Center">
+                <TextBlock x:Name="NewItemSizeText" HorizontalAlignment="Right" FontFamily="{StaticResource MonoFont}"/>
+                <Slider x:Name="NewItemSizeSlider" Minimum="64" Maximum="1200" TickFrequency="8" IsSnapToTickEnabled="True" Margin="0,4,0,0" ValueChanged="NewItemSize_ValueChanged"/>
+              </StackPanel>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{DynamicResource s.newItem.size}" FontSize="14"/>
+                <TextBlock Text="{DynamicResource s.newItem.sizeDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
+              </StackPanel>
+            </DockPanel>
+            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <DockPanel Margin="18,14">
+              <Border DockPanel.Dock="Right" Style="{StaticResource SegmentBox}" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal">
+                  <RadioButton x:Name="NewLayerTop" Style="{StaticResource Segment}" GroupName="newLayer" Tag="top" Content="{DynamicResource s.layer.top}" Padding="12,0" Checked="NewLayer_Checked"/>
+                  <RadioButton x:Name="NewLayerDesktop" Style="{StaticResource Segment}" GroupName="newLayer" Tag="desktop" Content="{DynamicResource s.layer.desktop}" Padding="12,0" Checked="NewLayer_Checked"/>
+                </StackPanel>
+              </Border>
+              <TextBlock Text="{DynamicResource s.newItem.layer}" FontSize="14" VerticalAlignment="Center"/>
+            </DockPanel>
+            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <ToggleButton x:Name="NewClickThroughToggle" Style="{StaticResource Switch}" Margin="18,14" Click="NewClickThrough_Click">
+              <StackPanel>
+                <TextBlock Text="{DynamicResource s.newItem.clickThrough}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource s.newItem.clickThroughDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
+              </StackPanel>
+            </ToggleButton>
+            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <DockPanel Margin="18,14">
+              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Height="30" Content="{DynamicResource s.newItem.fromSelected}" Click="TemplateFromSelected_Click"/>
+                <Button Height="30" Margin="8,0,0,0" Content="{DynamicResource s.newItem.reset}" Click="TemplateReset_Click"/>
+              </StackPanel>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{DynamicResource s.newItem.style}" FontSize="14"/>
+                <TextBlock x:Name="TemplateSummaryText" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
+              </StackPanel>
+            </DockPanel>
+          </StackPanel>
+        </Border>
+
+        <TextBlock Text="{DynamicResource s.set.appRules}" Style="{StaticResource SettingsHeader}"/>
+        <Border Style="{StaticResource SettingsCard}">
+          <StackPanel>
+            <DockPanel Margin="18,14">
+              <Border DockPanel.Dock="Right" Style="{StaticResource SegmentBox}" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal">
+                  <RadioButton x:Name="RuleForeground" Style="{StaticResource Segment}" GroupName="ruleMode" Tag="fg" Content="{DynamicResource s.rules.foreground}" Padding="12,0" Checked="RuleMode_Checked"/>
+                  <RadioButton x:Name="RuleRunning" Style="{StaticResource Segment}" GroupName="ruleMode" Tag="run" Content="{DynamicResource s.rules.running}" Padding="12,0" Checked="RuleMode_Checked"/>
+                </StackPanel>
+              </Border>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{DynamicResource s.rules.title}" FontSize="14"/>
+                <TextBlock Text="{DynamicResource s.rules.desc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
+              </StackPanel>
+            </DockPanel>
+            <StackPanel x:Name="AppRuleRows"/>
+            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <DockPanel Margin="18,12">
+              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button x:Name="AddRunningAppButton" Height="30" Content="{DynamicResource s.rules.addRunning}" Click="AddRunningApp_Click"/>
+                <Button Height="30" Margin="8,0,0,0" Content="{DynamicResource s.rules.browse}" Click="BrowseApp_Click"/>
+              </StackPanel>
+              <TextBlock x:Name="RuleStatusText" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center"/>
+            </DockPanel>
           </StackPanel>
         </Border>
 

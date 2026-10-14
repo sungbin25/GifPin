@@ -813,6 +813,8 @@ internal sealed unsafe class OverlayWindow : IDisposable
         CaptureExcluded = CaptureExcludedNow,
         FadeOpacity = _fadeNow,
         FxPaused = _engine.FxPaused,
+        Shown = IsShown,
+        GifPlaying = _gifPlaying,
         FxRunning = _fxRunning,
         Particles = _fx.ParticleCount,
         Squashes = _fx.Squashes,

@@ -521,7 +521,56 @@ public partial class App : Application
         if (app.HotkeyText(Hotkeys.NextScene) != "Ctrl+Alt+F9") throw new Exception("hotkey text");
         app.ResetHotkeys();
         if (app.HotkeyText(Hotkeys.NextScene) != "" || app.HotkeyText(Hotkeys.Edit) != "Ctrl+Alt+E") throw new Exception("hotkeys not reset");
-        sb.Append($" hotkeys ok (failures: {eng.HotkeyFailures.Count})");
+        sb.Append($" hotkeys ok (failures: {eng.HotkeyFailures.Count}) ·");
+
+        // 6) 새 GIF 기본값: 크기 제한 + 층·클릭 통과·효과가 새 GIF에 적용됨
+        var big = app.State.Library.FirstOrDefault(ph => Math.Max(ph.Width, ph.Height) >= 300) ?? throw new Exception("no large photo for new-GIF test");
+        app.SetNewItemSize(120);
+        app.ChangeTemplate(t => { t.Layer = Layers.Desktop; t.ClickThrough = false; t.FxFloat = true; });
+        app.AddToScreen(big.Id);
+        var added = app.State.Active[^1];
+        var (aw, ah) = app.ShownSize(added);
+        if (Math.Max(aw, ah) > 121 || added.Layer != Layers.Desktop || added.ClickThrough || !added.FxFloat)
+            throw new Exception($"new GIF defaults: {aw}x{ah} layer={added.Layer} click-through={added.ClickThrough} float={added.FxFloat}");
+        app.ClearTemplate();
+        app.SetNewItemSize(400);
+        app.AddToScreen(big.Id);
+        var plain = app.State.Active[^1];
+        if (plain.Layer != Layers.Top || !plain.ClickThrough || plain.FxFloat) throw new Exception("template was not cleared");
+        app.RemoveActive(plain.Id);
+        sb.Append(" new-GIF defaults ok ·");
+
+        // 7) 설정 복사·붙여넣기 (효과만), 프리셋 적용·저장
+        app.UpdateActive(id, x => { x.FxGlow = true; x.FxGlowColor = "#00FF00"; x.MotionMode = Motion.None; });
+        app.CopyStyle(id);
+        int keepX = added.X;
+        app.PasteStyle(added.Id, effectsOnly: true);
+        added = app.State.Active.First(x => x.Id == added.Id);
+        if (!added.FxGlow || added.FxGlowColor != "#00FF00" || added.Layer != Layers.Desktop || added.X != keepX) throw new Exception("effects-only paste");
+        app.ApplyPreset(added.Id, "builtin:love");
+        added = app.State.Active.First(x => x.Id == added.Id);
+        if (!added.FxParticles || added.FxParticleKind != Fx.Heart || added.FxGlow) throw new Exception("built-in preset was not applied");
+        var preset = app.SavePreset(added.Id, "smoke preset") ?? throw new Exception("preset not saved");
+        app.UpdateActive(id, x => x.FxGlow = false);
+        app.ApplyPreset(id, preset.Id);
+        if (!app.State.Active.First(x => x.Id == id).FxParticles) throw new Exception("saved preset was not applied");
+        app.DeletePreset(preset.Id);
+        app.UpdateActive(id, x => { x.FxParticles = false; x.FxBreathe = false; });
+        app.RemoveActive(added.Id);
+        sb.Append(" copy/presets ok ·");
+
+        // 8) 프로그램별 숨기기: "실행 중" 규칙에 GifPin 자신을 넣으면 숨고, 빼면 다시 보임
+        app.SetAppRuleMode(true);
+        app.AddAppRule(System.IO.Path.GetFileName(Environment.ProcessPath ?? "GifPin.exe"));
+        await Wait(600);
+        p = await P(id);
+        if (eng.RuleHiddenBy == null || p.Shown) throw new Exception($"program rule did not hide GIFs (by={eng.RuleHiddenBy}, shown={p.Shown})");
+        app.RemoveAppRule(app.State.Settings.HideForApps[0]);
+        await Wait(600);
+        p = await P(id);
+        if (eng.RuleHiddenBy != null || !p.Shown) throw new Exception("GIFs did not come back after removing the rule");
+        app.SetAppRuleMode(false);
+        sb.Append(" program rules ok");
         return sb.ToString();
     }
 
