@@ -808,7 +808,8 @@ public sealed class OverlayEngine : IDisposable
     private void CheckSystemPause()
     {
         bool paused = false;
-        if (_pauseLocked)
+        if (_systemPauseOverride is bool forced) paused = forced;
+        else if (_pauseLocked)
         {
             paused = _displayOff || IsLocked() || ScreenSaverRunning();
         }
@@ -836,14 +837,11 @@ public sealed class OverlayEngine : IDisposable
     /// <summary>점검용: 화면 잠금처럼 멈춤 (null = 실제 상태).</summary>
     public void ForceSystemPause(bool? on) => Post(() =>
     {
-        if (on is bool v)
-        {
-            if (v == SystemPaused) return;
-            SystemPaused = v;
-            foreach (var w in _byId.Values) w.ApplySuspend();
-        }
-        else CheckSystemPause();
+        _systemPauseOverride = on; // 1.5초마다 하는 확인이 덮어쓰지 않게 풀 때까지 유지
+        CheckSystemPause();
     });
+
+    private bool? _systemPauseOverride;
 
     /// <summary>진단용: GIF 위에 겹친 창 목록.</summary>
     public Task<string> DescribeWindowsAboveAsync(string id)
