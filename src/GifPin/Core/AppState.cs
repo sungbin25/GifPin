@@ -245,7 +245,7 @@ public sealed class AppSettings
     public int AutoLightCpuPercent { get; set; } = 80;
     /// <summary>설정 형식 버전 (기본값이 바뀐 항목을 한 번만 옮기기 위해)</summary>
     public int SettingsVersion { get; set; } // 예전 파일엔 없으므로 0 → 불러올 때 옮긴 뒤 CurrentVersion
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
     /// <summary>배터리로 쓸 때 효과 멈춤</summary>
     public bool PauseEffectsOnBattery { get; set; }
     public bool TrayNoticeShown { get; set; }
@@ -280,6 +280,26 @@ public sealed class AppSettings
     /// <summary>Windows 시작 시 자동 실행할 때 이만큼(초) 기다렸다가 GIF를 띄움</summary>
     public int AutostartDelaySec { get; set; }
 
+    // ── 성능 ──
+    /// <summary>성능 모드: saver | balanced | quality | custom (PerfModes 참고)</summary>
+    public string PerfMode { get; set; } = PerfModes.Balanced;
+    /// <summary>모든 GIF를 합친 파티클 최대 수</summary>
+    public int MaxParticlesTotal { get; set; } = 400;
+    /// <summary>GIF 장면을 다시 그리는 최대 횟수 (초당, 0 = 제한 없음 → 효과 프레임과 같음)</summary>
+    public int GifFpsCap { get; set; }
+    /// <summary>확대·축소 품질: low | medium | high</summary>
+    public string RenderQuality { get; set; } = "medium";
+    /// <summary>GIF 하나를 디코딩해 둘 때 쓰는 최대 메모리 (MB)</summary>
+    public int MemoryBudgetMB { get; set; } = 384;
+    /// <summary>숨긴 GIF는 잠시 뒤 메모리에서 내림 (다시 보이면 새로 불러옴)</summary>
+    public bool UnloadHidden { get; set; } = true;
+    /// <summary>바탕화면 층 GIF가 다른 창에 완전히 가려지면 재생·효과를 멈춤</summary>
+    public bool PauseOccluded { get; set; } = true;
+    /// <summary>화면 잠금·화면 보호기·모니터 꺼짐 중에는 모두 멈춤</summary>
+    public bool PauseWhenLocked { get; set; } = true;
+    /// <summary>라이브러리에서 마우스를 올리거나 선택했을 때 GIF를 움직여서 미리보기</summary>
+    public bool LibraryPreview { get; set; } = true;
+
     /// <summary>"설정 초기화": 언어·창 위치·자동 실행처럼 사용자가 의도해서 바꾼 앱 정보는 남기고 나머지를 기본값으로.</summary>
     public AppSettings ResetKeepingBasics() => new()
     {
@@ -296,6 +316,11 @@ public sealed class AppSettings
     public void Normalize()
     {
         AutostartDelaySec = Math.Clamp(AutostartDelaySec, 0, 300);
+        MaxParticlesTotal = Math.Clamp(MaxParticlesTotal, 20, 3000);
+        GifFpsCap = GifFpsCap <= 0 ? 0 : Math.Clamp(GifFpsCap, 10, 60);
+        RenderQuality = RenderQuality is "low" or "high" ? RenderQuality : "medium";
+        MemoryBudgetMB = Math.Clamp(MemoryBudgetMB, 64, 2048);
+        PerfMode = PerfModes.Normalize(PerfMode);
         HoverFadeOpacity = Math.Clamp(HoverFadeOpacity, 0, 90);
         Hotkeys = Core.Hotkeys.Normalize(Hotkeys);
         NewItemSize = Math.Clamp(NewItemSize, 32, 2000);
@@ -444,6 +469,12 @@ public static class Store
             s.Settings.PauseEffectsFullscreen = false;
             s.Settings.SettingsVersion = 2;
         }
+        if (s.Settings.SettingsVersion < 3)
+        {
+            // v0.6.0: 성능 모드 — 예전 설정이 "균형"과 같으면 균형, 아니면 직접 설정
+            s.Settings.PerfMode = PerfModes.Detect(s.Settings);
+            s.Settings.SettingsVersion = 3;
+        }
         return s;
     }
 
@@ -539,4 +570,49 @@ public static class Layers
     public const string Top = "top";         // 모든 프로그램 위 (게임 포함)
     public const string Desktop = "desktop"; // 바탕화면 바로 위, 모든 프로그램 아래
     public static string Normalize(string? layer) => layer == Desktop ? Desktop : Top;
+}
+
+/// <summary>성능 모드: 여러 성능 설정을 한 번에 정하는 묶음.</summary>
+public static class PerfModes
+{
+    public const string Saver = "saver", Balanced = "balanced", Quality = "quality", Custom = "custom";
+
+    public static string Normalize(string? mode) => mode is Saver or Balanced or Quality or Custom ? mode : Balanced;
+
+    /// <summary>모드의 값을 설정에 적용 (직접 설정이면 그대로).</summary>
+    public static void Apply(AppSettings s, string mode)
+    {
+        s.PerfMode = Normalize(mode);
+        switch (s.PerfMode)
+        {
+            case Saver:
+                s.EffectsFps = 30; s.MaxParticlesTotal = 150; s.GifFpsCap = 20; s.RenderQuality = "low"; s.MemoryBudgetMB = 192;
+                s.AutoLightEffects = true; s.AutoLightCpuPercent = 70; s.PauseEffectsFullscreen = true; s.PauseEffectsOnBattery = true;
+                break;
+            case Balanced:
+                s.EffectsFps = 60; s.MaxParticlesTotal = 400; s.GifFpsCap = 0; s.RenderQuality = "medium"; s.MemoryBudgetMB = 384;
+                s.AutoLightEffects = true; s.AutoLightCpuPercent = 80; s.PauseEffectsFullscreen = false; s.PauseEffectsOnBattery = false;
+                break;
+            case Quality:
+                s.EffectsFps = 60; s.MaxParticlesTotal = 1000; s.GifFpsCap = 0; s.RenderQuality = "high"; s.MemoryBudgetMB = 768;
+                s.AutoLightEffects = false; s.AutoLightCpuPercent = 90; s.PauseEffectsFullscreen = false; s.PauseEffectsOnBattery = false;
+                break;
+        }
+    }
+
+    /// <summary>지금 값이 어느 모드와 똑같은지 (아니면 직접 설정).</summary>
+    public static string Detect(AppSettings s)
+    {
+        foreach (var mode in new[] { Balanced, Saver, Quality })
+        {
+            var probe = new AppSettings();
+            Apply(probe, mode);
+            if (probe.EffectsFps == s.EffectsFps && probe.MaxParticlesTotal == s.MaxParticlesTotal && probe.GifFpsCap == s.GifFpsCap
+                && probe.RenderQuality == s.RenderQuality && probe.MemoryBudgetMB == s.MemoryBudgetMB && probe.AutoLightEffects == s.AutoLightEffects
+                && (!probe.AutoLightEffects || probe.AutoLightCpuPercent == s.AutoLightCpuPercent)
+                && probe.PauseEffectsFullscreen == s.PauseEffectsFullscreen && probe.PauseEffectsOnBattery == s.PauseEffectsOnBattery)
+                return mode;
+        }
+        return Custom;
+    }
 }

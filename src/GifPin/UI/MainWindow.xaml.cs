@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _toastTimer;
     private PhotoVM? _hoverVm;
     private string? _previewPath;
+    private bool _previewAnimated;
     private bool _updating; // 코드에서 값을 채우는 중이면 변경 이벤트 무시
 
     public MainWindow(AppController app)
@@ -67,6 +68,7 @@ public partial class MainWindow : Window
         _updating = false;
         RefreshPanel();
 
+        IsVisibleChanged += (_, _) => UpdatePerfTimer();
         Drop += OnDrop;
         DragOver += OnDragOver;
         Closing += OnClosing;
@@ -134,6 +136,7 @@ public partial class MainWindow : Window
         LibraryView.Visibility = lib ? Visibility.Visible : Visibility.Collapsed;
         SettingsView.Visibility = lib ? Visibility.Collapsed : Visibility.Visible;
         if (!lib) RefreshSettings();
+        UpdatePerfTimer();
     }
 
     private void EditMode_Click(object sender, RoutedEventArgs e) => _app.EnterEdit();
@@ -283,7 +286,7 @@ public partial class MainWindow : Window
         var vm = VmOf(sender);
         if (vm == null || vm == _hoverVm) return;
         StopHover();
-        if (vm.Photo.FrameCount < 2) return;
+        if (vm.Photo.FrameCount < 2 || !_app.State.Settings.LibraryPreview) return;
         _hoverVm = vm;
         _hoverPlayer.Play(Store.ResolvePath(vm.Photo), 320);
     }
@@ -416,11 +419,14 @@ public partial class MainWindow : Window
         _updating = was;
 
         var path = Store.ResolvePath(photo);
-        if (path != _previewPath)
+        bool animate = _app.State.Settings.LibraryPreview;
+        if (path != _previewPath || animate != _previewAnimated)
         {
             _previewPath = path;
+            _previewAnimated = animate;
+            _previewPlayer.Stop();
             PreviewImage.Source = Images.LoadThumb(photo);
-            _previewPlayer.Play(path, 320);
+            if (animate) _previewPlayer.Play(path, 320); // 끄면 정지 그림만 (메모리·CPU 절약)
         }
     }
 
@@ -1109,6 +1115,25 @@ public partial class MainWindow : Window
         AutostartDelayText.Text = DelayText(s.AutostartDelaySec * 1000);
         CheckUpdatesToggle.IsChecked = s.CheckUpdates;
         RefreshUpdateStatus();
+        PerfSaver.IsChecked = s.PerfMode == PerfModes.Saver;
+        PerfBalanced.IsChecked = s.PerfMode == PerfModes.Balanced;
+        PerfQuality.IsChecked = s.PerfMode == PerfModes.Quality;
+        PerfCustom.IsChecked = s.PerfMode == PerfModes.Custom;
+        PerfModeHint.Text = Loc.T("perf.hint." + s.PerfMode);
+        ParticleCapSlider.Value = s.MaxParticlesTotal;
+        ParticleCapText.Text = $"{s.MaxParticlesTotal}";
+        GifCapNone.IsChecked = s.GifFpsCap == 0;
+        GifCap30.IsChecked = s.GifFpsCap == 30;
+        GifCap20.IsChecked = s.GifFpsCap == 20;
+        QualityLow.IsChecked = s.RenderQuality == "low";
+        QualityMedium.IsChecked = s.RenderQuality == "medium";
+        QualityHigh.IsChecked = s.RenderQuality == "high";
+        MemorySlider.Value = s.MemoryBudgetMB;
+        MemoryText.Text = $"{s.MemoryBudgetMB} MB";
+        UnloadHiddenToggle.IsChecked = s.UnloadHidden;
+        PauseOccludedToggle.IsChecked = s.PauseOccluded;
+        PauseLockedToggle.IsChecked = s.PauseWhenLocked;
+        LibraryPreviewToggle.IsChecked = s.LibraryPreview;
         HoldSlider.Value = s.HoldToGrabMs;
         HoldText.Text = DelayText(s.HoldToGrabMs);
         ResumeSlider.Value = s.ResumeDelayMs;
@@ -1293,6 +1318,86 @@ public partial class MainWindow : Window
     {
         if (_updating) return;
         _app.SetEffectsOff(EffectsOffToggle.IsChecked == true);
+    }
+
+    // ── 성능 ─────────────────────────────────────────────────
+
+    private void PerfMode_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_updating || sender is not RadioButton rb || rb.Tag is not string mode) return;
+        _app.SetPerfMode(mode);
+    }
+
+    private void ParticleCap_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (ParticleCapText == null) return;
+        ParticleCapText.Text = $"{e.NewValue:0}";
+        if (_updating) return;
+        int v = (int)e.NewValue;
+        _app.SetPerfOption(s => s.MaxParticlesTotal = v);
+    }
+
+    private void GifCap_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_updating || sender is not RadioButton rb || rb.Tag is not string t) return;
+        int v = int.Parse(t, CultureInfo.InvariantCulture);
+        _app.SetPerfOption(s => s.GifFpsCap = v);
+    }
+
+    private void Quality_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_updating || sender is not RadioButton rb || rb.Tag is not string q) return;
+        _app.SetPerfOption(s => s.RenderQuality = q);
+    }
+
+    private void Memory_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (MemoryText == null) return;
+        MemoryText.Text = $"{e.NewValue:0} MB";
+        if (_updating) return;
+        int v = (int)e.NewValue;
+        _app.SetPerfOption(s => s.MemoryBudgetMB = v);
+    }
+
+    private void PerfToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (_updating) return;
+        bool unload = UnloadHiddenToggle.IsChecked == true, occluded = PauseOccludedToggle.IsChecked == true, locked = PauseLockedToggle.IsChecked == true;
+        _app.SetPerfOption(s => { s.UnloadHidden = unload; s.PauseOccluded = occluded; s.PauseWhenLocked = locked; });
+    }
+
+    private void LibraryPreview_Click(object sender, RoutedEventArgs e)
+    {
+        if (_updating) return;
+        _app.SetLibraryPreview(LibraryPreviewToggle.IsChecked == true);
+    }
+
+    // 성능 모니터: 설정 탭이 보이는 동안 1초마다
+    private DispatcherTimer? _perfTimer;
+    private bool _perfBusy;
+
+    private void UpdatePerfTimer()
+    {
+        bool want = IsVisible && SettingsView.Visibility == Visibility.Visible;
+        if (want && _perfTimer == null)
+        {
+            _perfTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _perfTimer.Tick += async (_, _) =>
+            {
+                if (_perfBusy) return;
+                _perfBusy = true;
+                try { PerfMonitorText.Text = await _app.PerfReportAsync(); }
+                catch (Exception ex) { Log.Warn("Performance monitor failed", ex); }
+                finally { _perfBusy = false; }
+                RefreshLightStatus();
+            };
+            _perfTimer.Start();
+        }
+        else if (!want && _perfTimer != null)
+        {
+            _perfTimer.Stop();
+            _perfTimer = null;
+        }
     }
 
     // ── 자동 실행 지연 / 업데이트 ─────────────────────────────

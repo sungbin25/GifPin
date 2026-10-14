@@ -162,15 +162,22 @@ public sealed class OverlayEngine : IDisposable
         Interlocked.Exchange(ref _framePending, 0);
         long now = System.Diagnostics.Stopwatch.GetTimestamp();
         bool any = false;
-        foreach (var w in _byId.Values.ToList())
+        var windows = _byId.Values.ToList();
+        // 모든 GIF를 합친 파티클 상한: 창마다 "지금 가진 것 + 남은 자리"까지만 새로 만들 수 있음
+        int total = 0;
+        foreach (var w in windows) total += w.ParticleCount;
+        foreach (var w in windows)
         {
             if (!w.NeedsFrames) continue;
+            int own = w.ParticleCount;
+            w.ParticleBudget = own + Math.Max(0, MaxParticlesTotal - total);
             try { w.OnFrame(now); }
             catch (Exception ex)
             {
                 // 한 GIF의 오류가 다른 GIF를 멈추지 않게. 같은 오류가 매 프레임 쌓이지 않도록 로그는 한 번만
                 if (w.FrameErrors++ == 0) Log.Error($"Frame update failed for overlay {w.Item.Id}", ex);
             }
+            total += w.ParticleCount - own;
             any |= w.NeedsFrames;
         }
         if (!any) _framesWanted = false;
@@ -178,7 +185,8 @@ public sealed class OverlayEngine : IDisposable
 
     // 네이티브 콜백은 GC 수거 방지를 위해 필드로 보관
     private readonly WndProc _overlayProc, _msgProc;
-    private readonly WinEventProc _winEventProc;
+    private readonly WinEventProc _winEventProc, _layoutEventProc;
+    private IntPtr _layoutHook;
 
     public OverlayEngine()
     {
@@ -189,6 +197,12 @@ public sealed class OverlayEngine : IDisposable
             if (_byHwnd.ContainsKey(hwnd)) return;
             BringAllToTop();
             CheckAppRules();
+            CheckOcclusion();
+        };
+        _layoutEventProc = (_, ev, hwnd, idObject, _, _, _) =>
+        {
+            if (idObject != 0 || _byHwnd.ContainsKey(hwnd)) return; // 창 자체의 이벤트만
+            CheckOcclusion();
         };
     }
 
@@ -215,6 +229,14 @@ public sealed class OverlayEngine : IDisposable
         _pacer.Start();
 
         _winEventHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, IntPtr.Zero, _winEventProc, 0, 0, WINEVENT_OUTOFCONTEXT);
+        // 창을 옮기거나 크기를 바꾸거나 최소화·복원하면 가려짐을 다시 확인
+        _layoutHook = SetWinEventHook(EVENT_SYSTEM_MOVESIZEEND, EVENT_SYSTEM_MINIMIZEEND, IntPtr.Zero, _layoutEventProc, 0, 0, WINEVENT_OUTOFCONTEXT);
+        try
+        {
+            var guid = GUID_CONSOLE_DISPLAY_STATE;
+            _powerNotify = RegisterPowerSettingNotification(_msgHwnd, ref guid, 0);
+        }
+        catch (Exception ex) { Log.Warn("Display state notifications unavailable", ex); }
         SetTimer(_msgHwnd, TIMER_TOPMOST, 1500, IntPtr.Zero);
         _ready.Set();
 
@@ -230,6 +252,8 @@ public sealed class OverlayEngine : IDisposable
         _anims.Clear();
         _byHwnd.Clear();
         if (_winEventHook != IntPtr.Zero) UnhookWinEvent(_winEventHook);
+        if (_layoutHook != IntPtr.Zero) UnhookWinEvent(_layoutHook);
+        if (_powerNotify != IntPtr.Zero) UnregisterPowerSettingNotification(_powerNotify);
     }
 
     private static void Register(string name, WndProc proc, IntPtr hInstance)
@@ -279,11 +303,22 @@ public sealed class OverlayEngine : IDisposable
                 case WM_HOTKEY:
                     HotkeyPressed?.Invoke((int)wParam);
                     return IntPtr.Zero;
+                case WM_POWERBROADCAST when (int)wParam == PBT_POWERSETTINGCHANGE && lParam != IntPtr.Zero:
+                    var setting = Marshal.PtrToStructure<POWERBROADCAST_SETTING>(lParam);
+                    if (setting.PowerSetting == GUID_CONSOLE_DISPLAY_STATE)
+                    {
+                        _displayOff = setting.Data == 0;
+                        CheckSystemPause();
+                    }
+                    return new IntPtr(1);
                 case WM_TIMER:
                     if ((nuint)wParam == TIMER_HOVER) { CheckHover(); return IntPtr.Zero; }
                     BringAllToTop();
                     CheckFxPause();
                     CheckAppRules();
+                    CheckSystemPause();
+                    CheckOcclusion();
+                    CheckResidency();
                     return IntPtr.Zero;
             }
         }
@@ -354,7 +389,12 @@ public sealed class OverlayEngine : IDisposable
             // GIF 본체: 화면에 보이는 크기에 맞춰 디코딩 (같은 파일·같은 크기는 다른 창과 공유)
             var (tw, th) = AnimTarget(srcWidth, srcHeight, snapshot.Scale, pixelated);
             string want = AnimKey(filePath, tw, th);
-            if (w.PendingKey == want) { } // 바로 그것을 불러오는 중
+            if (!w.WantsShown && w.Anim == null && w.UnloadedPath != null)
+            {
+                w.UnloadedPath = filePath; // 숨긴 채 메모리에서 내린 상태 → 다시 보일 때 이것으로 불러옴
+                w.UnloadedTarget = (tw, th);
+            }
+            else if (w.PendingKey == want) { } // 바로 그것을 불러오는 중
             else if (w.AnimKey == want || KeepCurrent(w, filePath, tw))
                 w.PendingKey = null; // 지금 것으로 충분 → 다른 사진을 불러오던 중이었다면 취소 (A→B→A로 빨리 바꿀 때)
             else LoadFor(w, filePath, tw, th);
@@ -411,7 +451,8 @@ public sealed class OverlayEngine : IDisposable
             e = new SharedAnim();
             _anims[key] = e;
         }
-        e.Loading ??= Task.Run(() => GifAnimation.Load(path, tw, th, GifAnimation.DefaultBudget));
+        long budget = MemoryBudget;
+        e.Loading ??= Task.Run(() => GifAnimation.Load(path, tw, th, budget));
         string id = w.Item.Id;
         e.Loading.ContinueWith(t => Post(() => OnLoaded(key, path, id, t)));
     }
@@ -498,6 +539,8 @@ public sealed class OverlayEngine : IDisposable
         _editMode = edit;
         foreach (var w in _byId.Values) w.SetEditMode(edit);
         UpdateHoverTimer();
+        CheckResidency();
+        CheckOcclusion();
     });
 
     // ── 단축키 ───────────────────────────────────────────────
@@ -620,6 +663,7 @@ public sealed class OverlayEngine : IDisposable
     private void ApplyGlobalHidden()
     {
         foreach (var w in _byId.Values) w.SetGlobalHidden(_allHidden || RuleHiddenBy != null);
+        CheckResidency(); // 메모리에서 내렸던 GIF가 다시 보여야 하면 불러옴
     }
 
     // ── 프로그램별 숨기기 ────────────────────────────────────
@@ -669,6 +713,136 @@ public sealed class OverlayEngine : IDisposable
         if (!autoLight) _busy.Reset();
         CheckFxPause(force: true);
     });
+
+    // ── 성능 설정 ────────────────────────────────────────────
+
+    /// <summary>모든 GIF를 합친 파티클 최대 수 (엔진 스레드에서 읽음).</summary>
+    internal volatile int MaxParticlesTotal = 400;
+    /// <summary>GIF 장면을 다시 그리는 최대 횟수 (초당, 0 = 제한 없음).</summary>
+    internal volatile int GifFpsCap;
+    /// <summary>확대·축소 품질.</summary>
+    internal SkiaSharp.SKFilterQuality FilterQuality { get; private set; } = SkiaSharp.SKFilterQuality.Medium;
+    /// <summary>GIF 하나를 디코딩할 때 쓰는 최대 메모리 (바이트).</summary>
+    internal long MemoryBudget = GifAnimation.DefaultBudget;
+    private bool _unloadHidden = true, _pauseOccluded = true, _pauseLocked = true;
+    private const double UnloadAfterSec = 10;
+
+    public void SetPerformance(int maxParticlesTotal, int gifFpsCap, string quality, int memoryMB, bool unloadHidden, bool pauseOccluded, bool pauseLocked) => Post(() =>
+    {
+        MaxParticlesTotal = Math.Clamp(maxParticlesTotal, 20, 3000);
+        GifFpsCap = gifFpsCap <= 0 ? 0 : Math.Clamp(gifFpsCap, 10, 60);
+        FilterQuality = quality switch { "low" => SkiaSharp.SKFilterQuality.Low, "high" => SkiaSharp.SKFilterQuality.High, _ => SkiaSharp.SKFilterQuality.Medium };
+        MemoryBudget = Math.Clamp(memoryMB, 64, 2048) * 1024L * 1024;
+        _unloadHidden = unloadHidden;
+        _pauseOccluded = pauseOccluded;
+        _pauseLocked = pauseLocked;
+        foreach (var w in _byId.Values) w.ApplyQuality();
+        CheckOcclusion();
+        CheckSystemPause();
+        CheckResidency();
+    });
+
+    // ── 숨긴 GIF는 메모리에서 내리기 ─────────────────────────
+
+    /// <summary>오래 숨겨진 GIF는 메모리에서 내리고, 다시 보여야 하면 불러옴.</summary>
+    private void CheckResidency()
+    {
+        long now = System.Diagnostics.Stopwatch.GetTimestamp();
+        foreach (var w in _byId.Values)
+        {
+            if (w.WantsShown)
+            {
+                w.HiddenSince = 0;
+                if (w.Anim == null && w.PendingKey == null && w.UnloadedPath is string path)
+                {
+                    var (tw, th) = w.UnloadedTarget;
+                    LoadFor(w, path, tw, th);
+                }
+                continue;
+            }
+            if (w.HiddenSince == 0) { w.HiddenSince = now; continue; }
+            if (!_unloadHidden || w.Anim == null) continue;
+            if ((now - w.HiddenSince) / (double)System.Diagnostics.Stopwatch.Frequency < UnloadAfterSec && !_forceUnloadForTest) continue;
+            var anim = w.Anim;
+            string? key = w.Unload(anim.Width, anim.Height);
+            if (key != null)
+            {
+                ReleaseAnim(key);
+                Log.Info($"Unloaded hidden overlay {w.Item.Id} from memory");
+            }
+        }
+    }
+
+    private bool _forceUnloadForTest;
+    /// <summary>점검용: 숨긴 GIF를 기다리지 않고 바로 내림.</summary>
+    public void UnloadHiddenNowForTest() => Post(() => { _forceUnloadForTest = true; CheckResidency(); _forceUnloadForTest = false; });
+
+    // ── 가려진 GIF 멈추기 (바탕화면 층) ──────────────────────
+
+    /// <summary>바탕화면 층 GIF마다 위에 있는 창들로 완전히 덮였는지 확인.</summary>
+    private void CheckOcclusion()
+    {
+        foreach (var w in _byId.Values)
+        {
+            bool occluded = false;
+            if (_pauseOccluded && !_editMode)
+            {
+                try { occluded = w.IsCoveredByOtherWindows(); }
+                catch (Exception ex) { if (w.FrameErrors++ == 0) Log.Warn("Occlusion check failed", ex); }
+            }
+            w.SetOccluded(occluded);
+        }
+    }
+
+    // ── 화면 잠금·화면 보호기·모니터 꺼짐 중 멈추기 ───────────
+
+    /// <summary>화면 잠금 등으로 모두 멈춘 상태.</summary>
+    internal bool SystemPaused { get; private set; }
+    private bool _displayOff, _inputDesktopSeen;
+    private IntPtr _powerNotify;
+
+    private void CheckSystemPause()
+    {
+        bool paused = false;
+        if (_pauseLocked)
+        {
+            paused = _displayOff || IsLocked() || ScreenSaverRunning();
+        }
+        if (paused == SystemPaused) return;
+        SystemPaused = paused;
+        Log.Info(paused ? "Screen locked / screen saver / display off: pausing all GIFs" : "Screen back: resuming GIFs");
+        foreach (var w in _byId.Values) w.ApplySuspend();
+    }
+
+    /// <summary>잠금 화면이면 입력 데스크톱을 열 수 없음. 한 번도 열지 못했다면(원격·서비스 환경) 잠금으로 보지 않음.</summary>
+    private bool IsLocked()
+    {
+        IntPtr d = OpenInputDesktop(0, false, DESKTOP_SWITCHDESKTOP);
+        if (d != IntPtr.Zero)
+        {
+            CloseDesktop(d);
+            _inputDesktopSeen = true;
+            return false;
+        }
+        return _inputDesktopSeen;
+    }
+
+    private static bool ScreenSaverRunning() => SystemParametersInfoW(SPI_GETSCREENSAVERRUNNING, 0, out int on, 0) && on != 0;
+
+    /// <summary>점검용: 화면 잠금처럼 멈춤 (null = 실제 상태).</summary>
+    public void ForceSystemPause(bool? on) => Post(() =>
+    {
+        if (on is bool v)
+        {
+            if (v == SystemPaused) return;
+            SystemPaused = v;
+            foreach (var w in _byId.Values) w.ApplySuspend();
+        }
+        else CheckSystemPause();
+    });
+
+    /// <summary>점검용: 지금 바로 가려짐을 다시 확인.</summary>
+    public void CheckOcclusionNow() => Post(CheckOcclusion);
 
     // ── 절약 모드: 다른 프로그램이 CPU를 많이 쓰면(게임 등) 파티클을 끔 ──
     private readonly CpuSampler _cpu = new();
@@ -818,4 +992,8 @@ public sealed record OverlayProbe(ActiveItem Item, bool MotionRunning, bool Held
     public bool FxPaused { get; init; }
     public bool Shown { get; init; }
     public bool GifPlaying { get; init; }
+    public bool Occluded { get; init; }
+    public bool Unloaded { get; init; }
+    public string? Quality { get; init; }
+    public long GifDraws { get; init; }
 }

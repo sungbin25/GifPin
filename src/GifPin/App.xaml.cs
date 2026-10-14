@@ -110,6 +110,7 @@ public partial class App : Application
                     report += "\n" + SmokeUi(_controller);
                     report += "\n" + await SmokeMouse(_controller);
                     report += "\n" + await SmokeConvenience(_controller);
+                    report += "\n" + await SmokePerformance(_controller);
                     report += $"\nactive overlays: {_controller.State.Active.Count}";
                 }
                 catch (Exception ex)
@@ -634,6 +635,127 @@ public partial class App : Application
         await Wait(200);
         if ((await P(app.State.Active[0].Id)).CaptureExcluded) throw new Exception("reset did not reach the overlays");
         sb.Append(" reset ok");
+        return sb.ToString();
+    }
+
+    /// <summary>CI 점검 (v0.6): 성능 모드, 전체 파티클 상한, GIF 그리기 제한, 가려짐·잠금 멈춤, 숨긴 GIF 메모리 해제, 성능 모니터.</summary>
+    private static async System.Threading.Tasks.Task<string> SmokePerformance(AppController app)
+    {
+        if (app.State.Active.Count == 0) return "performance skipped (nothing on screen)";
+        var eng = app.Engine;
+        async System.Threading.Tasks.Task<OverlayProbe> P(string which) => await eng.ProbeAsync(which) ?? throw new Exception("overlay missing");
+        static System.Threading.Tasks.Task Wait(int ms) => System.Threading.Tasks.Task.Delay(ms);
+        var sb = new System.Text.StringBuilder("v0.6:");
+        var s = app.State.Settings;
+        string id = app.State.Active[0].Id;
+        var mon = Monitors.Primary(app.MonitorList);
+
+        // 1) 성능 모드: 절전 → 값이 바뀌고 화질이 낮아짐, 하나를 바꾸면 직접 설정, 균형으로 돌아가기
+        app.SetPerfMode(PerfModes.Saver);
+        await Wait(200);
+        if (s.EffectsFps != 30 || s.MaxParticlesTotal != 150 || s.GifFpsCap != 20 || (await P(id)).Quality != "Low")
+            throw new Exception($"saver mode: fps {s.EffectsFps}, particles {s.MaxParticlesTotal}, gif cap {s.GifFpsCap}, quality {(await P(id)).Quality}");
+        app.SetPerfOption(x => x.MaxParticlesTotal = 500);
+        if (s.PerfMode != PerfModes.Custom) throw new Exception("changing an option did not switch to custom");
+        app.SetPerfMode(PerfModes.Balanced);
+        if (s.PerfMode != PerfModes.Balanced || PerfModes.Detect(s) != PerfModes.Balanced || s.EffectsFps != 60) throw new Exception("balanced mode");
+        sb.Append(" modes ok ·");
+
+        // 2) 전체 파티클 상한: GIF 두 개가 많이 뿜어도 합계는 상한 이하
+        app.SetPerfOption(x => x.MaxParticlesTotal = 40);
+        app.AddToScreen(app.State.Active[0].PhotoId);
+        string id2 = app.State.Active[^1].Id;
+        foreach (var which in new[] { id, id2 })
+            app.UpdateActive(which, a => { a.Visible = true; a.MotionMode = Motion.None; a.FxParticles = true; a.FxParticleMode = Fx.Always; a.FxParticleRate = 40; a.FxParticleLife = 3; a.FxParticleKind = Fx.Dot; });
+        app.Relocate(id2, mon.WorkLeft + 100, mon.WorkTop + 100);
+        await Wait(2000);
+        int p1 = (await P(id)).Particles, p2 = (await P(id2)).Particles;
+        if (p1 + p2 > 40 || p1 + p2 < 20) throw new Exception($"particle cap: {p1} + {p2} with limit 40");
+        app.RemoveActive(id2);
+        app.UpdateActive(id, a => a.FxParticles = false);
+        app.SetPerfMode(PerfModes.Balanced);
+        sb.Append($" particle cap ok ({p1}+{p2}/40) ·");
+
+        // 3) GIF 그리기 제한: 50fps GIF를 초당 20번까지만 그림 (재생 속도는 그대로)
+        string fastPath = System.IO.Path.Combine(Store.LibraryDir, "smoke-fast.webp");
+        using (var sample = GifAnimation.Load(Store.ResolvePath(app.State.FindPhoto(app.State.Active[0].PhotoId)!)))
+            SpriteBuilder.Save(sample.Frames, 50, fastPath);
+        var fastPhoto = Library.RegisterGenerated(fastPath, "smoke fast") ?? throw new Exception("fast GIF not registered");
+        app.AddGeneratedPhoto(fastPhoto);
+        app.AddToScreen(fastPhoto.Id);
+        string fastId = app.State.Active[^1].Id;
+        app.SetPerfOption(x => x.GifFpsCap = 20);
+        await Wait(500);
+        var f0 = await P(fastId);
+        await Wait(2000);
+        var f1 = await P(fastId);
+        long frames = f1.GifFrames - f0.GifFrames, draws = f1.GifDraws - f0.GifDraws;
+        if (frames < 70 || draws > 46) throw new Exception($"gif cap 20: {frames} frames, {draws} draws in 2 s");
+        app.SetPerfOption(x => x.GifFpsCap = 0);
+        await Wait(300);
+        f0 = await P(fastId);
+        await Wait(2000);
+        f1 = await P(fastId);
+        long drawsFree = f1.GifDraws - f0.GifDraws;
+        if (drawsFree < 70) throw new Exception($"no gif cap: only {drawsFree} draws in 2 s");
+        sb.Append($" gif cap ok ({draws} vs {drawsFree} draws / {frames} frames) ·");
+
+        // 4) 가려진 바탕화면 GIF 멈춤: 창으로 덮으면 멈추고, 치우면 다시 재생
+        app.UpdateActive(fastId, a => a.Layer = Layers.Desktop);
+        app.Relocate(fastId, mon.WorkLeft + 200, mon.WorkTop + 200);
+        var cover = new Window
+        {
+            WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, ShowActivated = false,
+            Left = mon.WorkLeft + 100, Top = mon.WorkTop + 100, Width = 700, Height = 600, Background = System.Windows.Media.Brushes.DimGray,
+        };
+        cover.Show();
+        await Wait(400);
+        eng.CheckOcclusionNow();
+        await Wait(300);
+        var c = await P(fastId);
+        if (!c.Occluded || c.GifPlaying) throw new Exception($"covered desktop GIF: occluded={c.Occluded} playing={c.GifPlaying}");
+        cover.Close();
+        await Wait(400);
+        eng.CheckOcclusionNow();
+        await Wait(300);
+        c = await P(fastId);
+        if (c.Occluded || !c.GifPlaying) throw new Exception($"uncovered desktop GIF: occluded={c.Occluded} playing={c.GifPlaying}");
+        sb.Append(" occlusion ok ·");
+
+        // 5) 화면 잠금처럼 멈춤 → 풀리면 다시 재생
+        eng.ForceSystemPause(true);
+        await Wait(300);
+        if ((await P(fastId)).GifPlaying) throw new Exception("GIF kept playing while paused for lock");
+        eng.ForceSystemPause(null);
+        await Wait(300);
+        if (!(await P(fastId)).GifPlaying) throw new Exception("GIF did not resume after lock");
+        sb.Append(" lock pause ok ·");
+
+        // 6) 숨긴 GIF 메모리 해제 → 다시 보이면 불러옴
+        var before = await eng.AnimStatsAsync();
+        app.UpdateActive(fastId, a => a.Visible = false);
+        await Wait(300);
+        eng.UnloadHiddenNowForTest(); // 첫 확인은 숨긴 시각만 기록
+        await Wait(100);
+        eng.UnloadHiddenNowForTest();
+        await Wait(300);
+        var u = await P(fastId);
+        var after = await eng.AnimStatsAsync();
+        if (!u.Unloaded || after.bytes >= before.bytes) throw new Exception($"hidden GIF not unloaded (unloaded={u.Unloaded}, {before.bytes} -> {after.bytes} bytes)");
+        app.UpdateActive(fastId, a => a.Visible = true);
+        await Wait(1500);
+        u = await P(fastId);
+        if (u.Unloaded || !u.Shown || !u.GifPlaying) throw new Exception($"GIF not reloaded when shown (unloaded={u.Unloaded} shown={u.Shown})");
+        sb.Append($" unload ok ({(before.bytes - after.bytes) / 1024} KB freed) ·");
+
+        // 7) 성능 모니터, 미리보기 끄기
+        string report = await app.PerfReportAsync();
+        if (!report.Contains("CPU")) throw new Exception("performance report");
+        app.SetLibraryPreview(false);
+        app.SelectPhoto(fastPhoto.Id);
+        app.SetLibraryPreview(true);
+        app.RemoveActive(fastId);
+        sb.Append(" monitor ok");
         return sb.ToString();
     }
 

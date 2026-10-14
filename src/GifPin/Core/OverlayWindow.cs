@@ -68,6 +68,8 @@ internal sealed unsafe class OverlayWindow : IDisposable
     internal int FrameErrors;
     /// <summary>지금까지 넘긴 GIF 장면 수 (점검용).</summary>
     public long GifFramesAdvanced { get; private set; }
+    /// <summary>GIF 장면이 바뀌어 다시 그린 횟수 (점검용: 초당 그리기 제한 확인).</summary>
+    public long GifDraws { get; private set; }
 
     /// <summary>매 프레임 계산이 필요함 (움직이는 중, 효과가 도는 중, 또는 GIF 재생 중).</summary>
     internal bool NeedsFrames => _motionRunning || _fxRunning || _gifPlaying || _fading;
@@ -83,6 +85,63 @@ internal sealed unsafe class OverlayWindow : IDisposable
 
     /// <summary>지금 불러온(또는 불러오는 중인) 파티클 이미지 목록 — 바뀌었는지 비교용.</summary>
     public string ParticleKey { get; set; } = "";
+
+    internal int ParticleCount => _fx.ParticleCount;
+    internal int ParticleBudget { set => _fx.ParticleBudget = value; }
+
+    // ── 멈춤(가려짐·잠금) / 메모리에서 내리기 ─────────────────
+    private bool _occluded;
+    /// <summary>다른 창에 완전히 가려짐 (바탕화면 층만).</summary>
+    internal bool Occluded => _occluded;
+    /// <summary>보이지만 재생·효과·움직임을 멈춰야 함 (가려짐, 화면 잠금 등).</summary>
+    private bool Suspended => _occluded || _engine.SystemPaused;
+    /// <summary>화면에 보이고 멈출 이유도 없음 → 재생·효과·움직임을 돌림.</summary>
+    private bool IsActive => IsShown && !Suspended;
+
+    internal void SetOccluded(bool occluded)
+    {
+        if (_occluded == occluded) return;
+        _occluded = occluded;
+        ApplySuspend();
+    }
+
+    /// <summary>멈춤 상태가 바뀌면 재생·효과·움직임을 다시 맞춤 (엔진이 잠금 상태가 바뀔 때도 부름).</summary>
+    internal void ApplySuspend()
+    {
+        UpdateMotionTimer();
+        UpdateFxTimer();
+        UpdateGifPlayback();
+        if (!Suspended) Render();
+    }
+
+    /// <summary>보여야 하는 상태 (GIF를 불러왔는지와 상관없이).</summary>
+    internal bool WantsShown => _editMode || (Item.Visible && !_globalHidden);
+    /// <summary>숨겨진 시각 (Stopwatch, 0 = 보이는 중) — 오래 숨겨지면 메모리에서 내림.</summary>
+    internal long HiddenSince { get; set; }
+    /// <summary>메모리에서 내린 GIF (다시 보일 때 이 파일·크기로 불러옴).</summary>
+    internal string? UnloadedPath { get; set; }
+    internal (int w, int h) UnloadedTarget { get; set; }
+
+    /// <summary>디코딩한 GIF를 놓음 (엔진이 참조 수를 줄임). 돌려주는 값: 놓은 키.</summary>
+    internal string? Unload(int tw, int th)
+    {
+        if (_anim == null || AnimKey == null) return null;
+        string key = AnimKey;
+        UnloadedPath = AnimPath;
+        UnloadedTarget = (tw, th);
+        _anim = null;
+        AnimKey = null;
+        _gifPlaying = false;
+        _fxRunning = false;
+        _motionRunning = false;
+        _lastFrameTs = 0;
+        FreeSurface(); // 창 그림 버퍼도 놓음
+        ShowWindow(Hwnd, SW_HIDE);
+        return key;
+    }
+
+    private long _lastGifDraw; // GIF 장면을 마지막으로 그린 시각 (초당 그리기 제한용)
+    private bool _gifDrawPending;
 
     public void SetParticleSprites(List<GifAnimation>? sprites)
     {
@@ -144,6 +203,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
 
     public void SetAnimation(GifAnimation anim, string path, string key)
     {
+        UnloadedPath = null;
         bool samePath = AnimPath == path && _anim != null && _anim.Frames.Count == anim.Frames.Count;
         _anim = anim;
         AnimPath = path;
@@ -248,11 +308,18 @@ internal sealed unsafe class OverlayWindow : IDisposable
 
     public void SetPixelated(bool pixelated)
     {
-        var q = pixelated ? SKFilterQuality.None : SKFilterQuality.Medium;
-        if (_framePaint.FilterQuality == q) return;
-        _framePaint.FilterQuality = q;
-        _framePaint.IsAntialias = !pixelated;
         _pixelated = pixelated;
+        ApplyQuality();
+    }
+
+    /// <summary>확대·축소 품질: 도트 그래픽은 항상 그대로, 나머지는 성능 설정(빠르게/보통/선명하게)을 따름.</summary>
+    internal void ApplyQuality()
+    {
+        var q = _pixelated ? SKFilterQuality.None : _engine.FilterQuality;
+        if (_framePaint.FilterQuality == q && _framePaint.IsAntialias == !_pixelated) return;
+        _framePaint.FilterQuality = q;
+        _framePaint.IsAntialias = !_pixelated;
+        _glowPaint.FilterQuality = _pixelated ? SKFilterQuality.Medium : q;
         Render();
     }
 
@@ -279,7 +346,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
     }
 
     private bool MotionShouldRun =>
-        Motion.IsMoving(Item.MotionMode) && !_editMode && _drag == Drag.None && _press != Press.Grab && !_held && IsShown
+        Motion.IsMoving(Item.MotionMode) && !_editMode && _drag == Drag.None && _press != Press.Grab && !_held && IsActive
         && (Motion.IsAutonomous(Item.MotionMode) || _motion.IsSliding || _motion.AutoPush);
 
     /// <summary>눈에 보이게 움직이는 중 (이때만 길게 눌러야 잡힘). 자동 밀기를 기다리며 멈춰 있는 GIF는 바로 잡힌다.</summary>
@@ -331,7 +398,13 @@ internal sealed unsafe class OverlayWindow : IDisposable
 
         bool render = _dirty, moved = false;
         _dirty = false;
-        if (AdvanceGif(now)) render = true;
+        // GIF 장면: 초당 그리기 제한이 있으면 그 간격이 지났을 때만 (장면 시간은 그대로 흘러 속도는 같음)
+        if (AdvanceGif(now)) _gifDrawPending = true;
+        if (_gifDrawPending)
+        {
+            long cap = _engine.GifFpsCap;
+            if (cap <= 0 || now - _lastGifDraw >= System.Diagnostics.Stopwatch.Frequency / cap * 0.95) render = true;
+        }
         if (StepFade(dt)) render = true;
         var (w, h) = ContentSize(Item.Scale);
 
@@ -368,7 +441,13 @@ internal sealed unsafe class OverlayWindow : IDisposable
             render = true;
         }
 
-        if (render) Render();
+        if (render)
+        {
+            if (_gifDrawPending) GifDraws++;
+            Render();
+            _lastGifDraw = now;
+            _gifDrawPending = false;
+        }
         else if (moved) SetWindowPos(Hwnd, IntPtr.Zero, Item.X - _pads.Left, Item.Y - _pads.Top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
 
         if (_fxRunning) UpdateFxTimer(); // 파티클이 다 사라졌으면 멈춤
@@ -474,6 +553,37 @@ internal sealed unsafe class OverlayWindow : IDisposable
         SetWindowPos(Hwnd, above == IntPtr.Zero ? HWND_TOP : above, 0, 0, 0, 0, flags);
     }
 
+    /// <summary>
+    /// 바탕화면 층 GIF가 위에 있는 다른 창들로 완전히 덮였나 (최대화한 창, 나란히 놓은 창 여러 개 등).
+    /// 반투명일 수 있는 창(레이어드·클릭 통과)과 숨겨진 창은 가린다고 보지 않음.
+    /// </summary>
+    internal bool IsCoveredByOtherWindows()
+    {
+        if (!OnDesktopLayer || _anim == null || !WantsShown) return false;
+        var (w, h) = ContentSize(Item.Scale);
+        IntPtr rgn = CreateRectRgn(Item.X, Item.Y, Item.X + w, Item.Y + h);
+        try
+        {
+            int guard = 0;
+            for (IntPtr n = GetWindow(Hwnd, GW_HWNDPREV); n != IntPtr.Zero && guard++ < 600; n = GetWindow(n, GW_HWNDPREV))
+            {
+                if (!IsWindowVisible(n) || IsIconic(n) || _engine.IsOverlay(n)) continue;
+                long ex = GetWindowLongPtrW(n, GWL_EXSTYLE).ToInt64();
+                if ((ex & (WS_EX_LAYERED | WS_EX_TRANSPARENT)) != 0) continue;
+                if (DwmGetWindowAttributeInt(n, DWMWA_CLOAKED, out int cloaked, sizeof(int)) == 0 && cloaked != 0) continue;
+                if (DwmGetWindowAttribute(n, DWMWA_EXTENDED_FRAME_BOUNDS, out RECT r, sizeof(RECT)) != 0 && !GetWindowRect(n, out r)) continue;
+                if (r.Right <= r.Left || r.Bottom <= r.Top) continue;
+                IntPtr wr = CreateRectRgn(r.Left, r.Top, r.Right, r.Bottom);
+                int result = CombineRgn(rgn, rgn, wr, RGN_DIFF);
+                DeleteObject(wr);
+                if (result == NULLREGION) return true;
+                if (result == ERROR_REGION) return false;
+            }
+            return false;
+        }
+        finally { DeleteObject(rgn); }
+    }
+
     internal bool IsTopmost => (GetWindowLongPtrW(Hwnd, GWL_EXSTYLE).ToInt64() & WS_EX_TOPMOST) != 0;
 
     private bool IsShown => _anim != null && (_editMode || (Item.Visible && !_globalHidden));
@@ -500,7 +610,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
     {
         bool motionActive = Motion.IsMoving(Item.MotionMode) && (_motionRunning || _held || _press == Press.Grab);
         _fx.SuppressParticles = _engine.LightMode;
-        bool run = !_editMode && IsShown && !_engine.FxPaused && _fx.IsAnimated(Item, motionActive);
+        bool run = !_editMode && IsActive && !_engine.FxPaused && _fx.IsAnimated(Item, motionActive);
         if (run == _fxRunning) return;
         _fxRunning = run;
         if (!run) Render(); // 멈춘 모습으로 한 번 그림
@@ -510,7 +620,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
     /// <summary>보이는 움직이는 GIF면 프레임 박자에 맞춰 재생.</summary>
     private void UpdateGifPlayback()
     {
-        bool play = IsShown && _anim != null && _anim.Frames.Count > 1;
+        bool play = (IsActive || (_editMode && IsShown)) && _anim != null && _anim.Frames.Count > 1;
         if (play == _gifPlaying) return;
         _gifPlaying = play;
         if (play) _gifDue = System.Diagnostics.Stopwatch.GetTimestamp() + DelayTicks(_frame);
@@ -815,6 +925,10 @@ internal sealed unsafe class OverlayWindow : IDisposable
         FxPaused = _engine.FxPaused,
         Shown = IsShown,
         GifPlaying = _gifPlaying,
+        Occluded = _occluded,
+        Unloaded = _anim == null && UnloadedPath != null,
+        Quality = _framePaint.FilterQuality.ToString(),
+        GifDraws = GifDraws,
         FxRunning = _fxRunning,
         Particles = _fx.ParticleCount,
         Squashes = _fx.Squashes,

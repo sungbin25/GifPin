@@ -1077,6 +1077,25 @@
                 <TextBlock Text="{DynamicResource s.set.effectsOffDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
               </StackPanel>
             </ToggleButton>
+          </StackPanel>
+        </Border>
+
+        <TextBlock Text="{DynamicResource s.set.performance}" Style="{StaticResource SettingsHeader}"/>
+        <Border Style="{StaticResource SettingsCard}">
+          <StackPanel>
+            <StackPanel Margin="18,14">
+              <TextBlock Text="{DynamicResource s.perf.mode}" FontSize="14"/>
+              <TextBlock Text="{DynamicResource s.perf.modeDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,8"/>
+              <Border Style="{StaticResource SegmentBox}" HorizontalAlignment="Left">
+                <StackPanel Orientation="Horizontal">
+                  <RadioButton x:Name="PerfSaver" Style="{StaticResource Segment}" GroupName="perfMode" Tag="saver" Content="{DynamicResource s.perf.saver}" Padding="14,0" Checked="PerfMode_Checked"/>
+                  <RadioButton x:Name="PerfBalanced" Style="{StaticResource Segment}" GroupName="perfMode" Tag="balanced" Content="{DynamicResource s.perf.balanced}" Padding="14,0" Checked="PerfMode_Checked"/>
+                  <RadioButton x:Name="PerfQuality" Style="{StaticResource Segment}" GroupName="perfMode" Tag="quality" Content="{DynamicResource s.perf.quality}" Padding="14,0" Checked="PerfMode_Checked"/>
+                  <RadioButton x:Name="PerfCustom" Style="{StaticResource Segment}" GroupName="perfMode" Tag="custom" Content="{DynamicResource s.perf.custom}" Padding="14,0" Checked="PerfMode_Checked"/>
+                </StackPanel>
+              </Border>
+              <TextBlock x:Name="PerfModeHint" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"/>
+            </StackPanel>
             <Border Height="1" Background="{StaticResource LineBrush}"/>
             <DockPanel Margin="18,14">
               <Border DockPanel.Dock="Right" Style="{StaticResource SegmentBox}" VerticalAlignment="Center">
@@ -1117,6 +1136,84 @@
               <StackPanel>
                 <TextBlock Text="{DynamicResource s.set.fxPauseBattery}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
                 <TextBlock Text="{DynamicResource s.set.fxPauseBatteryDesc}" Style="{StaticResource Hint}" FontSize="12" Margin="0,2,0,0"/>
+              </StackPanel>
+            </ToggleButton>
+            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <DockPanel Margin="18,14">
+              <StackPanel DockPanel.Dock="Right" Width="240" Margin="16,0,0,0" VerticalAlignment="Center">
+                <TextBlock x:Name="ParticleCapText" HorizontalAlignment="Right" FontFamily="{StaticResource MonoFont}"/>
+                <Slider x:Name="ParticleCapSlider" Minimum="20" Maximum="2000" TickFrequency="20" IsSnapToTickEnabled="True" Margin="0,4,0,0" ValueChanged="ParticleCap_ValueChanged"/>
+              </StackPanel>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{DynamicResource s.perf.particleCap}" FontSize="14"/>
+                <TextBlock Text="{DynamicResource s.perf.particleCapDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
+              </StackPanel>
+            </DockPanel>
+            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <DockPanel Margin="18,14">
+              <Border DockPanel.Dock="Right" Style="{StaticResource SegmentBox}" VerticalAlignment="Center" Margin="16,0,0,0">
+                <StackPanel Orientation="Horizontal">
+                  <RadioButton x:Name="GifCapNone" Style="{StaticResource Segment}" GroupName="gifCap" Tag="0" Content="{DynamicResource s.perf.noLimit}" Padding="12,0" Checked="GifCap_Checked"/>
+                  <RadioButton x:Name="GifCap30" Style="{StaticResource Segment}" GroupName="gifCap" Tag="30" Content="30" Padding="12,0" Checked="GifCap_Checked"/>
+                  <RadioButton x:Name="GifCap20" Style="{StaticResource Segment}" GroupName="gifCap" Tag="20" Content="20" Padding="12,0" Checked="GifCap_Checked"/>
+                </StackPanel>
+              </Border>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{DynamicResource s.perf.gifCap}" FontSize="14"/>
+                <TextBlock Text="{DynamicResource s.perf.gifCapDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
+              </StackPanel>
+            </DockPanel>
+            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <DockPanel Margin="18,14">
+              <Border DockPanel.Dock="Right" Style="{StaticResource SegmentBox}" VerticalAlignment="Center" Margin="16,0,0,0">
+                <StackPanel Orientation="Horizontal">
+                  <RadioButton x:Name="QualityLow" Style="{StaticResource Segment}" GroupName="quality" Tag="low" Content="{DynamicResource s.perf.qLow}" Padding="12,0" Checked="Quality_Checked"/>
+                  <RadioButton x:Name="QualityMedium" Style="{StaticResource Segment}" GroupName="quality" Tag="medium" Content="{DynamicResource s.perf.qMedium}" Padding="12,0" Checked="Quality_Checked"/>
+                  <RadioButton x:Name="QualityHigh" Style="{StaticResource Segment}" GroupName="quality" Tag="high" Content="{DynamicResource s.perf.qHigh}" Padding="12,0" Checked="Quality_Checked"/>
+                </StackPanel>
+              </Border>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{DynamicResource s.perf.quality2}" FontSize="14"/>
+                <TextBlock Text="{DynamicResource s.perf.qualityDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
+              </StackPanel>
+            </DockPanel>
+            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <DockPanel Margin="18,14">
+              <StackPanel DockPanel.Dock="Right" Width="240" Margin="16,0,0,0" VerticalAlignment="Center">
+                <TextBlock x:Name="MemoryText" HorizontalAlignment="Right" FontFamily="{StaticResource MonoFont}"/>
+                <Slider x:Name="MemorySlider" Minimum="64" Maximum="2048" TickFrequency="64" IsSnapToTickEnabled="True" Margin="0,4,0,0" ValueChanged="Memory_ValueChanged"/>
+              </StackPanel>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{DynamicResource s.perf.memory}" FontSize="14"/>
+                <TextBlock Text="{DynamicResource s.perf.memoryDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
+              </StackPanel>
+            </DockPanel>
+            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <ToggleButton x:Name="UnloadHiddenToggle" Style="{StaticResource Switch}" Margin="18,14" Click="PerfToggle_Click">
+              <StackPanel>
+                <TextBlock Text="{DynamicResource s.perf.unloadHidden}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource s.perf.unloadHiddenDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
+              </StackPanel>
+            </ToggleButton>
+            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <ToggleButton x:Name="PauseOccludedToggle" Style="{StaticResource Switch}" Margin="18,14" Click="PerfToggle_Click">
+              <StackPanel>
+                <TextBlock Text="{DynamicResource s.perf.pauseOccluded}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource s.perf.pauseOccludedDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
+              </StackPanel>
+            </ToggleButton>
+            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <ToggleButton x:Name="PauseLockedToggle" Style="{StaticResource Switch}" Margin="18,14" Click="PerfToggle_Click">
+              <StackPanel>
+                <TextBlock Text="{DynamicResource s.perf.pauseLocked}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource s.perf.pauseLockedDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
+              </StackPanel>
+            </ToggleButton>
+            <Border Height="1" Background="{StaticResource LineBrush}"/>
+            <ToggleButton x:Name="LibraryPreviewToggle" Style="{StaticResource Switch}" Margin="18,14" Click="LibraryPreview_Click">
+              <StackPanel>
+                <TextBlock Text="{DynamicResource s.perf.libraryPreview}" FontSize="14" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource s.perf.libraryPreviewDesc}" Style="{StaticResource Hint}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
               </StackPanel>
             </ToggleButton>
           </StackPanel>
@@ -1244,6 +1341,8 @@
         <Border Style="{StaticResource SettingsCard}">
           <StackPanel Margin="18,14">
             <TextBlock x:Name="DiagText" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap"/>
+            <TextBlock Text="{DynamicResource s.perf.monitor}" FontSize="13" FontWeight="SemiBold" Margin="0,14,0,4"/>
+            <TextBlock x:Name="PerfMonitorText" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Foreground="{StaticResource TextDimBrush}" TextWrapping="Wrap"/>
             <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
               <Button Height="32" Content="{DynamicResource s.diag.openLogs}" Click="OpenLogs_Click"/>
               <Button Height="32" Margin="8,0,0,0" Content="{DynamicResource s.diag.copy}" Click="CopyDiagnostics_Click"/>

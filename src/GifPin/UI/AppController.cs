@@ -120,7 +120,88 @@ public sealed class AppController
         Engine.SetHoverFade(s.HoverFade, s.HoverFadeOpacity);
         Engine.SetEffectsOff(s.EffectsOff);
         Engine.SetAppRules(s.HideForApps, s.HideForAppsWhileRunning);
+        ApplyPerformance();
         ApplyHotkeys();
+    }
+
+    private void ApplyPerformance()
+    {
+        var s = State.Settings;
+        Engine.SetEffectsSettings(s.EffectsFps, s.PauseEffectsFullscreen, s.PauseEffectsOnBattery, s.AutoLightEffects, s.AutoLightCpuPercent);
+        Engine.SetPerformance(s.MaxParticlesTotal, s.GifFpsCap, s.RenderQuality, s.MemoryBudgetMB, s.UnloadHidden, s.PauseOccluded, s.PauseWhenLocked);
+    }
+
+    // ── 성능 ─────────────────────────────────────────────────
+
+    /// <summary>성능 모드 선택: 그 모드의 값으로 여러 설정을 한 번에 바꿈.</summary>
+    public void SetPerfMode(string mode)
+    {
+        if (mode == PerfModes.Custom) { State.Settings.PerfMode = PerfModes.Custom; Save(); SettingsChanged?.Invoke(); return; }
+        PerfModes.Apply(State.Settings, mode);
+        State.Settings.Normalize();
+        ApplyPerformance();
+        Log.Info($"Performance mode: {State.Settings.PerfMode}");
+        Save();
+        SettingsChanged?.Invoke();
+    }
+
+    /// <summary>성능 설정 하나를 바꿈 → 어느 모드와도 같지 않으면 "직접 설정".</summary>
+    public void SetPerfOption(Action<AppSettings> change)
+    {
+        change(State.Settings);
+        State.Settings.Normalize();
+        State.Settings.PerfMode = PerfModes.Detect(State.Settings);
+        ApplyPerformance();
+        Save();
+        SettingsChanged?.Invoke();
+    }
+
+    public void SetLibraryPreview(bool on)
+    {
+        State.Settings.LibraryPreview = on;
+        Save();
+        SelectionChanged?.Invoke();
+    }
+
+    private TimeSpan _lastCpuTime;
+    private DateTime _lastCpuAt;
+
+    /// <summary>성능 모니터: GifPin의 CPU·메모리, 디코딩한 GIF 메모리, GIF별 상태.</summary>
+    public async Task<string> PerfReportAsync()
+    {
+        var proc = System.Diagnostics.Process.GetCurrentProcess();
+        proc.Refresh();
+        var now = DateTime.UtcNow;
+        var cpu = proc.TotalProcessorTime;
+        double cpuPct = 0;
+        if (_lastCpuAt != default)
+        {
+            double wall = (now - _lastCpuAt).TotalSeconds;
+            if (wall > 0.2) cpuPct = (cpu - _lastCpuTime).TotalSeconds / wall / Environment.ProcessorCount * 100;
+        }
+        _lastCpuTime = cpu;
+        _lastCpuAt = now;
+        var (count, bytes) = await Engine.AnimStatsAsync();
+        var sb = new StringBuilder();
+        sb.AppendLine(Loc.F("perf.summary", cpuPct.ToString("0.0"), proc.WorkingSet64 / (1024 * 1024), proc.PrivateMemorySize64 / (1024 * 1024),
+            count, bytes / (1024 * 1024)));
+        int particles = 0;
+        foreach (var a in State.Active)
+        {
+            var p = await Engine.ProbeAsync(a.Id);
+            if (p == null) continue;
+            particles += p.Particles;
+            string status = p.Unloaded ? Loc.T("perf.unloaded")
+                : !p.Shown ? Loc.T("perf.hidden")
+                : p.Occluded ? Loc.T("perf.occluded")
+                : Engine.SystemPaused ? Loc.T("perf.paused")
+                : p.FramesPerSecond > 0 ? Loc.F("perf.fps", p.FramesPerSecond) : Loc.T("perf.idle");
+            string name = State.FindPhoto(a.PhotoId)?.Name ?? "?";
+            if (name.Length > 24) name = name[..24] + "…";
+            sb.AppendLine($"  {State.Active.IndexOf(a) + 1}. {name} — {status}" + (p.Particles > 0 ? " · " + Loc.F("perf.particles", p.Particles) : ""));
+        }
+        sb.Append(Loc.F("perf.particlesTotal", particles, State.Settings.MaxParticlesTotal));
+        return sb.ToString();
     }
 
     public static string AppVersion => typeof(AppController).Assembly.GetName().Version?.ToString(3) ?? "?";
@@ -1396,8 +1477,10 @@ public sealed class AppController
         s.PauseEffectsOnBattery = pauseOnBattery;
         s.AutoLightEffects = autoLight;
         s.AutoLightCpuPercent = Math.Clamp(cpuPercent, 50, 95);
+        s.PerfMode = PerfModes.Detect(s);
         Engine.SetEffectsSettings(s.EffectsFps, pauseFullscreen, pauseOnBattery, autoLight, s.AutoLightCpuPercent);
         Save();
+        SettingsChanged?.Invoke();
     }
 
     /// <summary>움직이는 GIF 잡기: 눌러야 하는 시간 / 놓은 뒤 다시 움직이기까지 (ms).</summary>

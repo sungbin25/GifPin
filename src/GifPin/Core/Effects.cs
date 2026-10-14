@@ -166,6 +166,8 @@ internal sealed class EffectState : IDisposable
     public bool SuppressParticles { get; set; }
     public double Speed { get; private set; }
     public int ParticleCount => _particles.Count;
+    /// <summary>이 창이 가질 수 있는 파티클 수 (모든 GIF를 합친 상한에서 엔진이 매 프레임 나눠 줌).</summary>
+    public int ParticleBudget { get; set; } = int.MaxValue;
     public int Squashes { get; private set; }
     public int DustPuffs { get; private set; }
     public int TrailCount => _trail.Count;
@@ -370,7 +372,7 @@ internal sealed class EffectState : IDisposable
         string kind = kinds.Length == 1 ? kinds[0] : kinds[_rng.Next(kinds.Length)];
         bool image = kind == Fx.Image && _sprites.Count > 0;
         int cap = a.FxParticleAnimate && _sprites.Count > 0 && Array.IndexOf(kinds, Fx.Image) >= 0 ? MaxAnimatedParticles : MaxParticles;
-        if (_particles.Count >= cap) return;
+        if (_particles.Count >= Math.Min(cap, ParticleBudget)) return;
         var p = new Particle
         {
             Life = a.FxParticleLife * Rnd(0.75, 1.25),
@@ -425,7 +427,7 @@ internal sealed class EffectState : IDisposable
     {
         DustPuffs++;
         int n = 6 + (int)(strength * 6);
-        for (int i = 0; i < n && _particles.Count < MaxParticles; i++)
+        for (int i = 0; i < n && _particles.Count < Math.Min(MaxParticles, ParticleBudget); i++)
         {
             int side = i % 2 == 0 ? -1 : 1;
             _particles.Add(new Particle
