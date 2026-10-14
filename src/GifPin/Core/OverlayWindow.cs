@@ -584,6 +584,28 @@ internal sealed unsafe class OverlayWindow : IDisposable
         finally { DeleteObject(rgn); }
     }
 
+    /// <summary>진단용: GIF 영역과 겹치는 위쪽 창들 (클래스·제목·스타일·영역).</summary>
+    internal string DescribeWindowsAbove()
+    {
+        var (w, h) = ContentSize(Item.Scale);
+        var sb = new System.Text.StringBuilder();
+        int guard = 0;
+        for (IntPtr n = GetWindow(Hwnd, GW_HWNDPREV); n != IntPtr.Zero && guard++ < 600; n = GetWindow(n, GW_HWNDPREV))
+        {
+            if (!IsWindowVisible(n) || _engine.IsOverlay(n)) continue;
+            if (DwmGetWindowAttribute(n, DWMWA_EXTENDED_FRAME_BOUNDS, out RECT r, sizeof(RECT)) != 0 && !GetWindowRect(n, out r)) continue;
+            if (r.Right <= Item.X || r.Left >= Item.X + w || r.Bottom <= Item.Y || r.Top >= Item.Y + h) continue;
+            var cls = new System.Text.StringBuilder(128);
+            var title = new System.Text.StringBuilder(128);
+            GetClassNameW(n, cls, 128);
+            GetWindowTextW(n, title, 128);
+            long ex = GetWindowLongPtrW(n, GWL_EXSTYLE).ToInt64();
+            DwmGetWindowAttributeInt(n, DWMWA_CLOAKED, out int cloaked, sizeof(int));
+            sb.Append($"[{cls} '{title}' ex=0x{ex:X} cloaked={cloaked} iconic={IsIconic(n)} {r.Left},{r.Top}-{r.Right},{r.Bottom}] ");
+        }
+        return sb.ToString();
+    }
+
     internal bool IsTopmost => (GetWindowLongPtrW(Hwnd, GWL_EXSTYLE).ToInt64() & WS_EX_TOPMOST) != 0;
 
     private bool IsShown => _anim != null && (_editMode || (Item.Visible && !_globalHidden));

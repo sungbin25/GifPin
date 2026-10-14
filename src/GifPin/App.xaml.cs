@@ -709,7 +709,7 @@ public partial class App : Application
         await Wait(500);
         eng.CheckOcclusionNow();
         await Wait(300);
-        if ((await P(fastId)).Occluded) throw new Exception("desktop GIF counted as covered before any window covered it");
+        if ((await P(fastId)).Occluded) throw new Exception("desktop GIF counted as covered before any window covered it: " + await eng.DescribeWindowsAboveAsync(fastId));
         var cover = new Window
         {
             WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, ShowActivated = false,

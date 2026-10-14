@@ -841,6 +841,14 @@ public sealed class OverlayEngine : IDisposable
         else CheckSystemPause();
     });
 
+    /// <summary>진단용: GIF 위에 겹친 창 목록.</summary>
+    public Task<string> DescribeWindowsAboveAsync(string id)
+    {
+        var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Post(() => tcs.TrySetResult(_byId.TryGetValue(id, out var w) ? w.DescribeWindowsAbove() : "(no overlay)"));
+        return tcs.Task;
+    }
+
     /// <summary>점검용: 지금 바로 가려짐을 다시 확인.</summary>
     public void CheckOcclusionNow() => Post(CheckOcclusion);
 

@@ -180,6 +180,8 @@ internal static unsafe class Native
     [DllImport("user32.dll")] public static extern bool UnregisterPowerSettingNotification(IntPtr handle);
     public const uint EVENT_SYSTEM_MOVESIZEEND = 0x000B, EVENT_SYSTEM_MINIMIZESTART = 0x0016, EVENT_SYSTEM_MINIMIZEEND = 0x0017;
     public const int RGN_DIFF = 4, NULLREGION = 1, ERROR_REGION = 0;
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassNameW(IntPtr hWnd, System.Text.StringBuilder name, int max);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowTextW(IntPtr hWnd, System.Text.StringBuilder text, int max);
     [DllImport("gdi32.dll")] public static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
     [DllImport("gdi32.dll")] public static extern int CombineRgn(IntPtr dest, IntPtr src1, IntPtr src2, int mode);
     public const uint EVENT_OBJECT_LOCATIONCHANGE = 0x800B;
