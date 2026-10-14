@@ -89,6 +89,23 @@ jobs:
           path: ~/AppData/Roaming/GifPin/theme-shots/*.png
           if-no-files-found: ignore
 
+      - name: Push theme screenshots to ci-shots branch (manual runs only)
+        if: always() && github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          $src = Join-Path ([Environment]::GetFolderPath('ApplicationData')) 'GifPin\theme-shots'
+          if (-not (Test-Path $src)) { exit 0 }
+          $dir = Join-Path $env:RUNNER_TEMP 'shots'
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          Copy-Item "$src\*.png" $dir
+          Set-Location $dir
+          git init -q
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          git add -A
+          git commit -q -m "theme screenshots ${{ github.sha }}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:refs/heads/ci-shots
+
       - name: Build installer
         shell: pwsh
         run: |
