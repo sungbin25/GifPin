@@ -849,8 +849,16 @@ public partial class App : Application
     private static void SaveShot(Window w, string path)
     {
         if (w.Content is not FrameworkElement root || root.ActualWidth < 10) return;
-        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap((int)root.ActualWidth, (int)root.ActualHeight, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
-        rtb.Render(root);
+        int pw = (int)root.ActualWidth, ph = (int)root.ActualHeight;
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(pw, ph, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        var dv = new System.Windows.Media.DrawingVisual();
+        using (var dc = dv.RenderOpen())
+        {
+            var r = new Rect(0, 0, pw, ph);
+            dc.DrawRectangle(w.Background, null, r); // 창 바탕색 (내용만 그리면 빠짐)
+            dc.DrawRectangle(new System.Windows.Media.VisualBrush(root), null, r);
+        }
+        rtb.Render(dv);
         var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
         enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
         using var fs = System.IO.File.Create(path);
