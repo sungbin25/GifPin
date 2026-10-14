@@ -70,7 +70,14 @@ internal sealed unsafe class OverlayWindow : IDisposable
     public long GifFramesAdvanced { get; private set; }
 
     /// <summary>매 프레임 계산이 필요함 (움직이는 중, 효과가 도는 중, 또는 GIF 재생 중).</summary>
-    internal bool NeedsFrames => _motionRunning || _fxRunning || _gifPlaying;
+    internal bool NeedsFrames => _motionRunning || _fxRunning || _gifPlaying || _fading;
+
+    // 마우스를 올리면 흐리게: 지금 진하기(0~1)와 목표. 바뀌는 동안만 프레임을 받음
+    private double _fadeNow = 1, _fadeTarget = 1;
+    private bool _fading, _hovered;
+    private const double FadeSeconds = 0.15;
+    private const int HoverMargin = 8;
+    private bool _captureExcluded;
     private Pads _pads = Pads.Zero; // 지금 창 가장자리 여백 (창 위치 = GIF 위치 − 여백)
     private List<GifAnimation>? _sprites; // 내 이미지 파티클 (이 창이 주인)
 
@@ -192,6 +199,53 @@ internal sealed unsafe class OverlayWindow : IDisposable
         _engine.RaiseChanged(Item);
     }
 
+    /// <summary>화면 녹화·공유·캡처에서 이 창을 뺌 (Windows 10 2004 이상).</summary>
+    public void SetCaptureExcluded(bool on)
+    {
+        if (_captureExcluded == on) return;
+        _captureExcluded = on;
+        if (!SetWindowDisplayAffinity(Hwnd, on ? WDA_EXCLUDEFROMCAPTURE : WDA_NONE) && on)
+            Log.Warn($"Could not hide overlay from screen capture (error {Marshal.GetLastWin32Error()}); needs Windows 10 2004 or later");
+    }
+
+    internal bool CaptureExcludedNow => GetWindowDisplayAffinity(Hwnd, out uint a) && a == WDA_EXCLUDEFROMCAPTURE;
+
+    /// <summary>마우스가 (x, y)에 있을 때 흐려져야 하나: 클릭 통과 GIF의 그림 영역(+여백) 안.</summary>
+    internal bool HitsHover(int x, int y)
+    {
+        if (!IsShown || _editMode || !Item.ClickThrough || _anim == null) return false;
+        var (w, h) = ContentSize(Item.Scale);
+        return x >= Item.X - HoverMargin && x < Item.X + w + HoverMargin && y >= Item.Y - HoverMargin && y < Item.Y + h + HoverMargin;
+    }
+
+    internal void SetHover(bool hovered)
+    {
+        if (_hovered == hovered && Math.Abs(_fadeTarget - (hovered ? _engine.HoverOpacity : 1)) < 0.001) return;
+        _hovered = hovered;
+        _fadeTarget = hovered ? _engine.HoverOpacity : 1;
+        if (Math.Abs(_fadeNow - _fadeTarget) < 0.001) return;
+        if (!IsShown) { _fadeNow = _fadeTarget; return; }
+        if (!_fading)
+        {
+            _fading = true;
+            SyncFrameClock();
+        }
+    }
+
+    /// <summary>진하기를 목표 쪽으로 조금 옮김. 다 왔으면 false.</summary>
+    private bool StepFade(double dt)
+    {
+        if (!_fading) return false;
+        double step = dt <= 0 ? 1.0 / 60 / FadeSeconds : dt / FadeSeconds;
+        _fadeNow = _fadeNow < _fadeTarget ? Math.Min(_fadeTarget, _fadeNow + step) : Math.Max(_fadeTarget, _fadeNow - step);
+        if (Math.Abs(_fadeNow - _fadeTarget) < 0.001)
+        {
+            _fadeNow = _fadeTarget;
+            _fading = false;
+        }
+        return true;
+    }
+
     public void SetPixelated(bool pixelated)
     {
         var q = pixelated ? SKFilterQuality.None : SKFilterQuality.Medium;
@@ -270,7 +324,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
     /// </summary>
     internal void OnFrame(long now)
     {
-        if (!NeedsFrames || _anim == null) { _lastFrameTs = 0; return; }
+        if (!NeedsFrames || _anim == null) { _lastFrameTs = 0; _fading = false; return; }
         double dt = _lastFrameTs == 0 ? 0 : (now - _lastFrameTs) / (double)System.Diagnostics.Stopwatch.Frequency;
         _lastFrameTs = now;
         CountFrame(now);
@@ -278,6 +332,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
         bool render = _dirty, moved = false;
         _dirty = false;
         if (AdvanceGif(now)) render = true;
+        if (StepFade(dt)) render = true;
         var (w, h) = ContentSize(Item.Scale);
 
         if (_motionRunning)
@@ -755,6 +810,9 @@ internal sealed unsafe class OverlayWindow : IDisposable
     internal OverlayProbe Probe() => new(Item.Clone(), _motionRunning, _held, _press != Press.None, _motion.IsSliding, _motion.Jumps, IsTopmost, _motion.Pushes)
     {
         LightMode = _engine.LightMode,
+        CaptureExcluded = CaptureExcludedNow,
+        FadeOpacity = _fadeNow,
+        FxPaused = _engine.FxPaused,
         FxRunning = _fxRunning,
         Particles = _fx.ParticleCount,
         Squashes = _fx.Squashes,
@@ -975,6 +1033,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
         var src = new POINT(0, 0);
         double op = Math.Clamp(Item.Opacity, 0.1, 1.0);
         if (_editMode) op = Math.Max(op, 0.6);
+        else op *= _fadeNow;
         var blend = new BLENDFUNCTION { BlendOp = AC_SRC_OVER, SourceConstantAlpha = (byte)Math.Round(op * 255), AlphaFormat = AC_SRC_ALPHA };
         IntPtr screenDc = GetDC(IntPtr.Zero);
         try

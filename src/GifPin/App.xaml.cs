@@ -86,6 +86,7 @@ public partial class App : Application
                     if (!string.IsNullOrEmpty(assets)) report += "\n" + SmokeTest.RunV03(assets);
                     report += "\n" + SmokeUi(_controller);
                     report += "\n" + await SmokeMouse(_controller);
+                    report += "\n" + await SmokeConvenience(_controller);
                     report += $"\nactive overlays: {_controller.State.Active.Count}";
                 }
                 catch (Exception ex)
@@ -439,6 +440,88 @@ public partial class App : Application
         sb.Append(" layers ok");
 
         app.UpdateActive(id, a => { a.MotionMode = Motion.None; a.ClickThrough = true; });
+        return sb.ToString();
+    }
+
+    /// <summary>CI 점검 (v0.5): 녹화 숨기기, 마우스 흐리게, 모든 효과 끄기, 장면, 단축키.</summary>
+    private static async System.Threading.Tasks.Task<string> SmokeConvenience(AppController app)
+    {
+        if (app.State.Active.Count == 0) return "convenience skipped (nothing on screen)";
+        var eng = app.Engine;
+        var id = app.State.Active[0].Id;
+        async System.Threading.Tasks.Task<OverlayProbe> P(string which) => await eng.ProbeAsync(which) ?? throw new Exception("overlay missing");
+        static System.Threading.Tasks.Task Wait(int ms) => System.Threading.Tasks.Task.Delay(ms);
+        var sb = new System.Text.StringBuilder("v0.5:");
+        TextPrompt.SmokeOpenClose();
+
+        // 1) 화면 녹화·공유에서 숨기기
+        app.SetHideFromCapture(true);
+        await Wait(200);
+        if (!(await P(id)).CaptureExcluded) throw new Exception("overlay was not excluded from capture");
+        app.SetHideFromCapture(false);
+        await Wait(200);
+        if ((await P(id)).CaptureExcluded) throw new Exception("capture exclusion was not removed");
+        sb.Append(" capture ok ·");
+
+        // 2) 마우스를 올리면 흐리게: 클릭 통과 GIF 위면 20%로, 벗어나면 다시 100%
+        app.UpdateActive(id, a => { a.ClickThrough = true; a.Visible = true; a.MotionMode = Motion.None; });
+        var item = app.State.Active[0];
+        var (w, h) = app.ShownSize(item);
+        app.SetHoverFade(true, 20);
+        eng.SimulateHover(item.X + w / 2, item.Y + h / 2);
+        await Wait(500);
+        var p = await P(id);
+        if (Math.Abs(p.FadeOpacity - 0.2) > 0.01) throw new Exception($"hover fade: opacity {p.FadeOpacity:0.00}, expected 0.20");
+        eng.SimulateHover(item.X - 500, item.Y - 500);
+        await Wait(500);
+        p = await P(id);
+        if (p.FadeOpacity < 0.99) throw new Exception($"fade did not come back: {p.FadeOpacity:0.00}");
+        app.SetHoverFade(false, 20);
+        eng.SimulateHover(null, null);
+        sb.Append(" hover fade ok ·");
+
+        // 3) 모든 효과 끄기
+        app.SetEffectsOff(true);
+        await Wait(200);
+        if (!(await P(id)).FxPaused) throw new Exception("effects-off did not pause effects");
+        app.SetEffectsOff(false);
+        await Wait(200);
+        if ((await P(id)).FxPaused) throw new Exception("effects did not come back on");
+        sb.Append(" effects toggle ok ·");
+
+        // 4) 장면: A(지금) / B(하나 더) 저장 → A 적용 → 다음 장면 = B → 매일 시각에 자동 전환
+        int countA = app.State.Active.Count;
+        var sceneA = app.SaveScene("smoke A");
+        app.AddToScreen(app.State.Active[0].PhotoId);
+        int countB = app.State.Active.Count;
+        var sceneB = app.SaveScene("smoke B");
+        app.ApplyScene(sceneA.Id);
+        await Wait(300);
+        if (app.State.Active.Count != countA || app.State.CurrentSceneId != sceneA.Id) throw new Exception($"scene A: {app.State.Active.Count} GIFs, expected {countA}");
+        foreach (var x in app.State.Active) if (await eng.ProbeAsync(x.Id) == null) throw new Exception("scene GIF has no overlay");
+        app.ApplyNextScene();
+        await Wait(300);
+        if (app.State.Active.Count != countB || app.State.CurrentSceneId != sceneB.Id) throw new Exception($"next scene: {app.State.Active.Count} GIFs, expected {countB}");
+        if (!app.SetSceneTime(sceneA.Id, "7:5") || sceneA.AutoAt != "07:05") throw new Exception($"scene time not normalized: {sceneA.AutoAt}");
+        if (app.SetSceneTime(sceneA.Id, "25:00")) throw new Exception("invalid scene time accepted");
+        var today = DateTime.Today;
+        app.SetSceneClockForTest(today.AddHours(7).AddMinutes(4));
+        app.CheckSceneSchedule(today.AddHours(7).AddMinutes(6));
+        if (app.State.CurrentSceneId != sceneA.Id) throw new Exception("scheduled scene was not applied");
+        app.DeleteScene(sceneB.Id);
+        app.DeleteScene(sceneA.Id);
+        id = app.State.Active[0].Id;
+        sb.Append($" scenes ok ({countA}/{countB}) ·");
+
+        // 5) 단축키 지정: 새 조합 등록, 겹치면 거절, 기본값 복원
+        if (!Hotkeys.TryParse("Ctrl+Shift+F9", out uint m, out uint vk) || Hotkeys.Format(m, vk) != "Ctrl+Shift+F9") throw new Exception("hotkey parse/format");
+        if (Hotkeys.TryParse("A", out _, out _) || Hotkeys.TryParse("Shift+A", out _, out _)) throw new Exception("hotkey without modifier accepted");
+        if (!app.SetHotkey(Hotkeys.NextScene, "Ctrl+Alt+F9")) throw new Exception("hotkey not set");
+        if (app.SetHotkey(Hotkeys.Effects, "ctrl+alt+f9")) throw new Exception("duplicate hotkey accepted");
+        if (app.HotkeyText(Hotkeys.NextScene) != "Ctrl+Alt+F9") throw new Exception("hotkey text");
+        app.ResetHotkeys();
+        if (app.HotkeyText(Hotkeys.NextScene) != "" || app.HotkeyText(Hotkeys.Edit) != "Ctrl+Alt+E") throw new Exception("hotkeys not reset");
+        sb.Append($" hotkeys ok (failures: {eng.HotkeyFailures.Count})");
         return sb.ToString();
     }
 

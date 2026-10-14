@@ -16,11 +16,11 @@ namespace GifPin.Core;
 /// </summary>
 public sealed class OverlayEngine : IDisposable
 {
-    public const int HotkeyEdit = 1, HotkeyHide = 2, HotkeyQuit = 3;
     private const string MsgClassName = "GifPinEngine";
     private const uint WM_RUN = WM_APP + 1;
     private const uint WM_FRAME = WM_APP + 2;
-    private const nuint TIMER_TOPMOST = 1;
+    private const nuint TIMER_TOPMOST = 1, TIMER_HOVER = 2;
+    private const int HoverPollMs = 40;
 
     /// <summary>드래그·휠·방향키로 위치·크기가 확정됨 (사본 전달).</summary>
     public event Action<ActiveItem>? Changed;
@@ -206,11 +206,6 @@ public sealed class OverlayEngine : IDisposable
 
         _msgHwnd = CreateWindowExW(0, MsgClassName, "GifPin engine", 0, 0, 0, 0, 0, HWND_MESSAGE, IntPtr.Zero, hInstance, IntPtr.Zero);
 
-        uint mods = MOD_CONTROL | MOD_ALT | MOD_NOREPEAT;
-        if (!RegisterHotKey(_msgHwnd, HotkeyEdit, mods, 0x45)) _hotkeyFailures.Add("Ctrl+Alt+E");
-        if (!RegisterHotKey(_msgHwnd, HotkeyHide, mods, 0x48)) _hotkeyFailures.Add("Ctrl+Alt+H");
-        if (!RegisterHotKey(_msgHwnd, HotkeyQuit, mods, 0x51)) _hotkeyFailures.Add("Ctrl+Alt+Q");
-
         _pacer = new Thread(PacerLoop) { IsBackground = true, Name = "GifPin.FramePacer", Priority = ThreadPriority.AboveNormal };
         _pacer.Start();
 
@@ -280,6 +275,7 @@ public sealed class OverlayEngine : IDisposable
                     HotkeyPressed?.Invoke((int)wParam);
                     return IntPtr.Zero;
                 case WM_TIMER:
+                    if ((nuint)wParam == TIMER_HOVER) { CheckHover(); return IntPtr.Zero; }
                     BringAllToTop();
                     CheckFxPause();
                     return IntPtr.Zero;
@@ -320,6 +316,8 @@ public sealed class OverlayEngine : IDisposable
                 w.SetEditMode(_editMode);
                 w.SetSelected(_selectedId == snapshot.Id);
                 w.SetGlobalHidden(_allHidden);
+                w.SetCaptureExcluded(_hideFromCapture);
+                UpdateHoverTimer();
             }
             w.Update(snapshot);
             w.SetPixelated(pixelated);
@@ -486,12 +484,114 @@ public sealed class OverlayEngine : IDisposable
             if (key != null) ReleaseAnim(key);
         }
         if (_selectedId == id) _selectedId = null;
+        UpdateHoverTimer();
     });
 
     public void SetEditMode(bool edit) => Post(() =>
     {
         _editMode = edit;
         foreach (var w in _byId.Values) w.SetEditMode(edit);
+        UpdateHoverTimer();
+    });
+
+    // ── 단축키 ───────────────────────────────────────────────
+
+    private readonly List<int> _registered = new();
+
+    /// <summary>
+    /// 전역 단축키를 다시 등록한다 (동작 이름 → "Ctrl+Alt+E"). 등록하지 못한 것(다른 프로그램이 사용 중)의 목록을 돌려준다.
+    /// UI 스레드에서 불러도 됨 — 엔진 스레드가 처리할 때까지 잠깐 기다림.
+    /// </summary>
+    public IReadOnlyList<string> SetHotkeys(IReadOnlyDictionary<string, string> map)
+    {
+        var done = new TaskCompletionSource<List<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Post(() =>
+        {
+            foreach (int id in _registered) UnregisterHotKey(_msgHwnd, id);
+            _registered.Clear();
+            var failed = new List<string>();
+            foreach (var (action, text) in map)
+            {
+                int id = Hotkeys.IdOf(action);
+                if (id == 0 || !Hotkeys.TryParse(text, out uint mods, out uint vk)) continue;
+                if (RegisterHotKey(_msgHwnd, id, mods | MOD_NOREPEAT, vk)) _registered.Add(id);
+                else failed.Add(text);
+            }
+            done.TrySetResult(failed);
+        });
+        var result = done.Task.Wait(3000) ? done.Task.Result : new List<string>();
+        _hotkeyFailures.Clear();
+        _hotkeyFailures.AddRange(result);
+        return result;
+    }
+
+    // ── 화면 캡처에서 숨기기 ─────────────────────────────────
+
+    private bool _hideFromCapture;
+
+    /// <summary>켜면 화면 녹화·공유·캡처에 GIF가 찍히지 않음 (내 화면에는 그대로 보임).</summary>
+    public void SetHideFromCapture(bool on) => Post(() =>
+    {
+        _hideFromCapture = on;
+        foreach (var w in _byId.Values) w.SetCaptureExcluded(on);
+    });
+
+    // ── 마우스를 올리면 흐리게 ───────────────────────────────
+
+    private bool _hoverFade;
+    /// <summary>흐려졌을 때 남는 진하기 (0~1). 엔진 스레드에서 읽음.</summary>
+    internal double HoverOpacity { get; private set; } = 0.25;
+    private bool _hoverTimerOn;
+
+    public void SetHoverFade(bool on, int opacityPercent) => Post(() =>
+    {
+        _hoverFade = on;
+        HoverOpacity = Math.Clamp(opacityPercent, 0, 90) / 100.0;
+        UpdateHoverTimer();
+        if (!on) foreach (var w in _byId.Values) w.SetHover(false);
+        else CheckHover();
+    });
+
+    /// <summary>켜져 있고 화면에 GIF가 있을 때만 마우스 위치를 확인 (40ms마다, 아주 가벼움).</summary>
+    private void UpdateHoverTimer()
+    {
+        bool want = _hoverFade && !_editMode && _byId.Count > 0;
+        if (want == _hoverTimerOn) return;
+        _hoverTimerOn = want;
+        if (want) SetTimer(_msgHwnd, TIMER_HOVER, HoverPollMs, IntPtr.Zero);
+        else
+        {
+            KillTimer(_msgHwnd, TIMER_HOVER);
+            foreach (var w in _byId.Values) w.SetHover(false);
+        }
+    }
+
+    private void CheckHover()
+    {
+        if (!_hoverFade || _editMode) return;
+        POINT pt;
+        if (_hoverTestPoint is { } tp) pt = new POINT(tp.x, tp.y);
+        else if (!GetCursorPos(out pt)) return;
+        foreach (var w in _byId.Values) w.SetHover(w.HitsHover(pt.X, pt.Y));
+    }
+
+    private (int x, int y)? _hoverTestPoint;
+
+    /// <summary>점검용: 실제 마우스 대신 (x, y)에 있는 것으로 침 (null = 실제 마우스).</summary>
+    public void SimulateHover(int? x, int? y) => Post(() =>
+    {
+        _hoverTestPoint = x is int xx && y is int yy ? (xx, yy) : null;
+        CheckHover();
+    });
+
+    // ── 모든 효과 끄기 ───────────────────────────────────────
+
+    private bool _fxUserOff;
+
+    public void SetEffectsOff(bool off) => Post(() =>
+    {
+        _fxUserOff = off;
+        CheckFxPause(force: true);
     });
 
     public void Select(string? id) => Post(() =>
@@ -545,10 +645,10 @@ public sealed class OverlayEngine : IDisposable
     /// <summary>전체 화면 게임·발표 중이거나 배터리 사용 중이면 효과를 멈춘다 (1.5초마다 확인).</summary>
     private void CheckFxPause(bool force = false)
     {
-        bool paused = false;
+        bool paused = _fxUserOff;
         try
         {
-            if (_pauseFxFullscreen && SHQueryUserNotificationState(out int state) == 0)
+            if (!paused && _pauseFxFullscreen && SHQueryUserNotificationState(out int state) == 0)
                 paused = state is QUNS_BUSY or QUNS_RUNNING_D3D_FULL_SCREEN or QUNS_PRESENTATION_MODE;
             if (!paused && _pauseFxBattery && GetSystemPowerStatus(out var ps))
                 paused = ps.ACLineStatus == 0;
@@ -565,7 +665,7 @@ public sealed class OverlayEngine : IDisposable
         catch (Exception ex) { Log.Warn("Could not read CPU usage", ex); }
 
         if (paused == FxPaused && light == LightMode && !force) return;
-        if (paused != FxPaused) Log.Info(paused ? "Effects paused (full screen or battery)" : "Effects resumed");
+        if (paused != FxPaused) Log.Info(paused ? (_fxUserOff ? "Effects turned off" : "Effects paused (full screen or battery)") : "Effects resumed");
         if (light != LightMode) Log.Info(light ? $"Busy PC (other apps {OtherCpuPercent:0}% CPU): particles off" : "PC no longer busy: particles back on");
         FxPaused = paused;
         LightMode = light;
@@ -672,4 +772,7 @@ public sealed record OverlayProbe(ActiveItem Item, bool MotionRunning, bool Held
     public int GlowBuilds { get; init; }
     public int GlowHits { get; init; }
     public bool LightMode { get; init; }
+    public bool CaptureExcluded { get; init; }
+    public double FadeOpacity { get; init; }
+    public bool FxPaused { get; init; }
 }

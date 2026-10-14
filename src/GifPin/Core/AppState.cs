@@ -230,6 +230,45 @@ public sealed class AppSettings
     public bool PauseEffectsOnBattery { get; set; }
     public bool TrayNoticeShown { get; set; }
     public WindowBounds? Window { get; set; }
+
+    /// <summary>화면 녹화·공유·캡처에 GIF가 찍히지 않게 (내 화면에만 보임)</summary>
+    public bool HideFromCapture { get; set; }
+    /// <summary>클릭 통과 GIF 위에 마우스를 올리면 흐려짐</summary>
+    public bool HoverFade { get; set; }
+    /// <summary>흐려졌을 때 남는 진하기 (%)</summary>
+    public int HoverFadeOpacity { get; set; } = 25;
+    /// <summary>모든 효과 끄기 (단축키·트레이로 켜고 끔)</summary>
+    public bool EffectsOff { get; set; }
+    /// <summary>전역 단축키: 동작 → "Ctrl+Alt+E" (빈 글자 = 없음)</summary>
+    public Dictionary<string, string> Hotkeys { get; set; } = new();
+
+    /// <summary>저장된 값을 허용 범위로 바로잡음.</summary>
+    public void Normalize()
+    {
+        HoverFadeOpacity = Math.Clamp(HoverFadeOpacity, 0, 90);
+        Hotkeys = Core.Hotkeys.Normalize(Hotkeys);
+    }
+}
+
+/// <summary>저장해 둔 화면 배치 (장면).</summary>
+public sealed class Scene
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public List<ActiveItem> Items { get; set; } = new();
+    /// <summary>매일 이 시각("HH:mm")에 자동으로 적용 (없으면 수동만)</summary>
+    public string? AutoAt { get; set; }
+    public DateTimeOffset SavedAt { get; set; }
+
+    /// <summary>"7:5", "07:05" → "07:05". 틀린 형식이면 null.</summary>
+    public static string? NormalizeTime(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        var parts = text.Trim().Split(':');
+        if (parts.Length != 2 || !int.TryParse(parts[0], out int h) || !int.TryParse(parts[1], out int m)) return null;
+        if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+        return $"{h:00}:{m:00}";
+    }
 }
 
 public sealed class AppState
@@ -238,6 +277,9 @@ public sealed class AppState
     public List<PhotoItem> Library { get; set; } = new();
     public List<ActiveItem> Active { get; set; } = new();
     public AppSettings Settings { get; set; } = new();
+    public List<Scene> Scenes { get; set; } = new();
+    /// <summary>마지막으로 적용한 장면 (다음 장면 단축키용)</summary>
+    public string? CurrentSceneId { get; set; }
 
     public PhotoItem? FindPhoto(string? id) => id == null ? null : Library.FirstOrDefault(p => p.Id == id);
 }
@@ -286,7 +328,7 @@ public static class Store
             }
             catch { /* 손상 → 다음 후보(백업) */ }
         }
-        return MigrateFromPrototype() ?? new AppState { Settings = { OpenWindowOnStart = true } };
+        return Migrate(MigrateFromPrototype() ?? new AppState { Settings = { OpenWindowOnStart = true } });
     }
 
     /// <summary>v0.1 프로토타입 설정(prototype.json)이 있으면 그 GIF를 라이브러리와 화면에 옮긴다.</summary>
@@ -294,6 +336,18 @@ public static class Store
     internal static AppState Migrate(AppState s)
     {
         s.Settings ??= new AppSettings();
+        s.Library ??= new();
+        s.Active ??= new();
+        s.Scenes ??= new();
+        s.Scenes.RemoveAll(sc => sc == null);
+        foreach (var sc in s.Scenes)
+        {
+            sc.Items ??= new();
+            sc.Items.RemoveAll(i => i == null);
+            sc.AutoAt = Scene.NormalizeTime(sc.AutoAt);
+            if (string.IsNullOrEmpty(sc.Id)) sc.Id = NewId("s");
+        }
+        s.Settings.Normalize();
         if (s.Settings.SettingsVersion < 2)
         {
             // v0.4.4: 전체 화면에서도 효과를 켜 두는 것이 기본으로 바뀜

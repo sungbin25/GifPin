@@ -45,12 +45,18 @@ public partial class MainWindow : Window
         _app.Notice += ShowToast;
         _app.MonitorsChanged += () => { RefreshPanel(); RefreshDiagnostics(); };
         _app.AutostartChanged += RefreshSettings; // 트레이 메뉴에서 바꾼 경우
+        _app.SettingsChanged += RefreshSettings;
+        _app.ScenesChanged += BuildSceneRows;
+        _app.HotkeysChanged += BuildHotkeyRows;
+        PreviewKeyDown += OnPreviewKeyDownForHotkey;
+        Deactivated += (_, _) => CancelHotkeyCapture();
         Loc.Changed += OnLanguageChanged;
 
         BindMotionSliders();
         BindEffects();
         BuildAnchorButtons();
         BuildHotkeyRows();
+        BuildSceneRows();
         RestoreSavedBounds();
         RefreshSettings();
         RefreshHiddenToggle();
@@ -70,6 +76,7 @@ public partial class MainWindow : Window
         UpdateCounts();
         UpdateSortLabel();
         BuildHotkeyRows();
+        BuildSceneRows();
         RefreshSettings();
         RefreshPanel();
     }
@@ -1077,6 +1084,12 @@ public partial class MainWindow : Window
         AutoLightCpuText.Text = $"{s.AutoLightCpuPercent}%";
         RefreshLightStatus();
         PauseFxBatteryToggle.IsChecked = s.PauseEffectsOnBattery;
+        EffectsOffToggle.IsChecked = s.EffectsOff;
+        HideFromCaptureToggle.IsChecked = s.HideFromCapture;
+        HoverFadeToggle.IsChecked = s.HoverFade;
+        HoverFadeOptions.Visibility = s.HoverFade ? Visibility.Visible : Visibility.Collapsed;
+        HoverFadeSlider.Value = s.HoverFadeOpacity;
+        HoverFadeText.Text = $"{s.HoverFadeOpacity}%";
         HoldSlider.Value = s.HoldToGrabMs;
         HoldText.Text = DelayText(s.HoldToGrabMs);
         ResumeSlider.Value = s.ResumeDelayMs;
@@ -1102,48 +1115,240 @@ public partial class MainWindow : Window
         _app.SetLanguage(lang);
     }
 
+    // ── 단축키 지정 ──────────────────────────────────────────
+
+    private string? _capturingAction;
+    private Button? _capturingButton;
+
+    private System.Windows.Media.Brush Res(string key) => (System.Windows.Media.Brush)FindResource(key);
+
+    private FrameworkElement KeyChips(string text)
+    {
+        var keys = new StackPanel { Orientation = Orientation.Horizontal };
+        if (string.IsNullOrEmpty(text))
+        {
+            keys.Children.Add(new TextBlock { Text = Loc.T("hotkey.none"), Foreground = Res("TextMutedBrush"), FontSize = 12 });
+            return keys;
+        }
+        foreach (var k in text.Split('+'))
+        {
+            keys.Children.Add(new Border
+            {
+                Margin = new Thickness(4, 0, 0, 0),
+                Padding = new Thickness(8, 3, 8, 3),
+                CornerRadius = new CornerRadius(6),
+                BorderThickness = new Thickness(1, 1, 1, 2),
+                BorderBrush = Res("BorderStrongBrush"),
+                Background = Res("CardBrush"),
+                Child = new TextBlock { Text = k, FontSize = 12, FontFamily = (System.Windows.Media.FontFamily)FindResource("MonoFont"), Foreground = Res("TextBrush") },
+            });
+        }
+        return keys;
+    }
+
     private void BuildHotkeyRows()
     {
+        _capturingAction = null;
+        _capturingButton = null;
         HotkeyRows.Children.Clear();
-        var rows = new (string titleKey, string keys)[]
+        var actions = Hotkeys.Actions;
+        for (int i = 0; i < actions.Count; i++)
         {
-            ("hotkey.edit", "Ctrl+Alt+E"),
-            ("hotkey.hide", "Ctrl+Alt+H"),
-            ("hotkey.quit", "Ctrl+Alt+Q"),
-        };
-        for (int i = 0; i < rows.Length; i++)
-        {
-            var dock = new DockPanel { Margin = new Thickness(18, 12, 18, 12) };
-            var keys = new StackPanel { Orientation = Orientation.Horizontal };
-            foreach (var k in rows[i].keys.Split('+'))
+            string action = actions[i];
+            var dock = new DockPanel { Margin = new Thickness(18, 8, 18, 8) };
+            var button = new Button
             {
-                keys.Children.Add(new Border
-                {
-                    Margin = new Thickness(4, 0, 0, 0),
-                    Padding = new Thickness(8, 3, 8, 3),
-                    CornerRadius = new CornerRadius(6),
-                    BorderThickness = new Thickness(1, 1, 1, 2),
-                    BorderBrush = (System.Windows.Media.Brush)FindResource("BorderStrongBrush"),
-                    Background = (System.Windows.Media.Brush)FindResource("CardBrush"),
-                    Child = new TextBlock { Text = k, FontSize = 12, FontFamily = (System.Windows.Media.FontFamily)FindResource("MonoFont") },
-                });
-            }
-            DockPanel.SetDock(keys, Dock.Right);
-            dock.Children.Add(keys);
-            dock.Children.Add(new TextBlock { Text = Loc.T(rows[i].titleKey), FontSize = 14, VerticalAlignment = VerticalAlignment.Center });
+                MinWidth = 180, Height = 32, Padding = new Thickness(6, 0, 10, 0), Tag = action,
+                HorizontalContentAlignment = HorizontalAlignment.Right,
+                Content = KeyChips(_app.HotkeyText(action)),
+                ToolTip = Loc.T("hotkey.changeTip"),
+            };
+            button.Click += HotkeyButton_Click;
+            DockPanel.SetDock(button, Dock.Right);
+            dock.Children.Add(button);
+            dock.Children.Add(new TextBlock { Text = Loc.T("hotkey." + action), FontSize = 14, VerticalAlignment = VerticalAlignment.Center });
             HotkeyRows.Children.Add(dock);
-            if (i < rows.Length - 1)
-                HotkeyRows.Children.Add(new Border { Height = 1, Background = (System.Windows.Media.Brush)FindResource("LineBrush") });
+            if (i < actions.Count - 1)
+                HotkeyRows.Children.Add(new Border { Height = 1, Background = Res("LineBrush") });
         }
-        if (_app.Engine.HotkeyFailures.Count > 0)
-            HotkeyRows.Children.Add(new TextBlock
+        HotkeyMessage.Text = _app.Engine.HotkeyFailures.Count > 0
+            ? Loc.F("hotkey.failed", string.Join(", ", _app.Engine.HotkeyFailures)) : "";
+        HotkeyMessage.Foreground = Res(_app.Engine.HotkeyFailures.Count > 0 ? "DangerBrush" : "TextMutedBrush");
+    }
+
+    private void HotkeyButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button b || b.Tag is not string action) return;
+        CancelHotkeyCapture();
+        _capturingAction = action;
+        _capturingButton = b;
+        _app.SuspendHotkeys(); // 지금 단축키를 누르면 그 동작이 실행되지 않게 잠시 해제
+        b.Content = new TextBlock { Text = Loc.T("hotkey.pressKeys"), Foreground = Res("AccentLightBrush"), FontSize = 12 };
+        HotkeyMessage.Text = Loc.T("hotkey.captureHint");
+        HotkeyMessage.Foreground = Res("TextMutedBrush");
+        b.Focus();
+    }
+
+    private void CancelHotkeyCapture()
+    {
+        if (_capturingAction == null) return;
+        _capturingAction = null;
+        _app.ResumeHotkeys();
+        BuildHotkeyRows();
+    }
+
+    private void OnPreviewKeyDownForHotkey(object sender, KeyEventArgs e)
+    {
+        if (_capturingAction == null) return;
+        e.Handled = true;
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        var mods = Keyboard.Modifiers;
+        string action = _capturingAction;
+        if (key == Key.Escape && mods == ModifierKeys.None) { CancelHotkeyCapture(); return; }
+        if ((key == Key.Back || key == Key.Delete) && mods == ModifierKeys.None)
+        {
+            _capturingAction = null;
+            _app.SetHotkey(action, "");
+            return;
+        }
+        uint vk = (uint)KeyInterop.VirtualKeyFromKey(key);
+        if (Hotkeys.IsModifierKey(vk) || key is Key.LWin or Key.RWin) return; // 보조키만 누른 상태 → 계속 기다림
+        uint m = 0;
+        if ((mods & ModifierKeys.Control) != 0) m |= Hotkeys.ModCtrl;
+        if ((mods & ModifierKeys.Alt) != 0) m |= Hotkeys.ModAlt;
+        if ((mods & ModifierKeys.Shift) != 0) m |= Hotkeys.ModShift;
+        if ((mods & ModifierKeys.Windows) != 0) m |= Hotkeys.ModWin;
+        if (!Hotkeys.IsAllowed(m, vk))
+        {
+            HotkeyMessage.Text = Loc.T("hotkey.needModifier");
+            HotkeyMessage.Foreground = Res("WarnTextBrush");
+            return;
+        }
+        string text = Hotkeys.Format(m, vk);
+        _capturingAction = null;
+        if (!_app.SetHotkey(action, text))
+        {
+            _app.ResumeHotkeys();
+            BuildHotkeyRows();
+            HotkeyMessage.Text = Loc.F("hotkey.inUse", text);
+            HotkeyMessage.Foreground = Res("WarnTextBrush");
+        }
+        else if (_app.Engine.HotkeyFailures.Contains(text))
+        {
+            HotkeyMessage.Text = Loc.F("hotkey.failed", text);
+            HotkeyMessage.Foreground = Res("DangerBrush");
+        }
+    }
+
+    private void ResetHotkeys_Click(object sender, RoutedEventArgs e)
+    {
+        _capturingAction = null;
+        _app.ResetHotkeys();
+    }
+
+    // ── 화면 표시 / 효과 끄기 ────────────────────────────────
+
+    private void HideFromCapture_Click(object sender, RoutedEventArgs e)
+    {
+        if (_updating) return;
+        _app.SetHideFromCapture(HideFromCaptureToggle.IsChecked == true);
+    }
+
+    private void HoverFade_Click(object sender, RoutedEventArgs e)
+    {
+        if (_updating) return;
+        bool on = HoverFadeToggle.IsChecked == true;
+        HoverFadeOptions.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        _app.SetHoverFade(on, (int)HoverFadeSlider.Value);
+    }
+
+    private void HoverFadeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (HoverFadeText == null) return;
+        HoverFadeText.Text = $"{e.NewValue:0}%";
+        if (_updating) return;
+        _app.SetHoverFade(_app.State.Settings.HoverFade, (int)e.NewValue);
+    }
+
+    private void EffectsOff_Click(object sender, RoutedEventArgs e)
+    {
+        if (_updating) return;
+        _app.SetEffectsOff(EffectsOffToggle.IsChecked == true);
+    }
+
+    // ── 장면 ─────────────────────────────────────────────────
+
+    private void SaveScene_Click(object sender, RoutedEventArgs e)
+    {
+        if (_app.State.Active.Count == 0) { ShowToast(Loc.T("notice.sceneEmpty")); return; }
+        var name = TextPrompt.Ask(this, Loc.T("scene.saveTitle"), Loc.T("scene.nameLabel"), Loc.F("scene.defaultName", _app.State.Scenes.Count + 1));
+        if (name != null) _app.SaveScene(name);
+    }
+
+    private void BuildSceneRows()
+    {
+        SceneRows.Children.Clear();
+        if (_app.State.Scenes.Count == 0) return;
+        foreach (var sc in _app.State.Scenes)
+        {
+            SceneRows.Children.Add(new Border { Height = 1, Background = Res("LineBrush") });
+            string id = sc.Id;
+            var dock = new DockPanel { Margin = new Thickness(18, 10, 18, 10) };
+
+            var right = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            right.Children.Add(new TextBlock { Text = Loc.T("scene.autoAt"), Foreground = Res("TextMutedBrush"), FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
+            var time = new TextBox { Width = 64, Height = 30, Text = sc.AutoAt ?? "", ToolTip = Loc.T("scene.autoAtTip"), VerticalContentAlignment = VerticalAlignment.Center };
+            void CommitTime()
             {
-                Text = Loc.F("hotkey.failed", string.Join(", ", _app.Engine.HotkeyFailures)),
-                Foreground = (System.Windows.Media.Brush)FindResource("DangerBrush"),
-                Margin = new Thickness(18, 0, 18, 12),
-                FontSize = 12,
-                TextWrapping = TextWrapping.Wrap,
+                if ((time.Text.Trim()) == (sc.AutoAt ?? "")) return;
+                if (!_app.SetSceneTime(id, time.Text)) { ShowToast(Loc.T("scene.badTime")); time.Text = sc.AutoAt ?? ""; }
+            }
+            time.LostKeyboardFocus += (_, _) => CommitTime();
+            time.KeyDown += (_, ke) => { if (ke.Key == Key.Enter) CommitTime(); };
+            right.Children.Add(time);
+            var apply = new Button { Content = Loc.T("scene.apply"), Height = 30, MinWidth = 70, Margin = new Thickness(10, 0, 0, 0), Style = (Style)FindResource("BtnSoftAccent") };
+            apply.Click += (_, _) => _app.ApplyScene(id);
+            right.Children.Add(apply);
+            var more = new Button { Content = "⋯", Width = 32, Height = 30, Margin = new Thickness(6, 0, 0, 0), ToolTip = Loc.T("scene.more") };
+            var menu = new ContextMenu();
+            var rename = new MenuItem { Header = Loc.T("scene.rename") };
+            rename.Click += (_, _) =>
+            {
+                var n = TextPrompt.Ask(this, Loc.T("scene.rename"), Loc.T("scene.nameLabel"), sc.Name);
+                if (n != null) _app.RenameScene(id, n);
+            };
+            var overwrite = new MenuItem { Header = Loc.T("scene.overwrite") };
+            overwrite.Click += (_, _) => _app.OverwriteScene(id);
+            var delete = new MenuItem { Header = Loc.T("scene.delete") };
+            delete.Click += (_, _) =>
+            {
+                if (MessageBox.Show(this, Loc.F("scene.deleteQuestion", sc.Name), "GifPin", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+                    _app.DeleteScene(id);
+            };
+            menu.Items.Add(rename);
+            menu.Items.Add(overwrite);
+            menu.Items.Add(new Separator());
+            menu.Items.Add(delete);
+            more.ContextMenu = menu;
+            more.Click += (_, _) => { menu.PlacementTarget = more; menu.Placement = PlacementMode.Bottom; menu.IsOpen = true; };
+            right.Children.Add(more);
+            DockPanel.SetDock(right, Dock.Right);
+            dock.Children.Add(right);
+
+            var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            var title = new StackPanel { Orientation = Orientation.Horizontal };
+            if (sc.Id == _app.State.CurrentSceneId)
+                title.Children.Add(new TextBlock { Text = "● ", Foreground = Res("AccentBrush"), FontSize = 12, VerticalAlignment = VerticalAlignment.Center });
+            title.Children.Add(new TextBlock { Text = sc.Name, FontSize = 14, TextTrimming = TextTrimming.CharacterEllipsis });
+            left.Children.Add(title);
+            left.Children.Add(new TextBlock
+            {
+                Text = Loc.F("scene.info", sc.Items.Count, sc.SavedAt.LocalDateTime.ToString("g", CultureInfo.CurrentCulture)),
+                Foreground = Res("TextMutedBrush"), FontSize = 12, Margin = new Thickness(0, 2, 0, 0),
             });
+            dock.Children.Add(left);
+            SceneRows.Children.Add(dock);
+        }
     }
 
     private void StartWithWindows_Click(object sender, RoutedEventArgs e)

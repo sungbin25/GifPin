@@ -82,7 +82,10 @@ public sealed class AppController
         Engine.SetEffectsSettings(State.Settings.EffectsFps, State.Settings.PauseEffectsFullscreen, State.Settings.PauseEffectsOnBattery,
             State.Settings.AutoLightEffects, State.Settings.AutoLightCpuPercent);
         Engine.SetAllHidden(State.Settings.AllHidden);
-        foreach (var f in Engine.HotkeyFailures) Log.Warn($"Hotkey unavailable: {f}");
+        Engine.SetHideFromCapture(State.Settings.HideFromCapture);
+        Engine.SetHoverFade(State.Settings.HoverFade, State.Settings.HoverFadeOpacity);
+        Engine.SetEffectsOff(State.Settings.EffectsOff);
+        ApplyHotkeys();
 
         // 파일이 사라진 사진을 쓰는 GIF는 화면에서 내림
         int missing = State.Active.RemoveAll(a => State.FindPhoto(a.PhotoId) is not PhotoItem p || !File.Exists(Store.ResolvePath(p)));
@@ -103,6 +106,7 @@ public sealed class AppController
         if (State.Settings.StartWithWindows) Autostart.Apply(true); // 설치 위치가 바뀌었을 수 있어 경로 갱신
 
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+        StartSceneClock();
 
         if (showWindow) ShowMain();
         if (Engine.HotkeyFailures.Count > 0)
@@ -820,13 +824,248 @@ public sealed class AppController
 
     private void OnHotkey(int id)
     {
-        switch (id)
+        switch (Hotkeys.ActionOf(id))
         {
-            case OverlayEngine.HotkeyEdit: ToggleEdit(); break;
-            case OverlayEngine.HotkeyHide: SetAllHidden(!State.Settings.AllHidden); break;
-            case OverlayEngine.HotkeyQuit: Quit(); break;
+            case Hotkeys.Edit: ToggleEdit(); break;
+            case Hotkeys.Hide: SetAllHidden(!State.Settings.AllHidden); break;
+            case Hotkeys.Quit: Quit(); break;
+            case Hotkeys.ClickThrough: ToggleClickThroughAll(); break;
+            case Hotkeys.Effects: SetEffectsOff(!State.Settings.EffectsOff); break;
+            case Hotkeys.NextScene: ApplyNextScene(); break;
         }
     }
+
+    // ── 단축키 ───────────────────────────────────────────────
+
+    /// <summary>단축키 표시 글자 (설정에서 지정한 값, 없으면 빈 글자).</summary>
+    public string HotkeyText(string action) => State.Settings.Hotkeys.TryGetValue(action, out var t) ? t : "";
+
+    /// <summary>단축키가 바뀜 (설정 화면·트레이 갱신용).</summary>
+    public event Action? HotkeysChanged;
+
+    private void ApplyHotkeys()
+    {
+        var failures = Engine.SetHotkeys(new Dictionary<string, string>(State.Settings.Hotkeys));
+        foreach (var f in failures) Log.Warn($"Hotkey unavailable: {f}");
+    }
+
+    /// <summary>동작의 단축키를 바꾼다 (빈 글자 = 없음). 다른 동작이 이미 쓰는 조합이면 false.</summary>
+    public bool SetHotkey(string action, string text)
+    {
+        text = Hotkeys.TryParse(text, out uint m, out uint vk) ? Hotkeys.Format(m, vk) : "";
+        if (text.Length > 0 && State.Settings.Hotkeys.Any(kv => kv.Key != action && kv.Value == text)) return false;
+        State.Settings.Hotkeys[action] = text;
+        ApplyHotkeys();
+        Save();
+        _tray?.Refresh();
+        HotkeysChanged?.Invoke();
+        return true;
+    }
+
+    /// <summary>단축키를 새로 누르는 동안: 지금 등록된 단축키가 그 키를 가로채지 않게 잠시 해제.</summary>
+    public void SuspendHotkeys() => Engine.SetHotkeys(new Dictionary<string, string>());
+    public void ResumeHotkeys() => ApplyHotkeys();
+
+    public void ResetHotkeys()
+    {
+        State.Settings.Hotkeys = Hotkeys.Normalize(null);
+        ApplyHotkeys();
+        Save();
+        _tray?.Refresh();
+        HotkeysChanged?.Invoke();
+    }
+
+    /// <summary>클릭 통과 켜기/끄기 한 번에: 하나라도 꺼져 있으면 모두 켜고, 모두 켜져 있으면 모두 끔(→ 마우스로 잡을 수 있게 테두리 깜빡임).</summary>
+    public void ToggleClickThroughAll()
+    {
+        if (State.Active.Count == 0) return;
+        bool turnOn = State.Active.Any(a => !a.ClickThrough);
+        foreach (var a in State.Active.ToList()) UpdateActive(a.Id, x => x.ClickThrough = turnOn);
+        if (!turnOn) foreach (var a in State.Active) Engine.Flash(a.Id);
+        Log.Info($"Click-through {(turnOn ? "on" : "off")} for all");
+        Notice?.Invoke(Loc.T(turnOn ? "notice.clickThroughAllOn" : "notice.clickThroughOff"));
+        SelectionChanged?.Invoke();
+    }
+
+    // ── 화면 녹화·공유 / 마우스 흐리게 / 효과 끄기 ───────────────
+
+    public event Action? SettingsChanged;
+
+    public void SetHideFromCapture(bool on)
+    {
+        State.Settings.HideFromCapture = on;
+        Engine.SetHideFromCapture(on);
+        Save();
+    }
+
+    public void SetHoverFade(bool on, int opacityPercent)
+    {
+        State.Settings.HoverFade = on;
+        State.Settings.HoverFadeOpacity = Math.Clamp(opacityPercent, 0, 90);
+        Engine.SetHoverFade(on, State.Settings.HoverFadeOpacity);
+        Save();
+    }
+
+    public void SetEffectsOff(bool off)
+    {
+        State.Settings.EffectsOff = off;
+        Engine.SetEffectsOff(off);
+        Log.Info(off ? "All effects turned off" : "Effects turned back on");
+        Notice?.Invoke(Loc.T(off ? "notice.effectsOff" : "notice.effectsOn"));
+        _tray?.Refresh();
+        SettingsChanged?.Invoke();
+        Save();
+    }
+
+    // ── 장면 (저장한 화면 배치) ────────────────────────────────
+
+    /// <summary>장면 목록이 바뀜.</summary>
+    public event Action? ScenesChanged;
+
+    private static List<ActiveItem> CloneItems(IEnumerable<ActiveItem> items) => items.Select(a => a.Clone()).ToList();
+
+    public Scene SaveScene(string name)
+    {
+        var scene = new Scene
+        {
+            Id = Store.NewId("s"),
+            Name = string.IsNullOrWhiteSpace(name) ? Loc.F("scene.defaultName", State.Scenes.Count + 1) : name.Trim(),
+            Items = CloneItems(State.Active),
+            SavedAt = DateTimeOffset.Now,
+        };
+        State.Scenes.Add(scene);
+        State.CurrentSceneId = scene.Id;
+        Log.Info($"Scene saved: '{scene.Name}' ({scene.Items.Count} GIFs)");
+        Notice?.Invoke(Loc.F("notice.sceneSaved", scene.Name));
+        AfterScenesChanged();
+        return scene;
+    }
+
+    /// <summary>장면을 지금 화면으로 덮어씀.</summary>
+    public void OverwriteScene(string sceneId)
+    {
+        var sc = State.Scenes.FirstOrDefault(x => x.Id == sceneId);
+        if (sc == null) return;
+        sc.Items = CloneItems(State.Active);
+        sc.SavedAt = DateTimeOffset.Now;
+        State.CurrentSceneId = sc.Id;
+        Notice?.Invoke(Loc.F("notice.sceneSaved", sc.Name));
+        AfterScenesChanged();
+    }
+
+    public void RenameScene(string sceneId, string name)
+    {
+        var sc = State.Scenes.FirstOrDefault(x => x.Id == sceneId);
+        if (sc == null || string.IsNullOrWhiteSpace(name)) return;
+        sc.Name = name.Trim();
+        AfterScenesChanged();
+    }
+
+    public void DeleteScene(string sceneId)
+    {
+        if (State.Scenes.RemoveAll(x => x.Id == sceneId) == 0) return;
+        if (State.CurrentSceneId == sceneId) State.CurrentSceneId = null;
+        AfterScenesChanged();
+    }
+
+    /// <summary>매일 자동으로 적용할 시각 ("HH:mm", 빈 글자 = 끔). 형식이 틀리면 false.</summary>
+    public bool SetSceneTime(string sceneId, string? time)
+    {
+        var sc = State.Scenes.FirstOrDefault(x => x.Id == sceneId);
+        if (sc == null) return false;
+        string? t = Scene.NormalizeTime(time);
+        if (t == null && !string.IsNullOrWhiteSpace(time)) return false;
+        sc.AutoAt = t;
+        AfterScenesChanged();
+        return true;
+    }
+
+    private void AfterScenesChanged()
+    {
+        Save();
+        _tray?.Refresh();
+        ScenesChanged?.Invoke();
+    }
+
+    /// <summary>장면을 화면에 적용: 지금 떠 있는 GIF를 모두 내리고 장면의 GIF를 띄운다 (사진이 지워진 것은 건너뜀).</summary>
+    public void ApplyScene(string sceneId)
+    {
+        var sc = State.Scenes.FirstOrDefault(x => x.Id == sceneId);
+        if (sc == null) return;
+        if (IsEditing) FinishEdit(save: true);
+        foreach (var a in State.Active) Engine.Remove(a.Id);
+        State.Active.Clear();
+        int skipped = 0;
+        foreach (var item in sc.Items)
+        {
+            var p = State.FindPhoto(item.PhotoId);
+            if (p == null || !File.Exists(Store.ResolvePath(p))) { skipped++; continue; }
+            var a = item.Clone();
+            a.Id = Store.NewId("a"); // 같은 장면을 다시 적용해도 창을 새로 만듦
+            a.Normalize();
+            State.Active.Add(a);
+            p.LastUsedAt = DateTimeOffset.Now;
+        }
+        MonitorList = Monitors.List();
+        EnsureAllReachable(notify: false);
+        foreach (var a in State.Active) SyncToEngine(a);
+        State.CurrentSceneId = sc.Id;
+        SelectedActiveId = null;
+        RebuildActives();
+        RebuildVisible();
+        if (State.Active.Count > 0) SelectActive(State.Active[0].Id, flash: false);
+        else SelectActive(null, flash: false);
+        _toolbar?.RefreshList();
+        Log.Info($"Scene applied: '{sc.Name}' ({State.Active.Count} GIFs, {skipped} skipped)");
+        Notice?.Invoke(Loc.F("notice.sceneApplied", sc.Name) + (skipped > 0 ? " · " + Loc.F("notice.sceneSkipped", skipped) : ""));
+        AfterScenesChanged();
+    }
+
+    /// <summary>다음 장면 (단축키): 마지막으로 적용한 장면의 다음 것, 끝이면 처음으로.</summary>
+    public void ApplyNextScene()
+    {
+        if (State.Scenes.Count == 0)
+        {
+            Notice?.Invoke(Loc.T("notice.noScenes"));
+            _tray?.ShowBalloon("GifPin", Loc.T("notice.noScenes"));
+            return;
+        }
+        int i = State.Scenes.FindIndex(x => x.Id == State.CurrentSceneId);
+        ApplyScene(State.Scenes[(i + 1) % State.Scenes.Count].Id);
+    }
+
+    private DispatcherTimer? _sceneClock;
+    private DateTime _sceneCheckedAt;
+
+    /// <summary>장면 자동 전환: 30초마다 지난 확인 이후 지나간 시각이 있으면 그 장면을 적용 (켜져 있는 동안만).</summary>
+    private void StartSceneClock()
+    {
+        _sceneCheckedAt = DateTime.Now;
+        _sceneClock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        _sceneClock.Tick += (_, _) => CheckSceneSchedule(DateTime.Now);
+        _sceneClock.Start();
+    }
+
+    /// <summary>(from, to] 사이에 자동 적용 시각이 지난 장면 중 가장 늦은 것을 적용.</summary>
+    internal void CheckSceneSchedule(DateTime now)
+    {
+        var from = _sceneCheckedAt;
+        _sceneCheckedAt = now;
+        if (now <= from || now - from > TimeSpan.FromHours(6)) return; // 절전에서 깨어난 경우 등은 건너뜀
+        Scene? due = null;
+        DateTime dueAt = DateTime.MinValue;
+        foreach (var sc in State.Scenes)
+        {
+            if (sc.AutoAt == null) continue;
+            var parts = sc.AutoAt.Split(':');
+            var t = now.Date.AddHours(int.Parse(parts[0])).AddMinutes(int.Parse(parts[1]));
+            if (t > now) t = t.AddDays(-1);
+            if (t > from && t <= now && t > dueAt) { due = sc; dueAt = t; }
+        }
+        if (due != null) ApplyScene(due.Id);
+    }
+
+    internal void SetSceneClockForTest(DateTime at) => _sceneCheckedAt = at;
 
     /// <summary>효과 성능 설정.</summary>
     public void SetEffectsSettings(int fps, bool pauseFullscreen, bool pauseOnBattery, bool autoLight, int cpuPercent)

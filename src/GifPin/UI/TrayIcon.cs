@@ -36,7 +36,7 @@ public sealed class TrayIcon : IDisposable
     private Forms.ToolStripMenuItem Item(string text, Action onClick, string? shortcut = null)
     {
         var item = new Forms.ToolStripMenuItem(text, null, (_, _) => onClick());
-        if (shortcut != null) item.ShortcutKeyDisplayString = shortcut;
+        if (!string.IsNullOrEmpty(shortcut)) item.ShortcutKeyDisplayString = shortcut;
         return item;
     }
 
@@ -46,9 +46,33 @@ public sealed class TrayIcon : IDisposable
         var open = Item(Loc.T("tray.open"), _app.ShowMain);
         open.Font = _bold;
         _menu.Items.Add(open);
-        _menu.Items.Add(Item(_app.IsEditing ? Loc.T("tray.editEnd") : Loc.T("tray.edit"), _app.ToggleEdit, "Ctrl+Alt+E"));
+        _menu.Items.Add(Item(_app.IsEditing ? Loc.T("tray.editEnd") : Loc.T("tray.edit"), _app.ToggleEdit, _app.HotkeyText(Hotkeys.Edit)));
         _menu.Items.Add(Item(_app.State.Settings.AllHidden ? Loc.T("tray.showAll") : Loc.T("tray.hideAll"),
-            () => _app.SetAllHidden(!_app.State.Settings.AllHidden), "Ctrl+Alt+H"));
+            () => _app.SetAllHidden(!_app.State.Settings.AllHidden), _app.HotkeyText(Hotkeys.Hide)));
+        var fx = Item(Loc.T("tray.effectsOff"), () => _app.SetEffectsOff(!_app.State.Settings.EffectsOff), _app.HotkeyText(Hotkeys.Effects));
+        fx.Checked = _app.State.Settings.EffectsOff;
+        _menu.Items.Add(fx);
+
+        // 장면
+        var scenes = new Forms.ToolStripMenuItem(Loc.T("tray.scenes"));
+        foreach (var sc in _app.State.Scenes)
+        {
+            var id = sc.Id;
+            var it = Item(sc.Name, () => _app.ApplyScene(id), sc.AutoAt);
+            it.Checked = sc.Id == _app.State.CurrentSceneId;
+            scenes.DropDownItems.Add(it);
+        }
+        if (_app.State.Scenes.Count > 0)
+        {
+            scenes.DropDownItems.Add(Item(Loc.T("tray.nextScene"), _app.ApplyNextScene, _app.HotkeyText(Hotkeys.NextScene)));
+            scenes.DropDownItems.Add(new Forms.ToolStripSeparator());
+        }
+        scenes.DropDownItems.Add(Item(Loc.T("tray.saveScene"), () =>
+        {
+            var name = TextPrompt.Ask(null, Loc.T("scene.saveTitle"), Loc.T("scene.nameLabel"), Loc.F("scene.defaultName", _app.State.Scenes.Count + 1));
+            if (name != null) _app.SaveScene(name);
+        }));
+        _menu.Items.Add(scenes);
 
         var recent = _app.RecentPhotos(5).ToList();
         if (recent.Count > 0)
@@ -71,8 +95,9 @@ public sealed class TrayIcon : IDisposable
         recovery.DropDownItems.Add(Item(Loc.T("rec.gather"), _app.GatherAllToCenter));
         recovery.DropDownItems.Add(Item(Loc.T("rec.showAll"), _app.ShowAll));
         recovery.DropDownItems.Add(Item(Loc.T("rec.clickThroughOff"), _app.DisableClickThroughAll));
+        recovery.DropDownItems.Add(Item(Loc.T("tray.toggleClickThrough"), _app.ToggleClickThroughAll, _app.HotkeyText(Hotkeys.ClickThrough)));
         _menu.Items.Add(recovery);
-        _menu.Items.Add(Item(Loc.T("tray.quit"), _app.Quit, "Ctrl+Alt+Q"));
+        _menu.Items.Add(Item(Loc.T("tray.quit"), _app.Quit, _app.HotkeyText(Hotkeys.Quit)));
     }
 
     public void ShowBalloon(string title, string text)
