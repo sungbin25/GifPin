@@ -16,12 +16,13 @@ namespace GifPin.UI;
 /// </summary>
 public static class Themes
 {
-    public const string System = "system", Dark = "dark", Light = "light", Midnight = "midnight", Mint = "mint", Neon = "neon", Xp = "xp", Classic = "classic";
+    public const string System = "system", Dark = "dark", Light = "light", Amber = "amber", Mint = "mint", Neon = "neon", Xp = "xp", Classic = "classic";
 
     /// <summary>설정 화면에 보이는 순서.</summary>
-    public static readonly IReadOnlyList<string> All = new[] { System, Dark, Light, Midnight, Mint, Neon, Xp, Classic };
+    public static readonly IReadOnlyList<string> All = new[] { System, Dark, Light, Amber, Mint, Neon, Xp, Classic };
 
-    public static string Normalize(string? name) => name != null && All.Contains(name) ? name : Dark;
+    /// <summary>예전 "미드나잇"(다크와 거의 같았음)은 앰버로 바뀜.</summary>
+    public static string Normalize(string? name) => name == "midnight" ? Amber : name != null && All.Contains(name) ? name : Dark;
 
     private sealed record Theme(bool IsDark, string Font, double RadiusM, double RadiusL, double RadiusXL, Dictionary<string, string> Colors);
 
@@ -77,13 +78,26 @@ public static class Themes
     {
         [Dark] = new(true, "Segoe UI, Malgun Gothic", 6, 8, 12, DarkColors),
         [Light] = new(false, "Segoe UI, Malgun Gothic", 6, 8, 12, LightColors),
-        [Midnight] = new(true, "Segoe UI, Malgun Gothic", 6, 8, 12, From(DarkColors, new()
+        // 앰버: 따뜻한 숯색 바탕에 호박색 강조 — 차가운 남색 계열인 다크와 확실히 다르게
+        [Amber] = new(true, "Segoe UI, Malgun Gothic", 6, 8, 12, new()
         {
-            ["Bg"] = "#000000", ["Chrome"] = "#000000", ["Panel"] = "#07080A", ["Card"] = "#0B0C0F", ["Input"] = "#000000",
-            ["Line"] = "#15171C", ["Border"] = "#20232A", ["BottomBar"] = "#000000", ["MenuBg"] = "#0B0C0F", ["ToolbarBg"] = "#07080A",
-            ["CheckerA"] = "#0B0C0F", ["CheckerB"] = "#15171C", ["SegmentBox"] = "#07080A", ["SegmentBoxBorder"] = "#16181D",
-            ["BtnBg"] = "#0E0F13", ["CardBorder"] = "#16181D", ["SelectedBg"] = "#0E1A33",
-        })),
+            ["Bg"] = "#14110F", ["Chrome"] = "#0F0C0A", ["Panel"] = "#1B1714", ["Card"] = "#221D19", ["Input"] = "#120F0D",
+            ["Line"] = "#2C2520", ["Border"] = "#3E342C", ["BorderStrong"] = "#54473C",
+            ["Text"] = "#F4ECE3", ["TextDim"] = "#C9B8A6", ["TextMuted"] = "#AD9A87", ["Label"] = "#E3D5C6",
+            ["Accent"] = "#FFA53D", ["AccentSoft"] = "#26FFA53D", ["AccentText"] = "#1E1206", ["AccentLight"] = "#FFC57E",
+            ["SelectedBg"] = "#33241A", ["SegmentOn"] = "#3A2F27",
+            ["Green"] = "#7ED58A", ["GreenText"] = "#A4E6AC", ["Warn"] = "#FFB35C", ["WarnText"] = "#FFCB8E",
+            ["Danger"] = "#FF8F80", ["DangerBorder"] = "#5A2D27",
+            ["HoverOverlay"] = "#FFE6C8", ["BtnBg"] = "#26201B", ["BtnSoftBg"] = "#3A2A1A", ["BtnSoftBorder"] = "#7A5428", ["BtnSoftText"] = "#FFD2A0",
+            ["WarnBg"] = "#24FFB35C", ["StrongText"] = "#FFFFFF",
+            ["ChromeText"] = "#C9B8A6", ["ChromeTextActive"] = "#FFF6EC", ["ChromeAccent"] = "#FFA53D",
+            ["SegmentBox"] = "#17130F", ["SegmentBoxBorder"] = "#2E2620", ["Track"] = "#4A3E34", ["Knob"] = "#D8C6B2", ["KnobOn"] = "#1E1206",
+            ["SliderThumb"] = "#FFF6EC", ["ScrollThumb"] = "#54473C",
+            ["MenuBg"] = "#1E1915", ["MenuBorder"] = "#4A3E34", ["MenuHover"] = "#33281F",
+            ["CardBorder"] = "#2E2620", ["CardHoverBorder"] = "#6A5646", ["BottomBar"] = "#0F0C0A", ["CountBadge"] = "#3A2A1A",
+            ["ToastBg"] = "#26201B", ["ToastBorder"] = "#7A5428", ["GreenBadgeBg"] = "#247ED58A", ["ToolbarBg"] = "#1B1714",
+            ["CheckerA"] = "#221D19", ["CheckerB"] = "#2C2520",
+        }),
         [Mint] = new(false, "Segoe UI, Malgun Gothic", 8, 10, 14, From(LightColors, new()
         {
             ["Bg"] = "#EEF8F5", ["Line"] = "#D7ECE6", ["Border"] = "#BFE0D7", ["BorderStrong"] = "#9FCFC2",
@@ -181,8 +195,9 @@ public static class Themes
     {
         string resolved = Resolve(name);
         var t = Defs[resolved];
+        var colors = WithContrast(t.Colors, t.IsDark);
         var res = Application.Current.Resources;
-        foreach (var (key, spec) in t.Colors)
+        foreach (var (key, spec) in colors)
         {
             if (key is "CheckerA" or "CheckerB") continue;
             res[key + "Brush"] = MakeBrush(spec);
@@ -201,6 +216,99 @@ public static class Themes
             if (hwnd != IntPtr.Zero) Native.UseDarkTitleBar(hwnd);
         }
         Log.Info($"Theme: {name}{(resolved != name ? $" ({resolved})" : "")}");
+    }
+
+    // ── 대비 보정 ────────────────────────────────────────────
+    // 테마 색을 그대로 쓰면 어두운 테마에서 테두리·스위치·아이콘이 바탕에 묻힐 수 있음.
+    // 기준보다 대비가 낮으면 그 테마의 "글자색과 강조색을 섞은 색" 쪽으로 조금씩 옮겨 테마 색감을 살린 채 잘 보이게 한다.
+
+    /// <summary>(색 이름, 비교할 바탕, 최소 대비). 아이콘·글자는 4.5, 조작 요소 테두리·스위치는 3, 구분선은 낮게.</summary>
+    private static readonly (string key, string against, double min)[] ContrastRules =
+    {
+        ("TextMuted", "Panel", 4.5), ("TextDim", "Panel", 6.0), ("Label", "Panel", 7.0), ("ChromeText", "Chrome", 4.5),
+        ("Border", "Panel", 2.2), ("BorderStrong", "Panel", 3.0), ("SegmentBoxBorder", "Panel", 1.7),
+        ("Track", "Panel", 2.0), ("Knob", "Track", 3.0), ("CardBorder", "Bg", 1.5), ("CardHoverBorder", "Bg", 2.5),
+        ("ScrollThumb", "Bg", 2.0), ("MenuBorder", "MenuBg", 2.2), ("Line", "Panel", 1.25),
+    };
+
+    /// <summary>밝은 테마는 글자·아이콘 대비만 보정 (테두리를 진하게 하면 오히려 무거워 보임). 흰 스위치 손잡이도 그대로.</summary>
+    private static readonly HashSet<string> DarkOnlyRules = new() { "Border", "SegmentBoxBorder", "Track", "Knob", "CardBorder", "CardHoverBorder", "ScrollThumb", "MenuBorder", "Line" };
+
+    /// <summary>보정한 색 표 + 파생 색 (Icon: 아이콘, AnchorDot: 위치 버튼 점).</summary>
+    private static Dictionary<string, string> WithContrast(Dictionary<string, string> src, bool isDark)
+    {
+        var c = new Dictionary<string, string>(src);
+        Color Solid(string key) => FirstColor(c[key]);
+        // 대비를 높일 때 향하는 색: 글자색 75% + 강조색 25% (테마 색이 묻어나게)
+        Color target = Mix(Solid("Text"), FirstColor(c["Accent"]), 0.25);
+        foreach (var (key, against, min) in ContrastRules)
+        {
+            if (!c.ContainsKey(key) || IsGradient(c[key]) || IsGradient(c[against])) continue;
+            if (!isDark && DarkOnlyRules.Contains(key)) continue;
+            var fixedColor = EnsureContrast(Solid(key), Solid(against), min, target);
+            c[key] = ToHex(fixedColor);
+        }
+        // 아이콘: 강조색과 글자색의 중간 (테마 색이 보이면서 바탕과 대비 4.5 이상)
+        var panel = IsGradient(c["Panel"]) ? FirstColor(c["Panel"]) : Solid("Panel");
+        c["Icon"] = ToHex(EnsureContrast(Mix(FirstColor(c["Accent"]), Solid("Text"), 0.45), panel, 4.5, Solid("Text")));
+        c["AnchorDot"] = ToHex(EnsureContrast(Mix(panel, FirstColor(c["Accent"]), 0.45), panel, 3.0, target));
+        return c;
+    }
+
+    private static bool IsGradient(string spec) => spec.Length > 2 && spec[1] == ':';
+    private static Color FirstColor(string spec) => ParseColor(IsGradient(spec) ? spec[2..].Split(',')[0] : spec);
+
+    private static Color Mix(Color a, Color b, double t) => Color.FromArgb(
+        (byte)Math.Round(a.A + (b.A - a.A) * t), (byte)Math.Round(a.R + (b.R - a.R) * t),
+        (byte)Math.Round(a.G + (b.G - a.G) * t), (byte)Math.Round(a.B + (b.B - a.B) * t));
+
+    private static string ToHex(Color c) => c.A == 255 ? $"#{c.R:X2}{c.G:X2}{c.B:X2}" : $"#{c.A:X2}{c.R:X2}{c.G:X2}{c.B:X2}";
+
+    private static double Lum(Color c)
+    {
+        static double Ch(byte v) { double x = v / 255.0; return x <= 0.03928 ? x / 12.92 : Math.Pow((x + 0.055) / 1.055, 2.4); }
+        return 0.2126 * Ch(c.R) + 0.7152 * Ch(c.G) + 0.0722 * Ch(c.B);
+    }
+
+    /// <summary>WCAG 대비율 (반투명 색은 바탕 위에 섞은 결과로).</summary>
+    internal static double Contrast(Color fg, Color bg)
+    {
+        if (fg.A < 255) fg = Mix(Color.FromRgb(bg.R, bg.G, bg.B), Color.FromRgb(fg.R, fg.G, fg.B), fg.A / 255.0);
+        double a = Lum(fg), b = Lum(bg);
+        return (Math.Max(a, b) + 0.05) / (Math.Min(a, b) + 0.05);
+    }
+
+    /// <summary>대비가 min이 될 때까지 color를 target 쪽으로 옮김 (target이 바탕과 비슷하면 흑/백 쪽으로).</summary>
+    private static Color EnsureContrast(Color color, Color against, double min, Color target)
+    {
+        if (color.A < 255) color = Mix(Color.FromRgb(against.R, against.G, against.B), Color.FromRgb(color.R, color.G, color.B), color.A / 255.0);
+        if (Contrast(color, against) >= min) return color;
+        if (Contrast(target, against) < min) target = Lum(against) < 0.4 ? Colors.White : Colors.Black;
+        for (int i = 1; i <= 40; i++)
+        {
+            var c = Mix(color, target, i / 40.0);
+            if (Contrast(c, against) >= min) return c;
+        }
+        return target;
+    }
+
+    /// <summary>점검용: 보정 뒤 각 테마의 대비가 기준을 넘는지 (넘지 못한 것 목록).</summary>
+    internal static List<string> ContrastReport()
+    {
+        var bad = new List<string>();
+        foreach (var (name, t) in Defs)
+        {
+            var c = WithContrast(t.Colors, t.IsDark);
+            foreach (var (key, against, min) in ContrastRules)
+            {
+                if (IsGradient(c[key]) || IsGradient(c[against]) || (!t.IsDark && DarkOnlyRules.Contains(key))) continue;
+                double r = Contrast(ParseColor(c[key]), ParseColor(c[against]));
+                if (r < min - 0.05) bad.Add($"{name}.{key} {r:0.0} < {min}");
+            }
+            double icon = Contrast(ParseColor(c["Icon"]), FirstColor(c["Panel"]));
+            if (icon < 4.45) bad.Add($"{name}.Icon {icon:0.0}");
+        }
+        return bad;
     }
 
     /// <summary>설정 화면의 미리보기 색: 바탕, 카드, 강조, 글자.</summary>

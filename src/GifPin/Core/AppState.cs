@@ -323,7 +323,8 @@ public sealed class AppSettings
     public void Normalize()
     {
         AutostartDelaySec = Math.Clamp(AutostartDelaySec, 0, 300);
-        Theme = Theme is "system" or "dark" or "light" or "midnight" or "mint" or "neon" or "xp" or "classic" ? Theme : "dark";
+        if (Theme == "midnight") Theme = "amber"; // v0.7.1: 미드나잇 → 앰버
+        Theme = Theme is "system" or "dark" or "light" or "amber" or "mint" or "neon" or "xp" or "classic" ? Theme : "dark";
         MaxParticlesTotal = Math.Clamp(MaxParticlesTotal, 20, 3000);
         GifFpsCap = GifFpsCap <= 0 ? 0 : Math.Clamp(GifFpsCap, 10, 60);
         RenderQuality = RenderQuality is "low" or "high" ? RenderQuality : "medium";

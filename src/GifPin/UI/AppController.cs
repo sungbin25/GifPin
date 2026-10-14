@@ -103,6 +103,7 @@ public sealed class AppController
         Microsoft.Win32.SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
         StartSceneClock();
         StartUpdateClock();
+        UpdateThemeWatch();
 
         if (showWindow) ShowMain();
         if (Engine.HotkeyFailures.Count > 0)
@@ -236,20 +237,45 @@ public sealed class AppController
         State.Settings.Theme = Themes.Normalize(theme);
         Themes.Apply(State.Settings.Theme);
         ThemeChanged?.Invoke();
+        UpdateThemeWatch();
         Save();
+    }
+
+    private DispatcherTimer? _themeWatch;
+
+    /// <summary>
+    /// "시스템 설정 따르기": Windows의 라이트/다크가 바뀌었는지 2초마다 확인 (변경 알림이 오지 않는 경우가 있어서).
+    /// 레지스트리 값 하나를 읽는 정도라 부담이 거의 없음.
+    /// </summary>
+    private void UpdateThemeWatch()
+    {
+        bool want = State.Settings.Theme == Themes.System;
+        if (want && _themeWatch == null)
+        {
+            _themeWatch = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            _themeWatch.Tick += (_, _) => FollowSystemTheme();
+            _themeWatch.Start();
+        }
+        else if (!want && _themeWatch != null)
+        {
+            _themeWatch.Stop();
+            _themeWatch = null;
+        }
+    }
+
+    /// <summary>Windows 설정과 지금 테마가 다르면 다시 적용.</summary>
+    internal void FollowSystemTheme()
+    {
+        if (State.Settings.Theme != Themes.System || Themes.Resolve(Themes.System) == Themes.Current) return;
+        Themes.Apply(Themes.System);
+        ThemeChanged?.Invoke();
     }
 
     /// <summary>"시스템 설정 따르기"일 때 Windows의 라이트/다크가 바뀌면 따라감.</summary>
     private void OnUserPreferenceChanged(object? sender, Microsoft.Win32.UserPreferenceChangedEventArgs e)
     {
         if (e.Category != Microsoft.Win32.UserPreferenceCategory.General || State.Settings.Theme != Themes.System) return;
-        _ui.InvokeAsync(() =>
-        {
-            string before = Themes.Current;
-            if (Themes.Resolve(Themes.System) == before) return;
-            Themes.Apply(Themes.System);
-            ThemeChanged?.Invoke();
-        });
+        _ui.InvokeAsync(FollowSystemTheme);
     }
 
     public void ShowMain()

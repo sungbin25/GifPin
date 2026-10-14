@@ -544,9 +544,9 @@ public partial class MainWindow : Window
                 Height = 7,
                 Margin = new Thickness(1),
                 Padding = new Thickness(0),
-                Background = (System.Windows.Media.Brush)FindResource("BorderBrush"),
                 BorderThickness = new Thickness(0),
             };
+            b.SetResourceReference(BackgroundProperty, "AnchorDotBrush"); // 테마가 바뀌어도 따라감
             b.SetResourceReference(ToolTipProperty, "s." + keys[i]);
             b.Click += (_, _) => PlaceAt(index);
             AnchorGrid.Children.Add(b);
@@ -1423,7 +1423,15 @@ public partial class MainWindow : Window
                 BorderBrush = Res("BorderBrush"), BorderThickness = new Thickness(1), ClipToBounds = true,
             };
             var inner = new Grid();
-            inner.Children.Add(new Border { Height = 10, VerticalAlignment = VerticalAlignment.Top, Background = name == Themes.Xp || name == Themes.Classic ? Themes.Preview(name).accent : bg });
+            if (name == Themes.System)
+            {
+                // 왼쪽 반은 라이트, 오른쪽 반은 다크 = Windows 설정에 따라 둘 중 하나
+                var (lbg, _, _, _) = Themes.Preview(Themes.Light);
+                var (dbg, _, _, _) = Themes.Preview(Themes.Dark);
+                preview.Background = dbg;
+                inner.Children.Add(new Border { Background = lbg, HorizontalAlignment = HorizontalAlignment.Left, Width = 52 });
+            }
+            inner.Children.Add(new Border { Height = 10, VerticalAlignment = VerticalAlignment.Top, Background = name == Themes.Xp || name == Themes.Classic ? Themes.Preview(name).accent : System.Windows.Media.Brushes.Transparent });
             inner.Children.Add(new Border
             {
                 Margin = new Thickness(8, 16, 8, 8), CornerRadius = new CornerRadius(4), Background = card,
@@ -1437,14 +1445,10 @@ public partial class MainWindow : Window
                     },
                 },
             });
-            if (name == Themes.System)
-            {
-                // 반은 라이트, 반은 다크
-                var (lbg, lcard, _, _) = Themes.Preview(Themes.Light);
-                inner.Children.Insert(0, new Border { Background = lbg, HorizontalAlignment = HorizontalAlignment.Left, Width = 52 });
-            }
             preview.Child = inner;
-            var label = new TextBlock { Text = Loc.T("theme." + name), FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) };
+            string labelText = Loc.T("theme." + name);
+            if (name == Themes.System) labelText += " · " + Loc.T("theme." + (Themes.SystemUsesLight() ? Themes.Light : Themes.Dark));
+            var label = new TextBlock { Text = labelText, FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) };
             var stack = new StackPanel { Margin = new Thickness(2) };
             stack.Children.Add(preview);
             stack.Children.Add(label);

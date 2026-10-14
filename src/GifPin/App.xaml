@@ -59,6 +59,8 @@
     <SolidColorBrush x:Key="ToastBorderBrush" Color="#34406A"/>
     <SolidColorBrush x:Key="GreenBadgeBgBrush" Color="#243DD68C"/>
     <SolidColorBrush x:Key="ToolbarBgBrush" Color="#12151B"/>
+    <SolidColorBrush x:Key="IconBrush" Color="#A8BCE6"/>
+    <SolidColorBrush x:Key="AnchorDotBrush" Color="#4F6A9E"/>
     <CornerRadius x:Key="RadiusM">6</CornerRadius>
     <CornerRadius x:Key="RadiusL">8</CornerRadius>
     <CornerRadius x:Key="RadiusXL">12</CornerRadius>
@@ -138,7 +140,7 @@
     <Style x:Key="BtnIcon" TargetType="Button" BasedOn="{StaticResource BtnBase}">
       <Setter Property="BorderThickness" Value="0"/>
       <Setter Property="Padding" Value="0"/>
-      <Setter Property="Foreground" Value="{DynamicResource TextDimBrush}"/>
+      <Setter Property="Foreground" Value="{DynamicResource IconBrush}"/>
     </Style>
 
     <!-- ── 탭 (라디오 버튼) ────────────────────────────── -->

@@ -828,6 +828,12 @@ public partial class App : Application
             }
         }
         main.SetTabForTest(false);
+        var lowContrast = Themes.ContrastReport();
+        if (lowContrast.Count > 0) throw new Exception("low contrast after correction: " + string.Join(", ", lowContrast));
+        if (Themes.Normalize("midnight") != Themes.Amber) throw new Exception("old midnight theme not mapped to amber");
+        app.SetTheme(Themes.System);
+        app.FollowSystemTheme();
+        if (Themes.Current != Themes.Resolve(Themes.System)) throw new Exception($"system theme: showing {Themes.Current}, Windows wants {Themes.Resolve(Themes.System)}");
         app.SetTheme(Themes.Light);
         if (Themes.IsDark || Native.DarkTitleBars) throw new Exception("light theme still dark");
         app.SetTheme(Themes.Dark);
