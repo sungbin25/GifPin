@@ -702,7 +702,10 @@ public partial class App : Application
 
         // 4) 가려진 바탕화면 GIF 멈춤: 창으로 덮으면 멈추고, 치우면 다시 재생
         app.UpdateActive(fastId, a => a.Layer = Layers.Desktop);
-        app.Relocate(fastId, mon.WorkLeft + 200, mon.WorkTop + 200);
+        // 화면 오른쪽 아래 구석 (CI 컴퓨터의 터미널 창 등 다른 창이 덜 덮는 곳)
+        var (fw, fh) = app.ShownSize(app.State.Active.First(x => x.Id == fastId));
+        int gx = mon.WorkRight - fw - 4, gy = mon.WorkBottom - fh - 4;
+        app.Relocate(fastId, gx, gy);
         // GifPin 자신의 창(메인 창)이 그 자리를 덮지 않게 잠시 최소화
         var minimized = Current.Windows.OfType<Window>().Where(x => x.IsVisible && x.WindowState != WindowState.Minimized).ToList();
         foreach (var x in minimized) x.WindowState = WindowState.Minimized;
@@ -713,7 +716,7 @@ public partial class App : Application
         var cover = new Window
         {
             WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, ShowActivated = false,
-            Left = mon.WorkLeft + 100, Top = mon.WorkTop + 100, Width = 700, Height = 600, Background = System.Windows.Media.Brushes.DimGray,
+            Left = gx - 150, Top = gy - 150, Width = fw + 300, Height = fh + 300, Background = System.Windows.Media.Brushes.DimGray,
         };
         cover.Show();
         await Wait(400);
