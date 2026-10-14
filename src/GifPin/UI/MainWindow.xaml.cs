@@ -1703,6 +1703,13 @@ public partial class MainWindow : Window
 
     // ── 설정 복사·붙여넣기 / 효과 프리셋 ───────────────────────
 
+    /// <summary>점검용: 라이브러리/설정 탭 전환.</summary>
+    internal void SetTabForTest(bool settings)
+    {
+        if (settings) TabSettings.IsChecked = true;
+        else TabLibrary.IsChecked = true;
+    }
+
     private ContextMenu? _lastMenu;
 
     /// <summary>점검용: 라이브러리·설정의 팝업 메뉴를 모두 열어 보고(하위 메뉴 포함) 닫음.</summary>

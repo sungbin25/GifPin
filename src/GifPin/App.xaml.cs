@@ -811,12 +811,23 @@ public partial class App : Application
 
         // 9) 테마: 모든 테마의 색 정의가 빠짐없고, 바꿔도 창이 다시 그려짐 (코드로 만든 줄 포함)
         if (Themes.CheckDefinitions() is string themeError) throw new Exception("theme definitions: " + themeError);
+        string shots = System.IO.Path.Combine(Store.DataDir, "theme-shots");
+        System.IO.Directory.CreateDirectory(shots);
+        main.WindowState = WindowState.Normal;
+        main.Width = 1280; main.Height = 860;
         foreach (var t in Themes.All)
         {
             app.SetTheme(t);
-            main.UpdateLayout();
-            if (Current.Resources["BgBrush"] is not System.Windows.Media.Brush) throw new Exception($"theme {t}: background missing");
+            foreach (var tab in new[] { "library", "settings" })
+            {
+                main.SetTabForTest(tab == "settings");
+                await System.Threading.Tasks.Task.Delay(250);
+                main.UpdateLayout();
+                if (Current.Resources["BgBrush"] is not System.Windows.Media.Brush) throw new Exception($"theme {t}: background missing");
+                SaveShot(main, System.IO.Path.Combine(shots, $"{t}-{tab}.png"));
+            }
         }
+        main.SetTabForTest(false);
         app.SetTheme(Themes.Light);
         if (Themes.IsDark || Native.DarkTitleBars) throw new Exception("light theme still dark");
         app.SetTheme(Themes.Dark);
@@ -832,6 +843,18 @@ public partial class App : Application
         InstallerInfo.ClearForTest();
         sb.Append(" installer language ok");
         return sb.ToString();
+    }
+
+    /// <summary>점검용: 창 내용을 PNG로 저장 (테마 확인용 스크린샷).</summary>
+    private static void SaveShot(Window w, string path)
+    {
+        if (w.Content is not FrameworkElement root || root.ActualWidth < 10) return;
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap((int)root.ActualWidth, (int)root.ActualHeight, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        rtb.Render(root);
+        var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
+        using var fs = System.IO.File.Create(path);
+        enc.Save(fs);
     }
 
     protected override void OnExit(ExitEventArgs e)
