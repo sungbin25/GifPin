@@ -105,7 +105,7 @@ public sealed class SplashWindow : Window
         _root.Children.Add(inside);
 
         var (body, eyes) = Blob(112);
-        Place(inside, body, 176, 150);
+        Place(inside, body, 176, 165);
         var lift = Move(body, 0, 140);
         Animate(lift, TranslateTransform.YProperty, 140, 0, 0.55, 0.6, new BackEase { Amplitude = 0.45, EasingMode = EasingMode.EaseOut });
 
@@ -166,11 +166,17 @@ public sealed class SplashWindow : Window
         Place(sticker, outline, 10, 15);
         var (body, eyes) = Blob(130);
         Place(sticker, body, 10, 15);
-        // 흔드는 손
+        // 흔드는 손 (스티커 흰 테두리 안에)
         var wave = Hand();
+        wave.Stroke = new SolidColorBrush(Navy);
+        var waveBack = new Ellipse { Width = 30 + 16, Height = 24 + 16, Fill = Brushes.White, RenderTransformOrigin = new Point(0.304, 0.74) };
+        Canvas.SetLeft(waveBack, 128 - 8);
+        Canvas.SetTop(waveBack, 30 - 8);
+        sticker.Children.Insert(0, waveBack); // 몸 뒤 → 스티커 흰 테두리와 이어짐
         wave.RenderTransformOrigin = new Point(0.2, 0.9);
         var waveRot = new RotateTransform(0);
         wave.RenderTransform = waveRot;
+        waveBack.RenderTransform = waveRot;
         Place(sticker, wave, 128, 30);
         // 들리는 모서리
         var peel = new Path
