@@ -740,32 +740,7 @@
                     <StackPanel x:Name="FxGlowOpts" Margin="14,0,0,6">
                       <TextBlock Text="{DynamicResource s.fx.color}" Style="{StaticResource Hint}" Margin="0,8,0,0"/>
                       <Border Style="{StaticResource SegmentBox}" Margin="0,4,0,0" Padding="2">
-                        <UniformGrid Columns="8">
-                          <RadioButton Style="{StaticResource Segment}" GroupName="FxGlowColor" Tag="FxGlowColor=#FFFFFF" Padding="0" Height="26" Checked="FxChoice_Checked">
-                            <Ellipse Width="14" Height="14" Fill="#FFFFFF" Stroke="#40000000" StrokeThickness="1"/>
-                          </RadioButton>
-                          <RadioButton Style="{StaticResource Segment}" GroupName="FxGlowColor" Tag="FxGlowColor=#FFD54F" Padding="0" Height="26" Checked="FxChoice_Checked">
-                            <Ellipse Width="14" Height="14" Fill="#FFD54F" Stroke="#40000000" StrokeThickness="1"/>
-                          </RadioButton>
-                          <RadioButton Style="{StaticResource Segment}" GroupName="FxGlowColor" Tag="FxGlowColor=#FF8A80" Padding="0" Height="26" Checked="FxChoice_Checked">
-                            <Ellipse Width="14" Height="14" Fill="#FF8A80" Stroke="#40000000" StrokeThickness="1"/>
-                          </RadioButton>
-                          <RadioButton Style="{StaticResource Segment}" GroupName="FxGlowColor" Tag="FxGlowColor=#F48FB1" Padding="0" Height="26" Checked="FxChoice_Checked">
-                            <Ellipse Width="14" Height="14" Fill="#F48FB1" Stroke="#40000000" StrokeThickness="1"/>
-                          </RadioButton>
-                          <RadioButton Style="{StaticResource Segment}" GroupName="FxGlowColor" Tag="FxGlowColor=#CE93D8" Padding="0" Height="26" Checked="FxChoice_Checked">
-                            <Ellipse Width="14" Height="14" Fill="#CE93D8" Stroke="#40000000" StrokeThickness="1"/>
-                          </RadioButton>
-                          <RadioButton Style="{StaticResource Segment}" GroupName="FxGlowColor" Tag="FxGlowColor=#81D4FA" Padding="0" Height="26" Checked="FxChoice_Checked">
-                            <Ellipse Width="14" Height="14" Fill="#81D4FA" Stroke="#40000000" StrokeThickness="1"/>
-                          </RadioButton>
-                          <RadioButton Style="{StaticResource Segment}" GroupName="FxGlowColor" Tag="FxGlowColor=#A5D6A7" Padding="0" Height="26" Checked="FxChoice_Checked">
-                            <Ellipse Width="14" Height="14" Fill="#A5D6A7" Stroke="#40000000" StrokeThickness="1"/>
-                          </RadioButton>
-                          <RadioButton Style="{StaticResource Segment}" GroupName="FxGlowColor" Tag="FxGlowColor=#FFAB40" Padding="0" Height="26" Checked="FxChoice_Checked">
-                            <Ellipse Width="14" Height="14" Fill="#FFAB40" Stroke="#40000000" StrokeThickness="1"/>
-                          </RadioButton>
-                        </UniformGrid>
+                        <WrapPanel x:Name="GlowColorRow"/>
                       </Border>
                       <DockPanel Margin="0,6,0,0">
                         <TextBlock x:Name="FxGlowSizeText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
@@ -776,7 +751,7 @@
                         <TextBlock x:Name="FxGlowStrengthText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>
                         <TextBlock Text="{DynamicResource s.fx.strength}" Style="{StaticResource Hint}"/>
                       </DockPanel>
-                      <Slider Tag="FxGlowStrength" Minimum="10" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
+                      <Slider Tag="FxGlowStrength" Minimum="10" Maximum="300" TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,2,0,0"/>
                       <ToggleButton Style="{StaticResource SwitchBox}" Margin="0,8,0,0" Tag="FxGlowPulse" Content="{DynamicResource s.fx.pulse}"
                                     ToolTip="{DynamicResource s.fx.pulseTip}" Click="FxToggle_Click"/>
                     </StackPanel>
@@ -833,45 +808,9 @@
                       <StackPanel x:Name="ParticleColorPanel">
                       <TextBlock Text="{DynamicResource s.fx.color}" Style="{StaticResource Hint}" Margin="0,8,0,0"/>
                       <Border Style="{StaticResource SegmentBox}" Margin="0,4,0,0" Padding="2">
-                        <UniformGrid Columns="9">
-                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleColor" Tag="FxParticleColor=rainbow" Padding="0" Height="26" Checked="FxChoice_Checked" ToolTip="{DynamicResource s.fx.rainbow}">
-                            <Ellipse Width="14" Height="14">
-                              <Ellipse.Fill>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                  <GradientStop Color="#FF8A80" Offset="0"/>
-                                  <GradientStop Color="#FFD54F" Offset="0.33"/>
-                                  <GradientStop Color="#81D4FA" Offset="0.66"/>
-                                  <GradientStop Color="#CE93D8" Offset="1"/>
-                                </LinearGradientBrush>
-                              </Ellipse.Fill>
-                            </Ellipse>
-                          </RadioButton>
-                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleColor" Tag="FxParticleColor=#FFFFFF" Padding="0" Height="26" Checked="FxChoice_Checked">
-                            <Ellipse Width="14" Height="14" Fill="#FFFFFF" Stroke="#40000000" StrokeThickness="1"/>
-                          </RadioButton>
-                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleColor" Tag="FxParticleColor=#FFD54F" Padding="0" Height="26" Checked="FxChoice_Checked">
-                            <Ellipse Width="14" Height="14" Fill="#FFD54F" Stroke="#40000000" StrokeThickness="1"/>
-                          </RadioButton>
-                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleColor" Tag="FxParticleColor=#FF8A80" Padding="0" Height="26" Checked="FxChoice_Checked">
-                            <Ellipse Width="14" Height="14" Fill="#FF8A80" Stroke="#40000000" StrokeThickness="1"/>
-                          </RadioButton>
-                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleColor" Tag="FxParticleColor=#F48FB1" Padding="0" Height="26" Checked="FxChoice_Checked">
-                            <Ellipse Width="14" Height="14" Fill="#F48FB1" Stroke="#40000000" StrokeThickness="1"/>
-                          </RadioButton>
-                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleColor" Tag="FxParticleColor=#CE93D8" Padding="0" Height="26" Checked="FxChoice_Checked">
-                            <Ellipse Width="14" Height="14" Fill="#CE93D8" Stroke="#40000000" StrokeThickness="1"/>
-                          </RadioButton>
-                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleColor" Tag="FxParticleColor=#81D4FA" Padding="0" Height="26" Checked="FxChoice_Checked">
-                            <Ellipse Width="14" Height="14" Fill="#81D4FA" Stroke="#40000000" StrokeThickness="1"/>
-                          </RadioButton>
-                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleColor" Tag="FxParticleColor=#A5D6A7" Padding="0" Height="26" Checked="FxChoice_Checked">
-                            <Ellipse Width="14" Height="14" Fill="#A5D6A7" Stroke="#40000000" StrokeThickness="1"/>
-                          </RadioButton>
-                          <RadioButton Style="{StaticResource Segment}" GroupName="FxParticleColor" Tag="FxParticleColor=#FFAB40" Padding="0" Height="26" Checked="FxChoice_Checked">
-                            <Ellipse Width="14" Height="14" Fill="#FFAB40" Stroke="#40000000" StrokeThickness="1"/>
-                          </RadioButton>
-                        </UniformGrid>
+                        <WrapPanel x:Name="ParticleColorRow"/>
                       </Border>
+                      <TextBlock Text="{DynamicResource s.fx.colorMultiHint}" Style="{StaticResource Hint}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
                       </StackPanel>
                       <DockPanel Margin="0,6,0,0">
                         <TextBlock x:Name="FxParticleRateText" DockPanel.Dock="Right" FontFamily="{DynamicResource MonoFont}"/>

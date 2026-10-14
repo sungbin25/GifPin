@@ -87,6 +87,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
     public string ParticleKey { get; set; } = "";
 
     internal int ParticleCount => _fx.ParticleCount;
+    internal List<uint> ParticleColors() => _fx.ParticleColorValues();
     internal int ParticleBudget { set => _fx.ParticleBudget = value; }
 
     // ── 멈춤(가려짐·잠금) / 메모리에서 내리기 ─────────────────

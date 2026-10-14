@@ -641,5 +641,19 @@ internal static class Strings
         ["theme.xpTip"] = ("Beige windows, blue gradients and Tahoma, like the 2000s Luna style", "베이지 창, 파란 그라데이션, Tahoma 글꼴 — 2000년대 Luna 느낌"),
         ["theme.classic"] = ("Classic", "클래식"),
         ["theme.classicTip"] = ("Gray, square Windows 98 style", "회색 각진 Windows 98 느낌"),
+
+        // v0.7.2: 색 고르기
+        ["color.title"] = ("Choose a color", "색 고르기"),
+        ["color.palette"] = ("Palette", "팔레트"),
+        ["color.recent"] = ("Recent", "최근 색"),
+        ["color.hue"] = ("Hue", "색상"),
+        ["color.saturation"] = ("Saturation", "채도"),
+        ["color.brightness"] = ("Brightness", "밝기"),
+        ["color.eyedropper"] = ("Eyedropper", "스포이드"),
+        ["color.eyedropperTip"] = ("Pick any color on your screen", "화면에서 원하는 색을 집어요"),
+        ["color.eyedropperHint"] = ("Click to pick · Esc to cancel", "클릭해서 고르기 · Esc 취소"),
+        ["color.ok"] = ("Use this color", "이 색 쓰기"),
+        ["color.paletteTip"] = ("More colors: palette, color code, eyedropper", "다른 색: 팔레트·색 코드·스포이드"),
+        ["fx.colorMultiHint"] = ("Pick several colors to mix them — your own rainbow. Add any color with the palette or eyedropper.", "여러 색을 고르면 섞여서 나와요 (나만의 무지개). 팔레트·스포이드로 원하는 색도 추가할 수 있어요."),
     };
 }

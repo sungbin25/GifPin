@@ -227,6 +227,17 @@ public sealed class AppController
         Save();
     }
 
+    /// <summary>색 고르기 창의 "최근 색"에 추가 (맨 앞, 최대 12개).</summary>
+    public void AddRecentColor(string hex)
+    {
+        hex = hex.ToUpperInvariant();
+        var list = State.Settings.RecentColors;
+        list.Remove(hex);
+        list.Insert(0, hex);
+        if (list.Count > 12) list.RemoveRange(12, list.Count - 12);
+        Save();
+    }
+
     // ── 테마 ─────────────────────────────────────────────────
 
     /// <summary>테마가 바뀜 (코드로 만든 화면 요소를 다시 만들 때).</summary>

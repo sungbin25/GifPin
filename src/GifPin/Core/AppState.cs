@@ -251,6 +251,9 @@ public sealed class AppSettings
     public bool TrayNoticeShown { get; set; }
     public WindowBounds? Window { get; set; }
 
+    /// <summary>색 고르기 창의 "최근 색" (#RRGGBB, 최근 것부터)</summary>
+    public List<string> RecentColors { get; set; } = new();
+
     /// <summary>화면 테마: system | dark | light | midnight | mint | neon | xp | classic</summary>
     public string Theme { get; set; } = "dark";
     /// <summary>설치 프로그램에서 고른 언어를 마지막으로 적용한 설치 표시 (같은 설치는 한 번만 적용)</summary>
@@ -323,6 +326,7 @@ public sealed class AppSettings
     public void Normalize()
     {
         AutostartDelaySec = Math.Clamp(AutostartDelaySec, 0, 300);
+        RecentColors = (RecentColors ?? new()).Where(c => Fx.TryParseColor(c, out _)).Select(c => c.ToUpperInvariant()).Distinct().Take(12).ToList();
         if (Theme == "midnight") Theme = "amber"; // v0.7.1: 미드나잇 → 앰버
         Theme = Theme is "system" or "dark" or "light" or "amber" or "mint" or "neon" or "xp" or "classic" ? Theme : "dark";
         MaxParticlesTotal = Math.Clamp(MaxParticlesTotal, 20, 3000);

@@ -847,7 +847,22 @@ public partial class App : Application
         InstallerInfo.WriteForTest("english", "smoke-2");
         if (InstallerInfo.PendingLanguage("smoke-1") is not { language: "en" }) throw new Exception("installer language (english) not read");
         InstallerInfo.ClearForTest();
-        sb.Append(" installer language ok");
+        sb.Append(" installer language ok ·");
+
+        // 11) 외곽 빛 300%: 100%보다 빛 그림이 진함 / 파티클 여러 색: 고른 색만 나옴 / 색 고르기 창
+        GifPin.UI.ColorPicker.SmokeOpenClose();
+        if (Fx.NormalizeColorList("#ff0000, #00ff00,bad,#FF0000") != "#FF0000,#00FF00" || Fx.NormalizeColorList("") != Fx.Rainbow)
+            throw new Exception("particle color list: " + Fx.NormalizeColorList("#ff0000, #00ff00,bad,#FF0000"));
+        string gid = app.State.Active[0].Id;
+        app.UpdateActive(gid, x => { x.Visible = true; x.FxGlow = true; x.FxGlowColor = "#00FF00"; x.FxGlowStrength = 300; x.FxGlowPulse = false; });
+        if (app.State.Active[0].FxGlowStrength != 300) throw new Exception("glow strength above 100% was clamped");
+        app.UpdateActive(gid, x => { x.FxParticles = true; x.FxParticleMode = Fx.Always; x.FxParticleRate = 30; x.FxParticleKind = Fx.Dot; x.FxParticleColor = "#FF0000,#0000FF"; });
+        await System.Threading.Tasks.Task.Delay(1000);
+        var colorsSeen = await eng.ParticleColorsAsync(gid);
+        if (colorsSeen.Count == 0 || colorsSeen.Any(c => c != 0xFFFF0000u && c != 0xFF0000FFu) || colorsSeen.Distinct().Count() < 2)
+            throw new Exception("particle colors: " + string.Join(",", colorsSeen.Distinct().Select(c => c.ToString("X8"))));
+        app.UpdateActive(gid, x => { x.FxGlow = false; x.FxParticles = false; x.FxParticleColor = Fx.Rainbow; });
+        sb.Append(" glow/colors ok");
         return sb.ToString();
     }
 

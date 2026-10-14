@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -859,6 +860,8 @@ public partial class MainWindow : Window
         }
         var kinds = Fx.ParticleKinds(a);
         foreach (var kb in _fxKindToggles) kb.IsChecked = Array.IndexOf(kinds, KindOf(kb)) >= 0;
+        BuildGlowColors(a);
+        BuildParticleColors(a);
         foreach (var sl in _fxSliders)
         {
             var prop = (string)sl.Tag;
@@ -1404,6 +1407,141 @@ public partial class MainWindow : Window
             _perfTimer.Stop();
             _perfTimer = null;
         }
+    }
+
+    // ── 외곽 빛·파티클 색 (팔레트·스포이드·여러 색) ──────────────
+
+    private static readonly string[] PresetColors = { "#FFFFFF", "#FFD54F", "#FF8A80", "#F48FB1", "#CE93D8", "#81D4FA", "#A5D6A7", "#FFAB40" };
+
+    private static string NormHex(string? hex) => ColorPicker.TryParse(hex, out var c) ? ColorPicker.ToHex(c) : "";
+
+    private static FrameworkElement Dot(System.Windows.Media.Brush fill) => new System.Windows.Shapes.Ellipse
+    {
+        Width = 14, Height = 14, Fill = fill, Stroke = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0x40, 0, 0, 0)), StrokeThickness = 1,
+    };
+
+    private static System.Windows.Media.Brush HexBrush(string hex) =>
+        new System.Windows.Media.SolidColorBrush(ColorPicker.TryParse(hex, out var c) ? c : System.Windows.Media.Colors.White);
+
+    private Button ColorToolButton(string glyph, string tip, Func<Task> onClick)
+    {
+        var b = new Button
+        {
+            Width = 28, Height = 26, Padding = new Thickness(0), Margin = new Thickness(1), BorderThickness = new Thickness(0), ToolTip = tip,
+            Content = new TextBlock { Text = glyph, FontFamily = (System.Windows.Media.FontFamily)FindResource("IconFont"), FontSize = 13 },
+        };
+        b.SetResourceReference(ForegroundProperty, "IconBrush");
+        b.Click += async (_, _) => await onClick();
+        return b;
+    }
+
+    /// <summary>색 고르기 창 또는 스포이드로 색 하나 (취소면 null).</summary>
+    private async Task<string?> AskColor(string initial, bool eyedropper)
+    {
+        System.Windows.Media.Color? c = eyedropper
+            ? await ColorPicker.PickFromScreenAsync(this)
+            : await ColorPicker.PickAsync(this, ColorPicker.TryParse(initial, out var ic) ? ic : System.Windows.Media.Colors.White, _app.State.Settings.RecentColors);
+        if (c is not System.Windows.Media.Color picked) return null;
+        string hex = ColorPicker.ToHex(picked);
+        _app.AddRecentColor(hex);
+        return hex;
+    }
+
+    /// <summary>외곽 빛 색: 기본 8색 + (고른 색이 그 밖이면) 그 색 + 팔레트 + 스포이드.</summary>
+    private void BuildGlowColors(ActiveItem a)
+    {
+        if (GlowColorRow == null) return;
+        GlowColorRow.Children.Clear();
+        string cur = NormHex(a.FxGlowColor);
+        var colors = PresetColors.ToList();
+        if (cur.Length > 0 && !colors.Contains(cur)) colors.Add(cur);
+        foreach (var hex in colors)
+        {
+            string value = hex;
+            var rb = new RadioButton
+            {
+                Style = (Style)FindResource("Segment"), GroupName = "FxGlowColorPick", Padding = new Thickness(0), Height = 26, Width = 28,
+                Content = Dot(HexBrush(hex)), ToolTip = hex, IsChecked = hex == cur,
+            };
+            rb.Checked += (_, _) => { if (!_updating) WithSelected(x => x.FxGlowColor = value); };
+            GlowColorRow.Children.Add(rb);
+        }
+        GlowColorRow.Children.Add(ColorToolButton("\uE790", Loc.T("color.paletteTip"), async () =>
+        {
+            if (await AskColor(cur, eyedropper: false) is string hex) { WithSelected(x => x.FxGlowColor = hex); RefreshColorRows(); }
+        }));
+        GlowColorRow.Children.Add(ColorToolButton("\uEF3C", Loc.T("color.eyedropperTip"), async () =>
+        {
+            if (await AskColor(cur, eyedropper: true) is string hex) { WithSelected(x => x.FxGlowColor = hex); RefreshColorRows(); }
+        }));
+    }
+
+    /// <summary>
+    /// 파티클 색: 무지개 / 여러 색 중복 선택(고른 색끼리 섞여 나옴) / 내 색 추가(팔레트·스포이드).
+    /// 모든 색을 끄면 무지개로.
+    /// </summary>
+    private void BuildParticleColors(ActiveItem a)
+    {
+        if (ParticleColorRow == null) return;
+        ParticleColorRow.Children.Clear();
+        var selected = Fx.ParticleColors(a.FxParticleColor).ToList();
+        bool rainbow = selected.Count == 0;
+        var toggleStyle = (Style)FindResource("SegmentToggle");
+
+        var rainbowBrush = new System.Windows.Media.LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 1) };
+        foreach (var (hex, off) in new[] { ("#FF8A80", 0.0), ("#FFD54F", 0.33), ("#81D4FA", 0.66), ("#CE93D8", 1.0) })
+            rainbowBrush.GradientStops.Add(new System.Windows.Media.GradientStop(((System.Windows.Media.SolidColorBrush)HexBrush(hex)).Color, off));
+        var rb = new ToggleButton { Style = toggleStyle, Padding = new Thickness(0), Height = 26, Width = 28, Content = Dot(rainbowBrush), IsChecked = rainbow, ToolTip = Loc.T("fx.rainbow") };
+        rb.Click += (_, _) => SetParticleColors(new List<string>());
+        ParticleColorRow.Children.Add(rb);
+
+        var colors = PresetColors.ToList();
+        foreach (var hex in selected) if (!colors.Contains(hex)) colors.Add(hex); // 내가 추가한 색
+        foreach (var hex in colors)
+        {
+            string value = hex;
+            var tb = new ToggleButton { Style = toggleStyle, Padding = new Thickness(0), Height = 26, Width = 28, Content = Dot(HexBrush(hex)), IsChecked = selected.Contains(hex), ToolTip = hex };
+            tb.Click += (_, _) =>
+            {
+                var list = Fx.ParticleColors(_app.SelectedActive?.FxParticleColor).ToList();
+                if (tb.IsChecked == true) { if (!list.Contains(value)) list.Add(value); }
+                else list.Remove(value);
+                SetParticleColors(list);
+            };
+            ParticleColorRow.Children.Add(tb);
+        }
+        ParticleColorRow.Children.Add(ColorToolButton("\uE790", Loc.T("color.paletteTip"), async () =>
+        {
+            if (await AskColor(selected.LastOrDefault() ?? "#FFFFFF", eyedropper: false) is string hex) AddParticleColor(hex);
+        }));
+        ParticleColorRow.Children.Add(ColorToolButton("\uEF3C", Loc.T("color.eyedropperTip"), async () =>
+        {
+            if (await AskColor("#FFFFFF", eyedropper: true) is string hex) AddParticleColor(hex);
+        }));
+    }
+
+    private void AddParticleColor(string hex)
+    {
+        var list = Fx.ParticleColors(_app.SelectedActive?.FxParticleColor).ToList();
+        if (!list.Contains(hex)) list.Add(hex);
+        SetParticleColors(list);
+    }
+
+    private void SetParticleColors(List<string> list)
+    {
+        string value = list.Count == 0 ? Fx.Rainbow : string.Join(",", list);
+        WithSelected(x => x.FxParticleColor = value);
+        RefreshColorRows();
+    }
+
+    private void RefreshColorRows()
+    {
+        if (_app.SelectedActive is not ActiveItem a) return;
+        bool was = _updating;
+        _updating = true;
+        BuildGlowColors(a);
+        BuildParticleColors(a);
+        _updating = was;
     }
 
     // ── 테마 ─────────────────────────────────────────────────

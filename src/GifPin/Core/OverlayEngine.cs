@@ -843,6 +843,14 @@ public sealed class OverlayEngine : IDisposable
 
     private bool? _systemPauseOverride;
 
+    /// <summary>점검용: 파티클 색 목록 (ARGB).</summary>
+    public Task<List<uint>> ParticleColorsAsync(string id)
+    {
+        var tcs = new TaskCompletionSource<List<uint>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Post(() => tcs.TrySetResult(_byId.TryGetValue(id, out var w) ? w.ParticleColors() : new List<uint>()));
+        return tcs.Task;
+    }
+
     /// <summary>진단용: GIF 위에 겹친 창 목록.</summary>
     public Task<string> DescribeWindowsAboveAsync(string id)
     {

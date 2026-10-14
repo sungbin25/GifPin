@@ -90,7 +90,7 @@ public static class Fx
         a.FxShadowOpacity = Math.Clamp(a.FxShadowOpacity, 10, 90);
         a.FxShadowSize = Math.Clamp(a.FxShadowSize, 30, 150);
         a.FxGlowSize = Math.Clamp(a.FxGlowSize, 2, 40);
-        a.FxGlowStrength = Math.Clamp(a.FxGlowStrength, 10, 100);
+        a.FxGlowStrength = Math.Clamp(a.FxGlowStrength, 10, MaxGlowStrength);
         if (!TryParseColor(a.FxGlowColor, out _)) a.FxGlowColor = "#FFD54F";
         a.FxParticleKind = string.Join(",", ParticleKinds(a));
         a.FxParticleMode = Pick(a.FxParticleMode, Modes, Always);
@@ -98,7 +98,35 @@ public static class Fx
         a.FxParticleRate = Math.Clamp(a.FxParticleRate, 1, 60);
         a.FxParticleSize = Math.Clamp(a.FxParticleSize, 4, 48);
         a.FxParticleLife = Math.Clamp(a.FxParticleLife, 0.5, 5);
-        if (a.FxParticleColor != Rainbow && !TryParseColor(a.FxParticleColor, out _)) a.FxParticleColor = Rainbow;
+        a.FxParticleColor = NormalizeColorList(a.FxParticleColor);
+    }
+
+    /// <summary>외곽 빛 세기 최대 (%): 100을 넘으면 빛을 더 진하고 넓게 (안쪽 빛 한 겹 + 진하기 증폭).</summary>
+    public const double MaxGlowStrength = 300;
+    /// <summary>파티클 색으로 고를 수 있는 최대 개수.</summary>
+    public const int MaxParticleColors = 16;
+
+    /// <summary>파티클 색: "rainbow" 또는 "#RRGGBB,#RRGGBB,…" (여러 개면 파티클마다 그중 하나). 틀린 값은 빼고, 비면 rainbow.</summary>
+    public static string NormalizeColorList(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value == Rainbow) return Rainbow;
+        var list = ParticleColors(value);
+        return list.Length == 0 ? Rainbow : string.Join(",", list);
+    }
+
+    /// <summary>파티클 색 목록 ("#RRGGBB" 대문자, 중복 없음). rainbow면 빈 목록.</summary>
+    public static string[] ParticleColors(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value == Rainbow) return Array.Empty<string>();
+        var result = new List<string>();
+        foreach (var part in value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+            if (TryParseColor(part, out var c))
+            {
+                string hex = $"#{c.Red:X2}{c.Green:X2}{c.Blue:X2}";
+                if (!result.Contains(hex)) result.Add(hex);
+                if (result.Count >= MaxParticleColors) break;
+            }
+        return result.ToArray();
     }
 
     /// <summary>켜진 효과가 하나라도 있음.</summary>
@@ -166,6 +194,8 @@ internal sealed class EffectState : IDisposable
     public bool SuppressParticles { get; set; }
     public double Speed { get; private set; }
     public int ParticleCount => _particles.Count;
+    /// <summary>점검용: 지금 날고 있는 파티클 색들.</summary>
+    public List<uint> ParticleColorValues() => _particles.Select(p => (uint)p.Color).ToList();
     /// <summary>이 창이 가질 수 있는 파티클 수 (모든 GIF를 합친 상한에서 엔진이 매 프레임 나눠 줌).</summary>
     public int ParticleBudget { get; set; } = int.MaxValue;
     public int Squashes { get; private set; }
@@ -362,9 +392,22 @@ internal sealed class EffectState : IDisposable
         for (int i = 0; i < n; i++) Spawn(a, x, y, w, h, Fx.Burst, 0, x, y);
     }
 
+    private string? _colorListKey;
+    private SKColor[] _colorList = Array.Empty<SKColor>();
+
     private SKColor ParticleColor(ActiveItem a)
     {
-        if (a.FxParticleColor != Fx.Rainbow && Fx.TryParseColor(a.FxParticleColor, out var c)) return c;
+        if (a.FxParticleColor != Fx.Rainbow)
+        {
+            // 고른 색들 중 하나씩 (내가 고른 색으로 만드는 무지개)
+            if (_colorListKey != a.FxParticleColor)
+            {
+                _colorListKey = a.FxParticleColor;
+                _colorList = Fx.ParticleColors(a.FxParticleColor).Select(h => { Fx.TryParseColor(h, out var c); return c; }).ToArray();
+            }
+            if (_colorList.Length == 1) return _colorList[0];
+            if (_colorList.Length > 1) return _colorList[_rng.Next(_colorList.Length)];
+        }
         return SKColor.FromHsv(_rng.Next(24) * 15f, 65, 100); // 24가지 색 (물들이기 필터를 재사용하려고)
     }
 
@@ -479,6 +522,25 @@ internal sealed class EffectState : IDisposable
         int i = Array.BinarySearch(sp.Ends, t + 1);
         if (i < 0) i = ~i;
         return Math.Min(i, sp.Ends.Length - 1);
+    }
+
+    /// <summary>미리 곱한 알파(premultiplied) 그림의 진하기를 k배 (255에서 멈춤). 색 비율은 그대로.</summary>
+    private static unsafe void AmplifyAlpha(SKBitmap bmp, float k)
+    {
+        byte* p = (byte*)bmp.GetPixels();
+        int n = bmp.Width * bmp.Height;
+        for (int i = 0; i < n; i++, p += 4)
+        {
+            int a = p[3];
+            if (a == 0) continue;
+            int na = Math.Min(255, (int)(a * k + 0.5f));
+            if (na == a) continue;
+            float s = (float)na / a;
+            p[0] = (byte)Math.Min(na, (int)(p[0] * s + 0.5f));
+            p[1] = (byte)Math.Min(na, (int)(p[1] * s + 0.5f));
+            p[2] = (byte)Math.Min(na, (int)(p[2] * s + 0.5f));
+            p[3] = (byte)na;
+        }
     }
 
     private SKColorFilter Tint(SKColor color)
@@ -607,11 +669,15 @@ internal sealed class EffectState : IDisposable
         if (!a.FxGlow) return null;
         Fx.TryParseColor(a.FxGlowColor, out var col);
         double strength = a.FxGlowStrength / 100;
-        if (a.FxGlowPulse) strength *= 0.55 + 0.45 * (0.5 + 0.5 * Wave(1.6));
-        byte alpha = (byte)Math.Round(255 * Math.Clamp(strength, 0, 1));
+        // 100% 넘는 만큼은 빛 그림 자체를 진하게 (캐시), 두근두근은 투명도로만 → 세게 해도 맥동이 보임
+        double boost = Math.Max(1, strength);
+        int boostKey = (int)Math.Round(boost * 10);
+        double level = Math.Min(1, strength);
+        if (a.FxGlowPulse) level *= 0.55 + 0.45 * (0.5 + 0.5 * Wave(1.6));
+        byte alpha = (byte)Math.Round(255 * Math.Clamp(level, 0, 1));
         int sigma = (int)Math.Round(a.FxGlowSize);
         int margin = sigma * 3;
-        var key = (frameIndex, w, h, (uint)col.WithAlpha(255), sigma);
+        var key = (frameIndex, w, h, (uint)col.WithAlpha(255), sigma * 1000 + boostKey);
         if (_glows.TryGetValue(key, out var bmp))
         {
             GlowHits++;
@@ -634,8 +700,17 @@ internal sealed class EffectState : IDisposable
         using (var paint = new SKPaint { ImageFilter = glow, FilterQuality = SKFilterQuality.Medium, IsAntialias = true })
         {
             cv.DrawBitmap(frame, SKRect.Create(margin, margin, w, h), paint);
+            if (boost > 1.01)
+            {
+                // 안쪽에 촘촘한 빛을 한 겹 더 (윤곽 가까이가 확실히 밝아짐)
+                float inner = Math.Max(1.5f, sigma * 0.35f);
+                using var core = SKImageFilter.CreateDropShadowOnly(0, 0, inner, inner, col.WithAlpha((byte)Math.Round(255 * Math.Min(1, boost - 1))));
+                using var corePaint = new SKPaint { ImageFilter = core, FilterQuality = SKFilterQuality.Medium, IsAntialias = true };
+                cv.DrawBitmap(frame, SKRect.Create(margin, margin, w, h), corePaint);
+            }
             cv.Flush();
         }
+        if (boost > 1.01) AmplifyAlpha(bmp, (float)boost); // 흐린 가장자리까지 진하게
         GlowBuilds++;
         _glows[key] = bmp;
         _glowOrder.AddFirst(key);
