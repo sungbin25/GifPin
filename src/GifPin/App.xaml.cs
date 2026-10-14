@@ -703,6 +703,13 @@ public partial class App : Application
         // 4) 가려진 바탕화면 GIF 멈춤: 창으로 덮으면 멈추고, 치우면 다시 재생
         app.UpdateActive(fastId, a => a.Layer = Layers.Desktop);
         app.Relocate(fastId, mon.WorkLeft + 200, mon.WorkTop + 200);
+        // GifPin 자신의 창(메인 창)이 그 자리를 덮지 않게 잠시 최소화
+        var minimized = Current.Windows.OfType<Window>().Where(x => x.IsVisible && x.WindowState != WindowState.Minimized).ToList();
+        foreach (var x in minimized) x.WindowState = WindowState.Minimized;
+        await Wait(500);
+        eng.CheckOcclusionNow();
+        await Wait(300);
+        if ((await P(fastId)).Occluded) throw new Exception("desktop GIF counted as covered before any window covered it");
         var cover = new Window
         {
             WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, ShowActivated = false,
@@ -720,6 +727,7 @@ public partial class App : Application
         await Wait(300);
         c = await P(fastId);
         if (c.Occluded || !c.GifPlaying) throw new Exception($"uncovered desktop GIF: occluded={c.Occluded} playing={c.GifPlaying}");
+        foreach (var x in minimized) x.WindowState = WindowState.Normal;
         sb.Append(" occlusion ok ·");
 
         // 5) 화면 잠금처럼 멈춤 → 풀리면 다시 재생

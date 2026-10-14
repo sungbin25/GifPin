@@ -37,6 +37,12 @@ jobs:
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
           -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publish
 
+      - name: Publish small exe for the installer (uses the .NET 8 Desktop Runtime on the PC)
+        run: >
+          dotnet publish src/GifPin/GifPin.csproj -c Release -r win-x64 --self-contained false
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=false -p:DebugType=none -o publish-fd
+
       - name: Smoke test (overlay + background removal + WebP)
         shell: pwsh
         run: |
@@ -82,10 +88,35 @@ jobs:
           if (-not (Test-Path $iscc)) {
             choco install innosetup -y --no-progress | Out-Null
           }
-          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" "/DSourceDir=$pwd\publish" "/O$pwd\dist" installer\GifPin.iss
+          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" "/DSourceDir=$pwd\publish-fd" "/O$pwd\dist" installer\GifPin.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Copy-Item publish\GifPin.exe "dist\GifPin-portable-${{ steps.ver.outputs.version }}.exe"
           Get-ChildItem dist
+
+      - name: Installer test (silent install, runtime check, start installed GifPin)
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist\GifPin-Setup-*.exe | Select-Object -First 1
+          $log = Join-Path $env:RUNNER_TEMP 'gifpin-setup.log'
+          $p = Start-Process -FilePath $setup.FullName -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/LOG=$log" -PassThru -Wait
+          $text = Get-Content $log -Raw
+          if ($p.ExitCode -ne 0) { Write-Host "::error title=Installer::exit code $($p.ExitCode)"; Get-Content $log -Tail 40; exit 1 }
+          if ($text -notmatch 'Desktop Runtime is already installed|Runtime installer finished with code 0') { Write-Host "::error title=Installer::runtime check not in log"; Get-Content $log -Tail 40; exit 1 }
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs\GifPin\GifPin.exe'
+          if (-not (Test-Path $exe)) { Write-Host "::error title=Installer::GifPin.exe not installed"; exit 1 }
+          $data = Join-Path ([Environment]::GetFolderPath('ApplicationData')) 'GifPin'
+          $applog = Join-Path $data 'logs\gifpin.log'
+          $before = if (Test-Path $applog) { (Get-Content $applog).Count } else { 0 }
+          $app = Start-Process -FilePath $exe -ArgumentList '--tray' -PassThru
+          Start-Sleep -Seconds 8
+          $alive = -not $app.HasExited
+          if ($alive) { Stop-Process -Id $app.Id -Force }
+          $new = if (Test-Path $applog) { (Get-Content $applog | Select-Object -Skip $before) -join "`n" } else { '' }
+          if (-not $alive -or $new -notmatch 'GifPin ${{ steps.ver.outputs.version }} starting') {
+            Write-Host "::error title=Installer::installed GifPin did not start (alive=$alive)"; Write-Host $new; exit 1
+          }
+          $size = [math]::Round($setup.Length / 1MB, 1)
+          Write-Host "::notice title=Installer::installer $size MB · runtime check ok · installed app started"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -100,6 +131,6 @@ jobs:
           name: GifPin ${{ steps.ver.outputs.version }}
           target_commitish: ${{ github.sha }}
           body: |
-            - `GifPin-Setup-${{ steps.ver.outputs.version }}.exe` — 설치 프로그램 (관리자 권한 필요 없음)
-            - `GifPin-portable-${{ steps.ver.outputs.version }}.exe` — 설치 없이 바로 실행
+            - `GifPin-Setup-${{ steps.ver.outputs.version }}.exe` — 설치 프로그램 (작은 용량). PC에 .NET 8 데스크톱 런타임이 없으면 설치 중에 Microsoft에서 내려받아 자동으로 설치합니다 (이때만 Windows 권한 확인).
+            - `GifPin-portable-${{ steps.ver.outputs.version }}.exe` — 설치 없이 바로 실행 (.NET 런타임 포함, 용량 큼)
           files: dist/*.exe
