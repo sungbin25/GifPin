@@ -14,6 +14,7 @@ internal static class CollisionTests
 
     public static void Run()
     {
+        BounceRecovery();
         var walker = Body(Motion.Walk, 60, 120, 0); var wall = Body(Motion.None, 80);
         var hits = Collisions.Resolve(new[] { walker, wall });
         Check(hits.Count == 1 && walker.Vx == -120 && walker.X + 50 <= wall.X, "walker must turn at contact");
@@ -63,6 +64,43 @@ internal static class CollisionTests
         settings.FxCollisionStrong = settings.FxCollisionStrong with { Kind = Fx.Image }; settings.FxParticleImages = "custom";
         Check(Fx.UsesParticleImages(settings), "collision images loaded without regular particles");
         Console.WriteLine("PASS: collision solver, high-speed sweep, persistence, effect strength and budgets");
+    }
+
+    private static void BounceRecovery()
+    {
+        static double Speed(MotionState m) => Math.Sqrt(m.Vx * m.Vx + m.Vy * m.Vy);
+        static void Tick(MotionState m, int frames, double dt = .1)
+        {
+            for (int i = 0; i < frames; i++) m.Step(dt, 50, 50, -1000000, -1000000, 1000000, 1000000);
+        }
+        var m = new MotionState(); m.Reset(Motion.Bounce, new MotionParams { Speed = 120 }, 0, 0);
+        double target = Speed(m);
+        Tick(m, 100); Check(Math.Abs(Speed(m) - target) < 1e-9, "normal bounce unchanged");
+        m.Collide(0, 0, -600, 800);
+        Tick(m, 30); Check(Math.Abs(Speed(m) - 1000) < 1e-8, "hold accelerated speed for three seconds");
+        Tick(m, 1); Check(Speed(m) < 1000 && Speed(m) > target && Math.Abs(m.Vx / m.Vy + .75) < 1e-9, "gradual recovery preserves direction");
+        Tick(m, 80); Check(Math.Abs(Speed(m) - target) < .1, "accelerated bounce returns to configured speed");
+        m.Collide(0, 0, 6, -8); Tick(m, 30);
+        Check(Math.Abs(Speed(m) - 10) < 1e-8, "hold slowed speed");
+        Tick(m, 1); Check(Speed(m) > 10 && Speed(m) < target, "slowed bounce accelerates gradually");
+        m.Collide(0, 0, 30, 40); Tick(m, 25);
+        m.Collide(0, 0, -30, 40); Tick(m, 25);
+        Check(Math.Abs(Speed(m) - 50) < 1e-8, "second image contact restarts quiet interval");
+        // A slow wall contact must count even though it is below the particle/impact threshold.
+        m.X = 0; m.Y = 100; m.Vx = -10; m.Vy = 0;
+        m.Step(.1, 50, 50, 0, 0, 1000, 1000); Tick(m, 25);
+        Check(Math.Abs(Speed(m) - 10) < 1e-8 && m.Vx > 0, "slow wall contact restarts delay and preserves reflected direction");
+        m.Collide(0, 0, 0, 0); Tick(m, 30);
+        Check(Speed(m) < 1e-8, "stopped bounce waits before recovering");
+        Tick(m, 1); Check(Speed(m) > 0 && m.Vx > 0, "zero speed safely recovers using last direction");
+        var fine = new MotionState(); fine.Reset(Motion.Bounce, new MotionParams { Speed = 120 }, 0, 0);
+        var coarse = new MotionState(); coarse.Reset(Motion.Bounce, new MotionParams { Speed = 120 }, 0, 0);
+        fine.Collide(0, 0, 600, 800); coarse.Collide(0, 0, 600, 800);
+        Tick(fine, 300, 1.0 / 60); Tick(coarse, 50);
+        Check(Math.Abs(Speed(fine) - Speed(coarse)) < 1e-7, "recovery independent of frame rate");
+        m.Reset(Motion.Slide, new MotionParams(), 0, 0); m.Collide(0, 0, 100, 0); Tick(m, 60);
+        Check(Speed(m) == 0, "slide still stops, without bounce recovery");
+        Console.WriteLine("PASS: bounce speed hold, smooth recovery, repeated/slow-wall contacts, zero speed and frame timing");
     }
 
     public static async Task Engine(string gif)

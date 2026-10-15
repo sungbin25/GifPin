@@ -95,6 +95,32 @@ internal sealed class MotionState
     private const double RestSpeed = 60;     // 이보다 느리면 바닥에 멈춤
     private const double WallBounce = 0.85;  // 미끄러짐: 벽에 부딪힐 때 남는 속도 비율
     private const double StopSpeed = 8;      // 미끄러짐: 이보다 느리면 멈춤
+    private const double BounceRecoveryDelay = 3;
+    private double _bounceQuiet;
+    private bool _bounceRecovering;
+    private double _bounceDirX = 1 / Math.Sqrt(1.49), _bounceDirY = .7 / Math.Sqrt(1.49);
+
+    private void RememberBounceDirection()
+    {
+        double speed = Math.Sqrt(Vx * Vx + Vy * Vy);
+        if (speed <= 1e-9) return;
+        _bounceDirX = Vx / speed; _bounceDirY = Vy / speed;
+    }
+
+    private void RecoverBounceSpeed(double dt)
+    {
+        if (!_bounceRecovering) return;
+        RememberBounceDirection();
+        double elapsed = Math.Min(dt, Math.Max(0, _bounceQuiet - BounceRecoveryDelay));
+        if (elapsed <= 0) return;
+        // Preserve the original bounce setting (vx = speed, vy = speed * .7),
+        // but keep the direction produced by collisions instead of resetting the angle.
+        double target = Math.Clamp(_p.Speed, Motion.MinSpeed, Motion.MaxSpeed) * Math.Sqrt(1.49);
+        double speed = Math.Sqrt(Vx * Vx + Vy * Vy);
+        double next = target + (speed - target) * Math.Exp(-elapsed * 1.5);
+        if (Math.Abs(next - target) < .1) { next = target; _bounceRecovering = false; }
+        Vx = _bounceDirX * next; Vy = _bounceDirY * next;
+    }
 
     public double X, Y, Vx, Vy;
     public bool FacingLeft { get; private set; }
@@ -117,6 +143,7 @@ internal sealed class MotionState
 
     private void Hit(Impact kind, double speed)
     {
+        if (_mode == Motion.Bounce) _bounceQuiet = 0; // Even slow wall contacts restart the delay.
         speed = Math.Abs(speed);
         // 아주 느린 접촉(바닥에 멈춰 가는 중 등)만 무시. 예전 기준(120px/s)은 튕기기의 위아래 속도(84px/s)보다 높아
         // 위·아래 충돌에서 말랑말랑이 빠졌음
@@ -138,6 +165,11 @@ internal sealed class MotionState
 
     public void Collide(double x, double y, double vx, double vy)
     {
+        if (_mode == Motion.Bounce)
+        {
+            RememberBounceDirection(); // Keep a direction if this impact stops us completely.
+            _bounceQuiet = 0; _bounceRecovering = true;
+        }
         X = x; Y = y;
         if (_mode == Motion.Walk && !_p.Gravity) _groundY = y;
         double speed = Math.Sqrt(vx * vx + vy * vy);
@@ -160,6 +192,7 @@ internal sealed class MotionState
     public void Reset(string mode, MotionParams p, double x, double y)
     {
         _mode = Motion.Normalize(mode);
+        _bounceQuiet = 0; _bounceRecovering = false;
         X = x;
         Y = y;
         _groundY = y;
@@ -176,6 +209,7 @@ internal sealed class MotionState
             default: Vx = Vy = 0; break;
         }
         _jumpDir = p.JumpAngle < 0 ? -1 : 1;
+        if (_mode == Motion.Bounce) RememberBounceDirection();
         FacingLeft = Vx < 0 || (Vx == 0 && _mode == Motion.Fall && p.JumpAngle < 0);
     }
 
@@ -219,6 +253,7 @@ internal sealed class MotionState
     public void Step(double dt, int w, int h, int left, int top, int right, int bottom)
     {
         dt = Math.Clamp(dt, 0, 0.1); // 잠깐 멈췄다 돌아와도 순간이동하지 않게
+        if (_mode == Motion.Bounce && _bounceRecovering) _bounceQuiet += dt;
         int maxX = Math.Max(left, right - w), maxY = Math.Max(top, bottom - h);
         // 땅: 중력이 켜져 있으면 작업 영역 바닥(작업표시줄 위), 꺼져 있으면 배치한 높이
         double floor = _p.Gravity ? maxY : Math.Clamp(_groundY, top, maxY);
@@ -288,6 +323,7 @@ internal sealed class MotionState
         if (X < left) { Hit(Impact.WallLeft, Vx); X = left; Vx = Math.Abs(Vx); hitWall = true; }
         if (X > maxX) { Hit(Impact.WallRight, Vx); X = maxX; Vx = -Math.Abs(Vx); hitWall = true; }
         if (hitWall && _mode == Motion.Fall && _p.JumpAngle != 0) _jumpDir = Vx < 0 ? -1 : Vx > 0 ? 1 : -_jumpDir;
+        if (_mode == Motion.Bounce) RecoverBounceSpeed(dt);
         if (Math.Abs(Vx) > 1) FacingLeft = Vx < 0;
         else if (_mode == Motion.Fall && !_p.JumpAngleRandom && _p.JumpAngle != 0 && Vy == 0) FacingLeft = _jumpDir < 0; // 다음에 뛸 방향을 바라봄
     }
