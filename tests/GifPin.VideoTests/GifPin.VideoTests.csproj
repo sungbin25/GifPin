@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../src/GifPin/GifPin.csproj" /></ItemGroup>
+  <ItemGroup><Resource Include="../../src/GifPin/Assets/GifPin.ico" Link="Assets/GifPin.ico" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="../../src/GifPin/App.xaml" LogicalName="GifPin.AppResources" /></ItemGroup>
+</Project>

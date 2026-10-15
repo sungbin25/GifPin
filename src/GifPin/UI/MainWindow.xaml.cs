@@ -168,13 +168,14 @@ public partial class MainWindow : Window
         var dlg = new Microsoft.Win32.OpenFileDialog
         {
             Title = Loc.T("dlg.addTitle"),
-            Filter = Library.OpenFileFilter,
+            Filter = Library.OpenFileFilter + "|" + VideoConverter.Filter,
             Multiselect = true,
         };
         if (dlg.ShowDialog(this) == true) await _app.AddFilesAsync(dlg.FileNames);
     }
 
     private void Sprite_Click(object sender, RoutedEventArgs e) => _app.OpenSpriteImport();
+    private void Video_Click(object sender, RoutedEventArgs e) => _app.OpenVideoImport();
 
     private void OnDragOver(object sender, DragEventArgs e)
     {

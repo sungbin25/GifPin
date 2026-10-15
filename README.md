@@ -29,6 +29,8 @@
 | 백업·복원 | 설정 → 백업: 라이브러리·화면·장면·설정을 .zip 하나로 백업/복원(복원 전 자동 백업), 설정 초기화 |
 | 새 버전 알림 | 설정 → 일반: 하루 한 번 GitHub에서 확인해 트레이로 알림, "지금 확인" |
 | 배경 지우기 | 카드 우클릭 → "배경 지우기…" |
+| 동영상 변환 | "동영상" → 전체 또는 시작·종료 구간 선택 → 크기·fps → 미리보기 갱신 → 라이브러리에 추가 (무한 반복 WebP, 소리 제외) |
+| 동영상 단색 배경 지우기 | 변환 창의 "단색 배경 제거" → 자동 감지 또는 스포이드로 원본 색 선택 → 허용 오차·가장자리 연결·다듬기 조절. 끄면 배경 유지 |
 | 스프라이트 / 프레임 폴더 | "스프라이트" → 시트 이미지(칸 수 자동 추정) 또는 PNG 프레임 폴더 → 라이브러리에 WebP로 추가 |
 | 팩 공유 | "팩" → 화면 배치·즐겨찾기·전체를 `.zip`으로 내보내기 / 가져오기 (`.zip`을 끌어다 놓아도 됨) |
 | 마우스로 옮기기 | 속성에서 "클릭 통과"를 끄면 화면의 GIF를 바로 끌어서 옮길 수 있음 |
@@ -71,6 +73,18 @@ installer/GifPin.iss   Inno Setup 스크립트
 - 새 문구는 `Core/Strings.cs`에 영어·한국어를 함께 추가 (CI가 빠진 번역을 검사)
 
 ## 직접 빌드
+
+동영상 변환 도구는 첫 사용 때 약 104MB를 내려받고 SHA-256으로 검증합니다. 이후에는 오프라인으로 변환할 수 있으며 영상은 외부로 전송하지 않습니다. MP4·MOV·MKV·AVI·WebM·M4V·WMV·MPEG 파일을 선택하거나 메인 창에 끌어다 놓을 수 있습니다.
+
+동영상 미리보기는 전체 선택 구간에서 최대 120장을 추려 최대 320px로 표시합니다. 실제 출력은 선택한 1~30fps, 긴 변 최대 1024px로 생성합니다. 자동 배경 감지는 현재 미리보기 프레임의 테두리에서 색을 추정하고, 동일한 색을 구간 전체에 적용합니다. 복잡한 배경의 피사체를 분리하는 AI 기능은 포함하지 않습니다.
+
+변환 엔진은 별도 프로세스인 FFmpeg / ffprobe (Gyan 8.1.2 essentials build)를 사용합니다. 출처·검증값·라이선스 위치는 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)를 참고하세요.
+
+동영상 통합 테스트 (FFmpeg 도구 폴더 지정):
+
+```powershell
+dotnet run --project tests/GifPin.VideoTests -c Release -- <ffmpeg-폴더> <테스트-출력-폴더>
+```
 
 ```powershell
 dotnet publish src/GifPin/GifPin.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish

@@ -1,0 +1,89 @@
+<Window x:Class="GifPin.UI.VideoImportWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{DynamicResource s.video.title}" Width="1060" Height="760" MinWidth="880" MinHeight="620"
+        WindowStartupLocation="CenterOwner" Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextBrush}"
+        FontFamily="{DynamicResource UiFont}" FontSize="13" Icon="/Assets/GifPin.ico" AllowDrop="True"
+        UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
+  <Grid>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="330"/></Grid.ColumnDefinitions>
+    <DockPanel Margin="20">
+      <StackPanel DockPanel.Dock="Top">
+        <TextBlock x:Name="SourceText" Text="{DynamicResource s.video.noSource}" TextTrimming="CharacterEllipsis"/>
+        <TextBlock x:Name="InfoText" Style="{StaticResource Hint}" Margin="0,6,0,12"/>
+      </StackPanel>
+      <StackPanel DockPanel.Dock="Bottom">
+        <TextBlock Text="{DynamicResource s.video.previewHint}" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,10,0,8"/>
+        <Slider x:Name="FrameSlider" Minimum="0" Maximum="1" ValueChanged="Frame_Changed" IsSnapToTickEnabled="True" TickFrequency="1" IsEnabled="False"/>
+        <DockPanel Margin="0,8,0,0">
+          <Button x:Name="PlayButton" Content="{DynamicResource s.video.play}" Click="Play_Click" Width="110" Height="32" IsEnabled="False"/>
+          <TextBlock x:Name="FrameText" VerticalAlignment="Center" Margin="12,0,0,0"/>
+        </DockPanel>
+      </StackPanel>
+      <Grid>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Text="{DynamicResource s.bg.original}" Margin="0,0,0,8"/>
+          <Border Background="{DynamicResource CheckerBrush}" CornerRadius="10" Padding="8">
+            <Image x:Name="OriginalImage" Stretch="Uniform" MouseLeftButtonDown="PickColor_Click"/>
+          </Border>
+        </DockPanel>
+        <DockPanel Grid.Column="2">
+          <TextBlock DockPanel.Dock="Top" Text="{DynamicResource s.bg.result}" Margin="0,0,0,8"/>
+          <Border Background="{DynamicResource CheckerBrush}" CornerRadius="10" Padding="8">
+            <Image x:Name="ResultImage" Stretch="Uniform"/>
+          </Border>
+        </DockPanel>
+      </Grid>
+    </DockPanel>
+    <Border Grid.Column="1" Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1,0,0,0">
+      <DockPanel Margin="16">
+        <StackPanel DockPanel.Dock="Bottom">
+          <ProgressBar x:Name="Progress" Height="5" Minimum="0" Maximum="1" Margin="0,10,0,5"/>
+          <TextBlock x:Name="StatusText" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+          <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="8"/><ColumnDefinition/></Grid.ColumnDefinitions>
+            <Button Content="{DynamicResource s.common.cancel}" Height="40" Click="Cancel_Click"/>
+            <Button x:Name="SaveButton" Grid.Column="2" Content="{DynamicResource s.video.save}" Style="{StaticResource BtnPrimary}" Height="40" Click="Save_Click" IsEnabled="False"/>
+          </Grid>
+        </StackPanel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel x:Name="Options" Margin="0,0,8,0">
+            <Button Content="{DynamicResource s.video.pick}" Style="{StaticResource BtnSecondary}" Height="36" Click="Pick_Click"/>
+            <TextBlock Text="{DynamicResource s.video.toolsHint}" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,6,0,12"/>
+            <TextBlock Text="{DynamicResource s.video.range}" Style="{StaticResource SectionLabel}"/>
+            <Grid Margin="0,6,0,6">
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="12"/><ColumnDefinition/></Grid.ColumnDefinitions>
+              <StackPanel><TextBlock Text="{DynamicResource s.video.start}" Style="{StaticResource Hint}"/><TextBox x:Name="StartBox" Text="0" TextChanged="Options_Changed"/></StackPanel>
+              <StackPanel Grid.Column="2"><TextBlock Text="{DynamicResource s.video.end}" Style="{StaticResource Hint}"/><TextBox x:Name="EndBox" Text="0" TextChanged="Options_Changed"/></StackPanel>
+            </Grid>
+            <Button Content="{DynamicResource s.video.whole}" Height="30" Click="Whole_Click"/>
+            <TextBlock Text="{DynamicResource s.video.size}" Style="{StaticResource SectionLabel}" Margin="0,12,0,4"/>
+            <ComboBox x:Name="SizeBox" SelectedIndex="2" SelectionChanged="Options_Changed">
+              <ComboBoxItem Content="128 px" Tag="128"/><ComboBoxItem Content="256 px" Tag="256"/><ComboBoxItem Content="512 px" Tag="512"/><ComboBoxItem Content="768 px" Tag="768"/><ComboBoxItem Content="1024 px" Tag="1024"/>
+            </ComboBox>
+            <DockPanel Margin="0,12,0,4"><TextBlock x:Name="FpsText" DockPanel.Dock="Right"/><TextBlock Text="{DynamicResource s.sprite.fps}" Style="{StaticResource SectionLabel}"/></DockPanel>
+            <Slider x:Name="FpsSlider" Minimum="1" Maximum="30" Value="15" IsSnapToTickEnabled="True" TickFrequency="1" ValueChanged="Options_Changed"/>
+            <Button x:Name="PreviewButton" Content="{DynamicResource s.video.preview}" Height="34" Margin="0,10,0,12" Click="Preview_Click" IsEnabled="False"/>
+            <ToggleButton x:Name="RemoveToggle" Style="{StaticResource SwitchBox}" Content="{DynamicResource s.video.remove}" Click="Background_Changed"/>
+            <StackPanel x:Name="BackgroundOptions" IsEnabled="False" Margin="0,8,0,0">
+              <UniformGrid Columns="2">
+                <Button Content="{DynamicResource s.video.auto}" Height="32" Margin="0,0,4,0" Click="Auto_Click"/>
+                <Button Content="{DynamicResource s.bg.eyedropper}" Height="32" Margin="4,0,0,0" Click="Eyedropper_Click"/>
+              </UniformGrid>
+              <DockPanel Margin="0,8,0,0"><Border x:Name="Swatch" Width="24" Height="24" Margin="0,0,8,0"/><TextBlock x:Name="ColorText" VerticalAlignment="Center"/></DockPanel>
+              <DockPanel Margin="0,10,0,0"><TextBlock x:Name="ToleranceText" DockPanel.Dock="Right"/><TextBlock Text="{DynamicResource s.bg.tolerance}"/></DockPanel>
+              <Slider x:Name="ToleranceSlider" Minimum="0" Maximum="100" Value="15" IsSnapToTickEnabled="True" TickFrequency="1" ValueChanged="Background_Changed"/>
+              <ToggleButton x:Name="ConnectedToggle" Style="{StaticResource SwitchBox}" Content="{DynamicResource s.bg.connected}" IsChecked="True" Click="Background_Changed" Margin="0,8,0,0"/>
+              <TextBlock Text="{DynamicResource s.bg.refine}" Margin="0,10,0,4"/>
+              <ComboBox x:Name="RefineBox" SelectedIndex="1" SelectionChanged="Background_Changed"><ComboBoxItem Content="0 px"/><ComboBoxItem Content="1 px"/><ComboBoxItem Content="2 px"/><ComboBoxItem Content="3 px"/></ComboBox>
+            </StackPanel>
+            <TextBlock Text="{DynamicResource s.sprite.name}" Style="{StaticResource SectionLabel}" Margin="0,14,0,4"/>
+            <TextBox x:Name="NameBox"/>
+            <TextBlock Text="{DynamicResource s.video.outputHint}" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,6,0,8"/>
+          </StackPanel>
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
+  </Grid>
+</Window>

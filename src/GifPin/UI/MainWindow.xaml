@@ -182,6 +182,7 @@
                 <TextBlock Text="{DynamicResource s.lib.sprite}" VerticalAlignment="Center"/>
               </StackPanel>
             </Button>
+            <Button DockPanel.Dock="Left" Height="36" Padding="12,0" Margin="8,0,0,0" Click="Video_Click" Content="{DynamicResource s.video.button}" ToolTip="{DynamicResource s.video.title}"/>
             <Button x:Name="PackButton" DockPanel.Dock="Left" Height="36" Padding="12,0" Margin="8,0,0,0" Click="PackButton_Click" ToolTip="{DynamicResource s.lib.packTip}">
               <StackPanel Orientation="Horizontal">
                 <TextBlock Text="&#xE7B8;" FontFamily="{DynamicResource IconFont}" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"/>

@@ -13,6 +13,55 @@ namespace GifPin.Core;
 /// </summary>
 public static class WebpWriter
 {
+    /// <summary>Writes one frame at a time so video length does not determine RAM usage.</summary>
+    public sealed class Streaming : IDisposable
+    {
+        private readonly FileStream _file;
+        private readonly int _width, _height;
+        private bool _completed;
+        public int FrameCount { get; private set; }
+
+        public Streaming(string path, int width, int height)
+        {
+            if (width < 1 || height < 1 || width > 16383 || height > 16383) throw new ArgumentOutOfRangeException(nameof(width));
+            _width = width; _height = height;
+            _file = new FileStream(path, FileMode.CreateNew, FileAccess.Write);
+            _file.Write(Encoding.ASCII.GetBytes("RIFF"));
+            _file.Write(new byte[4]);
+            _file.Write(Encoding.ASCII.GetBytes("WEBP"));
+            var header = new byte[10]; header[0] = 0x12;
+            Put24(header, 4, width - 1); Put24(header, 7, height - 1);
+            WriteChunk(_file, "VP8X", header);
+            WriteChunk(_file, "ANIM", new byte[6]); // infinite loop
+        }
+
+        public void Add(SKBitmap frame, int delayMs)
+        {
+            if (_completed || frame.Width != _width || frame.Height != _height) throw new InvalidOperationException("Invalid animation frame");
+            byte[] data = EncodeFrame(frame);
+            var header = new byte[16];
+            Put24(header, 6, _width - 1); Put24(header, 9, _height - 1);
+            Put24(header, 12, Math.Clamp(delayMs, 1, 0xFFFFFF)); header[15] = 2;
+            int size = checked(header.Length + data.Length);
+            if (_file.Length + size + 9 > uint.MaxValue) throw new IOException("Animation exceeds the WebP file size limit");
+            _file.Write(Encoding.ASCII.GetBytes("ANMF"));
+            _file.Write(BitConverter.GetBytes((uint)size));
+            _file.Write(header); _file.Write(data);
+            if ((size & 1) != 0) _file.WriteByte(0);
+            FrameCount++;
+        }
+
+        public void Complete()
+        {
+            if (FrameCount == 0) throw new InvalidDataException(Loc.T("err.noFrames"));
+            _file.Position = 4;
+            _file.Write(BitConverter.GetBytes(checked((uint)(_file.Length - 8))));
+            _file.Flush(); _completed = true;
+        }
+
+        public void Dispose() => _file.Dispose();
+    }
+
     public static void Save(string path, IReadOnlyList<SKBitmap> frames, IReadOnlyList<int> delaysMs)
     {
         if (frames.Count == 0) throw new ArgumentException("No frames", nameof(frames));

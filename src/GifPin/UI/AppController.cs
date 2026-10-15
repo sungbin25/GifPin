@@ -414,6 +414,13 @@ public sealed class AppController
         }
         if (list.Count == 0) return;
 
+        foreach (var video in list.Where(p => VideoConverter.IsVideo(p) && File.Exists(p)).ToList())
+        {
+            list.Remove(video);
+            OpenVideoImport(video);
+        }
+        if (list.Count == 0) return;
+
         var existing = State.Library.ToList();
         bool copy = State.Settings.CopyOnAdd;
         Notice?.Invoke(Loc.T("notice.adding"));
@@ -1708,6 +1715,13 @@ public sealed class AppController
     public void OpenSpriteImport()
     {
         var win = new SpriteImportWindow(this);
+        if (_main != null && _main.IsVisible) win.Owner = _main;
+        win.Show();
+    }
+
+    public void OpenVideoImport(string? path = null)
+    {
+        var win = new VideoImportWindow(this, path);
         if (_main != null && _main.IsVisible) win.Owner = _main;
         win.Show();
     }
