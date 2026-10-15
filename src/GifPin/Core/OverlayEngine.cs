@@ -354,6 +354,30 @@ public sealed class OverlayEngine : IDisposable
     {
         if (_editMode) return; // 편집 중에는 편집 툴바가 GIF보다 위에 있어야 함
         foreach (var w in _byId.Values) w.BringToTop();
+        RestoreImageOrder();
+    }
+
+    private List<string> _imageOrder = new();
+    public void SetImageOrder(IEnumerable<string> ids)
+    {
+        var snapshot = ids.Distinct().ToList();
+        Post(() => { _imageOrder = snapshot; RestoreImageOrder(); });
+    }
+
+    internal void RestoreImageOrder()
+    {
+        var ordered = _imageOrder.Where(_byId.ContainsKey).Select(id => _byId[id])
+            .Concat(_byId.Values.Where(w => !_imageOrder.Contains(w.Item.Id))).Where(w => w.IsShown);
+        foreach (var layer in ordered.GroupBy(w => w.OnDesktopLayer))
+        {
+            OverlayWindow? previous = null;
+            foreach (var w in layer)
+            {
+                if (previous != null && GetWindow(w.Hwnd, GW_HWNDPREV) != previous.Hwnd)
+                    SetWindowPos(w.Hwnd, previous.Hwnd, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+                previous = w;
+            }
+        }
     }
 
     // ── 공개 API (아무 스레드) ─────────────────────────────────
@@ -951,6 +975,22 @@ public sealed class OverlayEngine : IDisposable
         var tcs = new TaskCompletionSource<OverlayProbe?>(TaskCreationOptions.RunContinuationsAsynchronously);
         Post(() => tcs.TrySetResult(_byId.TryGetValue(id, out var w) ? w.Probe() : null));
         return tcs.Task;
+    }
+
+    internal Task<string[]> ProbeImageOrderAsync()
+    {
+        var result = new TaskCompletionSource<string[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Post(() =>
+        {
+            int Depth(OverlayWindow w)
+            {
+                int count = 0;
+                for (var h = GetWindow(w.Hwnd, GW_HWNDPREV); h != IntPtr.Zero; h = GetWindow(h, GW_HWNDPREV)) count++;
+                return count;
+            }
+            result.SetResult(_byId.Values.Where(w => w.IsShown).OrderBy(Depth).Select(w => w.Item.Id).ToArray());
+        });
+        return result.Task;
     }
 
     public void Nudge(string id, int dx, int dy) => Post(() =>

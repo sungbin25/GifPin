@@ -1,6 +1,8 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
 using GifPin.Core;
@@ -15,6 +17,11 @@ internal static class CollisionTests
     public static void Run()
     {
         BounceRecovery();
+        var order = new List<ActiveItem> { new() { Id = "a" }, new() { Id = "b" }, new() { Id = "c" } };
+        Check(AppController.MoveActiveInList(order, "c", 0) && order[0].Id == "c", "move last to front");
+        Check(AppController.MoveActiveInList(order, "c", 3) && order[2].Id == "c", "move first to end");
+        Check(!AppController.MoveActiveInList(order, "b", 2) && !AppController.MoveActiveInList(order, "missing", 0), "self / stale drop ignored");
+        Check(JsonSerializer.Deserialize<List<ActiveItem>>(JsonSerializer.Serialize(order))!.Select(a => a.Id).SequenceEqual(new[] { "a", "b", "c" }), "saved order roundtrip");
         var walker = Body(Motion.Walk, 60, 120, 0); var wall = Body(Motion.None, 80);
         var hits = Collisions.Resolve(new[] { walker, wall });
         Check(hits.Count == 1 && walker.Vx == -120 && walker.X + 50 <= wall.X, "walker must turn at contact");
@@ -123,6 +130,19 @@ internal static class CollisionTests
             throw new Exception("Collision engine timeout: " + id);
         }
         await Wait(a.Id, p => p.AnimWidth > 0); await Wait(b.Id, p => p.AnimWidth > 0);
+        engine.SetImageOrder(new[] { b.Id, a.Id });
+        Check((await engine.ProbeImageOrderAsync()).SequenceEqual(new[] { b.Id, a.Id }), "native window order follows list");
+        a.ClickThrough = false; engine.Sync(a, gif);
+        Check((await engine.ProbeImageOrderAsync()).SequenceEqual(new[] { b.Id, a.Id }), "style change preserves order");
+        b.Visible = false; engine.Sync(b, gif); await engine.ProbeAsync(b.Id);
+        b.Visible = true; engine.Sync(b, gif);
+        Check((await engine.ProbeImageOrderAsync()).SequenceEqual(new[] { b.Id, a.Id }), "show restores order");
+        engine.SetImageOrder(new[] { a.Id, b.Id });
+        Check((await engine.ProbeImageOrderAsync()).SequenceEqual(new[] { a.Id, b.Id }), "reverse native order");
+        b.Visible = false; engine.Sync(b, gif); await engine.ProbeAsync(b.Id);
+        b.Visible = true; engine.Sync(b, gif);
+        Check((await engine.ProbeImageOrderAsync()).SequenceEqual(new[] { a.Id, b.Id }), "show lower image cannot raise it");
+        Console.WriteLine("PASS: list reordering, saved order, native stacking, style changes and hide/show");
         engine.ForceSystemPause(false);
         var hit = await Wait(a.Id, p => p.ImageCollisions > 0);
         Check(hit.VelocityX < 0 && hit.Particles > 0, $"real overlay turns and emits particles: vx={hit.VelocityX}, particles={hit.Particles}, light={hit.LightMode}, paused={hit.FxPaused}, active={hit.Shown}, fx={hit.FxRunning}");
@@ -154,5 +174,24 @@ internal static class CollisionTests
         var png = new System.Windows.Media.Imaging.PngBitmapEncoder(); png.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
         using (var file = File.Create(Path.Combine(output, "collision-window.png"))) png.Save(file);
         window.Close(); app.State.Active.Remove(item);
+        var main = new MainWindow(app) { ShowActivated = false, ShowInTaskbar = false, Left = -30000, Top = -30000, WindowStartupLocation = System.Windows.WindowStartupLocation.Manual };
+        for (int i = 0; i < 4; i++) app.Actives.Add(new ActiveVM(new ActiveItem { Id = "order-ui-" + i }, null, i + 1));
+        main.Show(); main.UpdateLayout();
+        var list = (System.Windows.Controls.ItemsControl)main.FindName("ActiveList");
+        var container = (System.Windows.FrameworkElement)list.ItemContainerGenerator.ContainerFromIndex(0);
+        Check(container.ActualWidth > 0 && list.AllowDrop, "reorder list laid out and accepts drops");
+        var insertion = typeof(MainWindow).GetMethod("ActiveInsertion", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        object[] position = { new System.Windows.Point(1, 20), 0.0 };
+        Check((int)insertion.Invoke(main, position)! == 0, "left half inserts before first tile");
+        position[0] = new System.Windows.Point(container.ActualWidth * .75, 20);
+        Check((int)insertion.Invoke(main, position)! == 1, "right half inserts after tile");
+        position[0] = new System.Windows.Point(list.ActualWidth + 10, 20);
+        Check((int)insertion.Invoke(main, position)! == 4, "end insertion");
+        var shot = new System.Windows.Media.Imaging.RenderTargetBitmap((int)main.ActualWidth, (int)main.ActualHeight, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        shot.Render(main);
+        var encoded = new System.Windows.Media.Imaging.PngBitmapEncoder(); encoded.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(shot));
+        using (var file = File.Create(Path.Combine(output, "image-order-window.png"))) encoded.Save(file);
+        main.Hide(); // Closing the production window would save user settings; keep this test isolated.
+        app.Actives.Clear();
     }
 }

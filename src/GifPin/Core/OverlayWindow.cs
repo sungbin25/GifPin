@@ -592,7 +592,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
     }
 
     /// <summary>바탕화면 층: 편집 중에는 다루기 쉽게 잠시 맨 위로 올린다.</summary>
-    private bool OnDesktopLayer => Layers.Normalize(Item.Layer) == Layers.Desktop && !_editMode;
+    internal bool OnDesktopLayer => Layers.Normalize(Item.Layer) == Layers.Desktop && !_editMode;
 
     /// <summary>층에 맞게 z-순서를 다시 맞춤: 맨 위 층은 항상 위, 바탕화면 층은 바탕화면 바로 위(다른 프로그램 아래).</summary>
     public void BringToTop()
@@ -680,7 +680,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
 
     internal bool IsTopmost => (GetWindowLongPtrW(Hwnd, GWL_EXSTYLE).ToInt64() & WS_EX_TOPMOST) != 0;
 
-    private bool IsShown => _anim != null && (_editMode || (Item.Visible && !_globalHidden));
+    internal bool IsShown => _anim != null && (_editMode || (Item.Visible && !_globalHidden));
 
     /// <summary>보이기/숨기기, 재생 타이머, 그리기를 현재 상태에 맞춘다.</summary>
     private void Refresh()
@@ -690,6 +690,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
             Render();
             ShowWindow(Hwnd, SW_SHOWNOACTIVATE);
             BringToTop();
+            _engine.RestoreImageOrder();
         }
         else ShowWindow(Hwnd, SW_HIDE);
         UpdateMotionTimer();
@@ -757,8 +758,8 @@ internal sealed unsafe class OverlayWindow : IDisposable
         if (want != ex)
         {
             SetWindowLongPtrW(Hwnd, GWL_EXSTYLE, new IntPtr(want));
-            SetWindowPos(Hwnd, HWND_TOPMOST, 0, 0, 0, 0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
+            SetWindowPos(Hwnd, IntPtr.Zero, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER | SWP_NOZORDER);
         }
     }
 

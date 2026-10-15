@@ -84,7 +84,7 @@
     <!-- 화면 배치 바 타일 -->
     <DataTemplate x:Key="ActiveTileTemplate">
       <Border x:Name="Tile" Margin="0,0,12,0" Padding="6,6,10,6" CornerRadius="10" BorderThickness="2"
-              BorderBrush="{DynamicResource CardBorderBrush}" Background="{DynamicResource PanelBrush}" Cursor="Hand" MouseLeftButtonDown="Tile_MouseDown">
+              BorderBrush="{DynamicResource CardBorderBrush}" Background="{DynamicResource PanelBrush}" Cursor="Hand" MouseLeftButtonDown="Tile_MouseDown" MouseMove="Tile_MouseMove" MouseLeftButtonUp="Tile_MouseUp">
         <StackPanel Orientation="Horizontal">
           <Border Width="64" Height="64" CornerRadius="8" Background="{DynamicResource CheckerBrush}" Opacity="{Binding TileOpacity}">
             <Image Source="{Binding Thumb}" Stretch="Uniform" Margin="4" RenderOptions.BitmapScalingMode="HighQuality"/>
@@ -264,9 +264,9 @@
               <TextBlock FontSize="12" Foreground="{DynamicResource TextMutedBrush}" HorizontalAlignment="Right" VerticalAlignment="Center"
                          Text="{DynamicResource s.bar.hint}" TextTrimming="CharacterEllipsis" Margin="16,0,0,0"/>
             </DockPanel>
-            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+            <ScrollViewer x:Name="ActiveScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
               <StackPanel Orientation="Horizontal">
-                <ItemsControl x:Name="ActiveList" ItemTemplate="{StaticResource ActiveTileTemplate}">
+                <ItemsControl x:Name="ActiveList" ItemTemplate="{StaticResource ActiveTileTemplate}" AllowDrop="True" DragOver="ActiveList_DragOver" Drop="ActiveList_Drop" DragLeave="ActiveList_DragLeave">
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                       <StackPanel Orientation="Horizontal"/>

@@ -844,10 +844,30 @@ public sealed class AppController
 
     private void RebuildActives()
     {
+        Engine.SetImageOrder(State.Active.Select(a => a.Id));
         Actives.Clear();
         int i = 1;
         foreach (var a in State.Active)
             Actives.Add(new ActiveVM(a, State.FindPhoto(a.PhotoId), i++) { IsSelected = a.Id == SelectedActiveId });
+    }
+
+    public void MoveActive(string id, int insertionIndex)
+    {
+        if (!MoveActiveInList(State.Active, id, insertionIndex)) return;
+        RebuildActives();
+        _toolbar?.RefreshList();
+        Save();
+    }
+
+    internal static bool MoveActiveInList(List<ActiveItem> items, string id, int insertionIndex)
+    {
+        int from = items.FindIndex(a => a.Id == id);
+        if (from < 0) return false;
+        int to = Math.Clamp(insertionIndex, 0, items.Count);
+        if (to > from) to--;
+        if (to == from) return false;
+        var item = items[from]; items.RemoveAt(from); items.Insert(to, item);
+        return true;
     }
 
     private void RefreshActiveVM(ActiveItem a)

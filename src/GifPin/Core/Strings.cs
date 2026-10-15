@@ -124,7 +124,7 @@ internal static class Strings
 
         // 화면 배치 바
         ["bar.title"] = ("On screen", "화면에 표시 중"),
-        ["bar.hint"] = ("Select a GIF, then press Replace on a photo to swap it — position and size stay the same", "GIF를 고른 뒤 사진 카드의 '교체'를 누르면 위치·크기는 그대로 사진만 바뀌어요"),
+        ["bar.hint"] = ("Drag to reorder · Leftmost is on top within each layer", "드래그로 순서 변경 · 같은 레이어에서 왼쪽 이미지가 맨 위"),
         ["bar.add"] = ("Add", "추가"),
         ["active.meta"] = ("Screen {0} · {1}%", "화면 {0} · {1}%"),
         ["active.hidden"] = ("hidden", "숨김"),

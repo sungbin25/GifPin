@@ -40,6 +40,7 @@ public partial class MainWindow : Window
 
         PhotoList.ItemsSource = _app.VisiblePhotos;
         ActiveList.ItemsSource = _app.Actives;
+        ActiveList.PreviewMouseLeftButtonDown += (_, _) => _activeDragId = null;
         _app.VisiblePhotos.CollectionChanged += (_, _) => UpdateCounts();
         _app.Actives.CollectionChanged += (_, _) => UpdateCounts();
         _app.SelectionChanged += RefreshPanel;
@@ -388,7 +389,83 @@ public partial class MainWindow : Window
 
     private void Tile_MouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (ActiveOf(sender) is ActiveVM vm) _app.SelectActive(vm.Id, flash: true);
+        if (ActiveOf(sender) is ActiveVM vm)
+        {
+            _activeDragId = vm.Id; _activeDragStart = e.GetPosition(this);
+            _app.SelectActive(vm.Id, flash: true);
+        }
+    }
+
+    private const string ActiveDragFormat = "GifPin.ActiveOrder";
+    private string? _activeDragId;
+    private Point _activeDragStart;
+    private OrderMarker? _orderMarker;
+    private void Tile_MouseUp(object sender, MouseButtonEventArgs e) => _activeDragId = null;
+
+    private void Tile_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed) { _activeDragId = null; return; }
+        if (_activeDragId is not string id || ActiveOf(sender)?.Id != id) return;
+        var p = e.GetPosition(this);
+        if (Math.Abs(p.X - _activeDragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(p.Y - _activeDragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+        try { DragDrop.DoDragDrop((DependencyObject)sender, new DataObject(ActiveDragFormat, id), DragDropEffects.Move); }
+        finally { _activeDragId = null; ClearOrderMarker(); }
+    }
+
+    private int ActiveInsertion(Point point, out double x)
+    {
+        x = 0;
+        for (int i = 0; i < ActiveList.Items.Count; i++)
+        {
+            if (ActiveList.ItemContainerGenerator.ContainerFromIndex(i) is not FrameworkElement tile) continue;
+            var left = tile.TranslatePoint(new Point(), ActiveList).X;
+            if (point.X < left + tile.ActualWidth / 2) { x = left; return i; }
+            x = left + tile.ActualWidth;
+        }
+        return ActiveList.Items.Count;
+    }
+
+    private void ActiveList_DragOver(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(ActiveDragFormat)) return; // File imports still reach the window.
+        e.Handled = true;
+        if (e.Data.GetData(ActiveDragFormat) is not string id || id != _activeDragId) { e.Effects = DragDropEffects.None; return; }
+        e.Effects = DragDropEffects.Move;
+        var pos = e.GetPosition(ActiveScroll);
+        if (pos.X < 32) ActiveScroll.ScrollToHorizontalOffset(ActiveScroll.HorizontalOffset - 12);
+        else if (pos.X > ActiveScroll.ActualWidth - 32) ActiveScroll.ScrollToHorizontalOffset(ActiveScroll.HorizontalOffset + 12);
+        ActiveInsertion(e.GetPosition(ActiveList), out double x);
+        var layer = System.Windows.Documents.AdornerLayer.GetAdornerLayer(ActiveList);
+        if (layer == null) return;
+        if (_orderMarker == null) { _orderMarker = new OrderMarker(ActiveList); layer.Add(_orderMarker); }
+        _orderMarker.X = Math.Clamp(x, 2, Math.Max(2, ActiveList.ActualWidth - 2)); _orderMarker.InvalidateVisual();
+    }
+
+    private void ActiveList_Drop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(ActiveDragFormat)) return;
+        e.Handled = true; ClearOrderMarker();
+        if (e.Data.GetData(ActiveDragFormat) is string id && id == _activeDragId)
+            _app.MoveActive(id, ActiveInsertion(e.GetPosition(ActiveList), out _));
+    }
+
+    private void ActiveList_DragLeave(object sender, DragEventArgs e) => ClearOrderMarker();
+    private void ClearOrderMarker()
+    {
+        if (_orderMarker != null) System.Windows.Documents.AdornerLayer.GetAdornerLayer(ActiveList)?.Remove(_orderMarker);
+        _orderMarker = null;
+    }
+
+    private sealed class OrderMarker : System.Windows.Documents.Adorner
+    {
+        public double X;
+        public OrderMarker(UIElement owner) : base(owner) { IsHitTestVisible = false; }
+        protected override void OnRender(System.Windows.Media.DrawingContext context)
+        {
+            var brush = (System.Windows.Media.Brush)((FrameworkElement)AdornedElement).FindResource("AccentBrush");
+            context.DrawLine(new System.Windows.Media.Pen(brush, 3), new Point(X, 3), new Point(X, Math.Max(3, AdornedElement.RenderSize.Height - 3)));
+        }
     }
 
     private void Tile_Eye(object sender, RoutedEventArgs e)
