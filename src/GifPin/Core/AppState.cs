@@ -54,6 +54,12 @@ public sealed class ActiveItem
     public bool Visible { get; set; } = true;
     /// <summary>움직임: none | walk | bounce | fall (Motion 참고)</summary>
     public string MotionMode { get; set; } = Motion.None;
+    public bool CollisionEnabled { get; set; }
+    public double CollisionSize { get; set; } = 100;
+    public bool FxCollisionEnabled { get; set; } = true;
+    public double FxCollisionStrongSpeed { get; set; } = 400;
+    public CollisionEffect FxCollisionWeak { get; set; } = new();
+    public CollisionEffect FxCollisionStrong { get; set; } = CollisionEffect.StrongDefault;
     /// <summary>움직이는 속도 (px/초)</summary>
     public double MotionSpeed { get; set; } = Motion.DefaultSpeed;
     /// <summary>움직이는 방향을 바라보도록 좌우 자동 반전</summary>
@@ -193,6 +199,10 @@ public sealed class ActiveItem
         a.Scale = Math.Round(Math.Clamp(a.Scale, 0.1, 4.0), 3);
         a.Opacity = Math.Clamp(a.Opacity, 0.1, 1.0);
         a.MotionMode = Motion.Normalize(a.MotionMode);
+        a.CollisionSize = CollisionEffect.Finite(a.CollisionSize, 25, 100, 100);
+        a.FxCollisionStrongSpeed = CollisionEffect.Finite(a.FxCollisionStrongSpeed, 20, 3000, 400);
+        a.FxCollisionWeak = (a.FxCollisionWeak ?? new()).Normalize();
+        a.FxCollisionStrong = (a.FxCollisionStrong ?? CollisionEffect.StrongDefault).Normalize();
         a.MotionSpeed = Math.Clamp(a.MotionSpeed, Motion.MinSpeed, Motion.MaxSpeed);
         a.JumpHeight = Math.Clamp(a.JumpHeight, Motion.MinJumpHeight, Motion.MaxJumpHeight);
         a.JumpInterval = Math.Clamp(a.JumpInterval, Motion.MinJumpInterval, Motion.MaxJumpInterval);

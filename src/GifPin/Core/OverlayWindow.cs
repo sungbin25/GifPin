@@ -163,6 +163,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
             if (_fxView == null || !ReferenceEquals(_fxViewSrc, Item))
             {
                 _fxView = Item.Clone();
+                _fxView.FxCollisionEnabled = false;
                 _fxView.FxParticles = _fxView.FxTrail = _fxView.FxShadow = _fxView.FxGlow = _fxView.FxDust = false;
                 _fxViewSrc = Item;
             }
@@ -479,6 +480,49 @@ internal sealed unsafe class OverlayWindow : IDisposable
         else if (moved) SetWindowPos(Hwnd, IntPtr.Zero, Item.X - _pads.Left, Item.Y - _pads.Top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
 
         if (_fxRunning) UpdateFxTimer(); // 파티클이 다 사라졌으면 멈춤
+    }
+
+    internal CollisionBody? CaptureCollision()
+    {
+        if (!Item.CollisionEnabled || !IsActive || _anim == null || _editMode || _drag != Drag.None || _press != Press.None || _held) return null;
+        var (w, h) = ContentSize(Item.Scale);
+        double ratio = Item.CollisionSize / 100;
+        var body = new CollisionBody { Id = Item.Id, Width = w * ratio, Height = h * ratio, Mode = Motion.Normalize(Item.MotionMode) };
+        RefreshCollision(body);
+        body.PreviousX = body.X; body.PreviousY = body.Y;
+        return body;
+    }
+
+    internal void RefreshCollision(CollisionBody body)
+    {
+        var (w, h) = ContentSize(Item.Scale);
+        body.X = (_motionRunning ? _motion.X : Item.X) + (w - body.Width) / 2;
+        body.Y = (_motionRunning ? _motion.Y : Item.Y) + (h - body.Height) / 2;
+        body.Vx = body.Movable ? _motion.Vx : 0; body.Vy = body.Movable ? _motion.Vy : 0;
+    }
+
+    internal void ApplyCollision(CollisionBody body)
+    {
+        if (!body.Changed) return;
+        var (w, h) = ContentSize(Item.Scale);
+        double x = body.X - (w - body.Width) / 2, y = body.Y - (h - body.Height) / 2;
+        _motion.Collide(x, y, body.Vx, body.Vy);
+        Item.X = (int)Math.Round(x); Item.Y = (int)Math.Round(y);
+        UpdateMotionTimer(); // Also wakes a resting slide after another image strikes it.
+        _motion.X = x; _motion.Y = y;
+        _subX = _pixelated ? 0 : x - Item.X; _subY = _pixelated ? 0 : y - Item.Y;
+        UpdateFacing(); Render();
+    }
+
+    private long _lastCollisionFx;
+    private int _imageCollisions;
+    internal void EmitCollision(CollisionHit hit, long now)
+    {
+        _imageCollisions++;
+        if (_engine.FxPaused || _engine.LightMode || now - _lastCollisionFx < System.Diagnostics.Stopwatch.Frequency * .08) return;
+        _lastCollisionFx = now;
+        _fx.CollisionBurst(FxItem, hit.Speed, hit.X, hit.Y, Item.X + _subX, Item.Y + _subY);
+        UpdateFxTimer(); Render();
     }
 
     private void CountFrame(long now)
@@ -974,6 +1018,7 @@ internal sealed unsafe class OverlayWindow : IDisposable
     internal OverlayProbe Probe() => new(Item.Clone(), _motionRunning, _held, _press != Press.None, _motion.IsSliding, _motion.Jumps, IsTopmost, _motion.Pushes)
     {
         LightMode = _engine.LightMode,
+        ImageCollisions = _imageCollisions, VelocityX = _motion.Vx, VelocityY = _motion.Vy,
         CaptureExcluded = CaptureExcludedNow,
         FadeOpacity = _fadeNow,
         FxPaused = _engine.FxPaused,

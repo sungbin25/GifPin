@@ -8,6 +8,23 @@ internal static class Strings
     public static readonly Dictionary<string, (string en, string ko)> All = new()
     {
         // 앱 공통
+        ["collision.settings"] = ("Collision settings…", "충돌 설정…"),
+        ["collision.enabled"] = ("Collide with images", "이미지끼리 충돌"),
+        ["collision.hint"] = ("Only enabled images on the same layer collide. Walkers turn around; sliding images transfer momentum. The centered rectangular hitbox can be reduced for transparent margins.", "같은 레이어에서 충돌을 켠 이미지끼리 부딪힙니다. 걷기는 방향을 바꾸고, 미끄러짐은 서로 힘을 전달합니다. 투명 여백이 크면 중앙 사각형 충돌 영역을 줄여 주세요."),
+        ["collision.size"] = ("Hitbox size (%)", "충돌 영역 크기 (%)"),
+        ["collision.effects"] = ("Collision particles", "충돌 파티클 켜기"),
+        ["collision.threshold"] = ("Strong impact threshold (px/s)", "강한 충돌 기준 속도 (px/초)"),
+        ["collision.weak"] = ("Weak impact", "약한 충돌"),
+        ["collision.strong"] = ("Strong impact", "강한 충돌"),
+        ["collision.profileEnabled"] = ("Show this effect", "이 효과 표시"),
+        ["collision.kind"] = ("Particle shape", "파티클 모양"),
+        ["collision.color"] = ("Color", "색상"),
+        ["collision.count"] = ("Particle count", "파티클 수"),
+        ["collision.particleSize"] = ("Particle size (px)", "파티클 크기 (px)"),
+        ["collision.life"] = ("Lifetime (seconds)", "지속 시간 (초)"),
+        ["collision.speed"] = ("Spread speed (px/s)", "퍼지는 속도 (px/초)"),
+        ["collision.images"] = ("Choose custom particle images…", "커스텀 파티클 이미지 선택…"),
+        ["collision.imagesHint"] = ("Image selection is shared with regular particles and saved when the picker is confirmed. Choose “My image” above to use it. Effects pause in light mode or when effects are disabled.", "이미지 선택은 일반 파티클과 공유되며 선택 창에서 확인하면 저장됩니다. 위에서 ‘내 이미지’를 골라 사용하세요. 가벼운 모드 또는 효과 끄기 상태에서는 파티클이 나오지 않습니다."),
         ["video.button"] = ("Video", "동영상"),
         ["video.title"] = ("Video to animated image", "동영상을 움직이는 이미지로"),
         ["video.pick"] = ("Choose a video", "동영상 선택"),

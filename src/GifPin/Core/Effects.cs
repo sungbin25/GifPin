@@ -26,7 +26,9 @@ public static class Fx
         (a.FxParticleImages ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     /// <summary>내 이미지 파티클을 실제로 쓰는 중 (이미지를 불러와야 함).</summary>
-    public static bool UsesParticleImages(ActiveItem a) => a.FxParticles && HasKind(a, Image) && ParticleImageIds(a).Length > 0;
+    public static bool UsesParticleImages(ActiveItem a) => ParticleImageIds(a).Length > 0 &&
+        ((a.FxParticles && HasKind(a, Image)) || (a.CollisionEnabled && a.FxCollisionEnabled &&
+        ((a.FxCollisionWeak.Enabled && a.FxCollisionWeak.Kind == Image) || (a.FxCollisionStrong.Enabled && a.FxCollisionStrong.Kind == Image))));
 
     /// <summary>
     /// 고른 파티클 모양들 (여러 개 가능, 쉼표로 구분). 여러 개면 같은 비율로 섞여 나온다.
@@ -234,7 +236,8 @@ internal sealed class EffectState : IDisposable
     /// <summary>효과에 필요한 여백 (설정이 같으면 늘 같은 값 → 창 크기가 매 프레임 바뀌지 않음).</summary>
     public static Pads ComputePads(ActiveItem a, int w, int h)
     {
-        if (!Fx.Any(a)) return Pads.Zero;
+        bool collision = a.CollisionEnabled && a.FxCollisionEnabled;
+        if (!Fx.Any(a) && !collision) return Pads.Zero;
         double l = 0, t = 0, r = 0, b = 0;
         void All(double v) { l += v; t += v; r += v; b += v; }
 
@@ -261,6 +264,12 @@ internal sealed class EffectState : IDisposable
             l += ex; r += ex; t += ey; b += (gh - h) / 2;
         }
 
+        if (collision)
+        {
+            // Burst velocity decays at 1.6/s; bound its actual travel instead of allocating a huge window.
+            double Reach(CollisionEffect p) => p.Enabled ? p.Size * 1.3 + p.Speed * 1.5 / 1.6 * (1 - Math.Exp(-1.6 * p.Life * 1.25)) : 0;
+            All(Math.Max(Reach(a.FxCollisionWeak), Reach(a.FxCollisionStrong)));
+        }
         if (a.FxGlow) All(a.FxGlowSize * 3);
         if (a.FxTrail) All(Math.Min(400, a.FxTrailCount * a.FxTrailSpacing + 20));
         if (a.FxDust) { l += 50; r += 50; b += 16; t += 10; }
@@ -390,6 +399,26 @@ internal sealed class EffectState : IDisposable
         if (SuppressParticles) return;
         int n = (int)Math.Clamp(a.FxParticleRate * 1.5, 8, 40);
         for (int i = 0; i < n; i++) Spawn(a, x, y, w, h, Fx.Burst, 0, x, y);
+    }
+
+    public void CollisionBurst(ActiveItem a, double speed, double x, double y, double originX, double originY)
+    {
+        if (SuppressParticles || !a.CollisionEnabled || !a.FxCollisionEnabled) return;
+        var profile = speed >= a.FxCollisionStrongSpeed ? a.FxCollisionStrong : a.FxCollisionWeak;
+        if (!profile.Enabled) return;
+        var style = a.Clone();
+        style.FxParticleKind = profile.Kind; style.FxParticleColor = profile.Color;
+        style.FxParticleSize = profile.Size; style.FxParticleLife = profile.Life;
+        style.FxParticleFollow = true;
+        for (int i = 0; i < profile.Count; i++)
+        {
+            int before = _particles.Count;
+            Spawn(style, x, y, 0, 0, Fx.Burst, 0, originX, originY);
+            if (_particles.Count == before) break;
+            var p = _particles[^1];
+            p.Vx *= profile.Speed / 115; p.Vy *= profile.Speed / 115;
+            _particles[^1] = p;
+        }
     }
 
     private string? _colorListKey;

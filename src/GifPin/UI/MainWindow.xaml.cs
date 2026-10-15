@@ -487,6 +487,7 @@ public partial class MainWindow : Window
         FlipToggle.IsChecked = a.FlipX;
         PreviewFlip.ScaleX = a.FlipX ? -1 : 1;
         ClickThroughToggle.IsChecked = a.ClickThrough;
+        CollisionToggle.IsChecked = a.CollisionEnabled;
 
         string mode = Motion.Normalize(a.MotionMode);
         MotionNone.IsChecked = mode == Motion.None;
@@ -546,6 +547,12 @@ public partial class MainWindow : Window
     {
         if (_updating || _app.SelectedActiveId == null) return;
         _app.UpdateActive(_app.SelectedActiveId, change);
+    }
+
+    private void CollisionToggle_Click(object sender, RoutedEventArgs e) => WithSelected(a => a.CollisionEnabled = CollisionToggle.IsChecked == true);
+    private void CollisionSettings_Click(object sender, RoutedEventArgs e)
+    {
+        if (_app.SelectedActiveId is string id) new CollisionSettingsWindow(_app, id) { Owner = this }.ShowDialog();
     }
 
     private void PosBox_KeyDown(object sender, KeyEventArgs e)

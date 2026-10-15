@@ -31,7 +31,7 @@ jobs:
       - name: Build (warnings shown)
         run: dotnet build src/GifPin/GifPin.csproj -c Release
 
-      - name: Video conversion integration test
+      - name: Collision and video conversion integration tests
         run: dotnet run --project tests/GifPin.VideoTests -c Release -- --download-tools .work/video-tests
 
       - name: Publish single-file exe

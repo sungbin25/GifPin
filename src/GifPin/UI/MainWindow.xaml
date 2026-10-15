@@ -445,6 +445,10 @@
                                    ToolTip="{DynamicResource s.panel.slideTip}"/>
                     </UniformGrid>
                   </Border>
+                  <DockPanel Margin="0,10,0,4">
+                    <Button DockPanel.Dock="Right" Content="{DynamicResource s.collision.settings}" Click="CollisionSettings_Click" Padding="10,4"/>
+                    <CheckBox x:Name="CollisionToggle" Content="{DynamicResource s.collision.enabled}" VerticalAlignment="Center" Click="CollisionToggle_Click"/>
+                  </DockPanel>
                   <StackPanel x:Name="MotionOptions">
                     <StackPanel x:Name="MotionSpeedRow">
                       <DockPanel Margin="0,10,0,0">

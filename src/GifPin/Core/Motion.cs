@@ -136,6 +136,17 @@ internal sealed class MotionState
 
     public string Mode => _mode;
 
+    public void Collide(double x, double y, double vx, double vy)
+    {
+        X = x; Y = y;
+        if (_mode == Motion.Walk && !_p.Gravity) _groundY = y;
+        double speed = Math.Sqrt(vx * vx + vy * vy);
+        double limit = speed > Motion.MaxThrowSpeed ? Motion.MaxThrowSpeed / speed : 1;
+        Vx = vx * limit; Vy = vy * limit;
+        if (Vx != 0) { FacingLeft = Vx < 0; _jumpDir = Vx < 0 ? -1 : 1; }
+        if (IsSliding) { _restTime = 0; _nextWait = -1; }
+    }
+
     public MotionState(int? seed = null) => _rng = seed is int s ? new Random(s) : new Random();
 
     /// <summary>random이면 [min, max]에서 뽑고, 아니면 고정값.</summary>

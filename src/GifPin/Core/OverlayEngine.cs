@@ -163,6 +163,7 @@ public sealed class OverlayEngine : IDisposable
         long now = System.Diagnostics.Stopwatch.GetTimestamp();
         bool any = false;
         var windows = _byId.Values.ToList();
+        var colliders = windows.Select(w => (window: w, body: w.CaptureCollision())).Where(p => p.body != null).ToList();
         // 모든 GIF를 합친 파티클 상한: 창마다 "지금 가진 것 + 남은 자리"까지만 새로 만들 수 있음
         int total = 0;
         foreach (var w in windows) total += w.ParticleCount;
@@ -180,6 +181,23 @@ public sealed class OverlayEngine : IDisposable
             total += w.ParticleCount - own;
             any |= w.NeedsFrames;
         }
+        foreach (var pair in colliders) pair.window.RefreshCollision(pair.body!);
+        foreach (var layer in colliders.GroupBy(p => Layers.Normalize(p.window.Item.Layer)))
+        {
+            var pairs = layer.ToList();
+            var hits = Collisions.Resolve(pairs.Select(p => p.body!).ToList());
+            foreach (var p in pairs) p.window.ApplyCollision(p.body!);
+            foreach (var hit in hits)
+            foreach (var id in new[] { hit.A.Id, hit.B.Id })
+            {
+                var w = _byId[id];
+                int own = w.ParticleCount;
+                w.ParticleBudget = own + Math.Max(0, MaxParticlesTotal - total);
+                w.EmitCollision(hit, now);
+                total += w.ParticleCount - own;
+            }
+        }
+        any = windows.Any(w => w.NeedsFrames);
         if (!any) _framesWanted = false;
     }
 
@@ -990,6 +1008,9 @@ public sealed class OverlayEngine : IDisposable
 /// <summary>오버레이 상태 (점검용).</summary>
 public sealed record OverlayProbe(ActiveItem Item, bool MotionRunning, bool Held, bool Pressed, bool Sliding, int Jumps, bool Topmost, int Pushes)
 {
+    public int ImageCollisions { get; init; }
+    public double VelocityX { get; init; }
+    public double VelocityY { get; init; }
     public bool FxRunning { get; init; }
     public int Particles { get; init; }
     public int Squashes { get; init; }

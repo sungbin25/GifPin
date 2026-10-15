@@ -21,6 +21,8 @@ internal static class Program
             string tools = args[0] == "--download-tools" ? VideoTools.EnsureAsync(null, default).GetAwaiter().GetResult() : Path.GetFullPath(args[0]);
             string output = Path.GetFullPath(args[1]);
             Directory.CreateDirectory(output);
+            CollisionTests.Run();
+            CollisionTests.Engine(Path.GetFullPath("tests/sample.gif")).GetAwaiter().GetResult();
             RunAsync(tools, output).GetAwaiter().GetResult();
             Ui(tools, output);
             Console.WriteLine("PASS: video conversion, transparency, timing, cancellation, validation, preview and UI resources");
@@ -145,6 +147,7 @@ internal static class Program
         Loc.SetLanguage("ko"); AppController.ApplyLanguageResources();
         var state = new AppState(); AppController.ApplyThemeFrom(state.Settings);
         var controller = new AppController(state);
+        CollisionTests.Ui(controller, output);
         var window = new VideoImportWindow(controller);
         // Render the view off-screen, without starting GifPin or reading/writing the user's state.
         window.ShowActivated = false; window.ShowInTaskbar = false; window.Left = -30000; window.Top = -30000;

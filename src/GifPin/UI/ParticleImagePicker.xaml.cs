@@ -15,10 +15,12 @@ public partial class ParticleImagePicker : Window
 {
     private readonly AppController _app;
     private readonly string _activeId;
+    private readonly bool _enableContinuous;
     private readonly List<string> _selected; // 고른 순서 유지
 
-    public ParticleImagePicker(AppController app, string activeId)
+    public ParticleImagePicker(AppController app, string activeId, bool enableContinuous = true)
     {
+        _enableContinuous = enableContinuous;
         _app = app;
         _activeId = activeId;
         var a = app.State.Active.FirstOrDefault(x => x.Id == activeId);
@@ -115,7 +117,7 @@ public partial class ParticleImagePicker : Window
         _app.UpdateActive(_activeId, a =>
         {
             a.FxParticleImages = value;
-            if (_selected.Count > 0)
+            if (_selected.Count > 0 && _enableContinuous)
             {
                 a.FxParticles = true;
                 // 이미 고른 모양(하트 등)은 그대로 두고 "내 이미지"를 함께 추가 → 같은 비율로 섞임
