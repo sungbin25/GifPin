@@ -8,14 +8,30 @@ using System.Text.Json;
 namespace GifPin.Core;
 
 /// <summary>
-/// GifPin 에셋 팩: 사진 여러 장(+선택적으로 화면 배치)을 .zip 하나로 주고받는다.
+/// GifPin 에셋 팩: 사진 여러 장(+선택적으로 화면 배치)을 파일 하나로 주고받는다.
+/// 파일은 확장자 .gifpin (속은 zip) — 다른 zip과 섞이지 않고, 파일 창에서 팩만 보이며, 두 번 누르면 GifPin으로 열림.
 /// 구성: gifpin-pack.json (목록·배치) + items/ 폴더의 이미지 파일.
-/// gifpin-pack.json이 없는 일반 .zip도 안의 이미지 파일을 모두 가져온다.
+/// 예전에 .zip으로 내보낸 팩과 gifpin-pack.json이 없는 일반 .zip도 가져올 수 있다 (안의 이미지 파일을 모두 가져옴).
 /// </summary>
 public static class AssetPack
 {
     public const string ManifestName = "gifpin-pack.json";
-    public static string FileFilter => Loc.T("pack.filter") + " (*.zip)|*.zip";
+    public const string Extension = ".gifpin";
+
+    /// <summary>저장 창: GifPin 팩만.</summary>
+    public static string ExportFilter => Loc.T("pack.filter") + " (*.gifpin)|*.gifpin";
+    /// <summary>열기 창: 처음엔 GifPin 팩만 보이고, 필요하면 예전 .zip 팩으로 바꿔 볼 수 있음.</summary>
+    public static string ImportFilter => Loc.T("pack.filter") + " (*.gifpin)|*.gifpin|" + Loc.T("pack.filterOld") + " (*.zip)|*.zip";
+
+    /// <summary>팩으로 가져올 파일인가 (.gifpin 또는 예전 .zip).</summary>
+    public static bool IsPackFile(string path)
+    {
+        string ext = Path.GetExtension(path);
+        return ext.Equals(Extension, StringComparison.OrdinalIgnoreCase) || ext.Equals(".zip", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>팩을 모아 두는 기본 폴더: 문서\GifPin Packs</summary>
+    public static string DefaultFolder => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "GifPin Packs");
     private const long MaxEntryBytes = 100L * 1024 * 1024;
     private const long MaxTotalBytes = 500L * 1024 * 1024;
     private const int MaxEntries = 2000;

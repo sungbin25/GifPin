@@ -57,6 +57,7 @@ english.DesktopIcon=Create a desktop shortcut
 english.Autostart=Start with Windows
 english.AdditionalTasks=Additional tasks:
 english.LaunchApp=Launch GifPin
+english.PackType=GifPin pack
 english.RuntimeTitle=Installing .NET 8 Desktop Runtime
 english.RuntimeDownloading=GifPin needs the Microsoft .NET 8 Desktop Runtime. Downloading it from Microsoft…
 english.RuntimeInstalling=Installing the .NET 8 Desktop Runtime… (Windows may ask for permission)
@@ -68,6 +69,7 @@ korean.DesktopIcon=바탕화면에 바로가기 만들기
 korean.Autostart=Windows 시작 시 자동 실행
 korean.AdditionalTasks=추가 작업:
 korean.LaunchApp=GifPin 실행
+korean.PackType=GifPin 팩
 korean.RuntimeTitle=.NET 8 데스크톱 런타임 설치
 korean.RuntimeDownloading=GifPin을 실행하려면 Microsoft .NET 8 데스크톱 런타임이 필요합니다. Microsoft에서 내려받는 중…
 korean.RuntimeInstalling=.NET 8 데스크톱 런타임을 설치하는 중… (Windows에서 권한을 물어볼 수 있습니다)
@@ -83,11 +85,14 @@ Name: "autostart"; Description: "{cm:Autostart}"; GroupDescription: "{cm:Additio
 [InstallDelete]
 ; 예전 버전의 바로가기 아이콘 파일
 Type: files; Name: "{app}\GifPin-*.ico"
+Type: files; Name: "{app}\GifPinPack-*.ico"
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; 바로가기 아이콘: 버전마다 파일 이름이 달라서 Windows 아이콘 캐시에 남은 예전 아이콘을 쓰지 않음
 Source: "..\src\GifPin\Assets\GifPin.ico"; DestDir: "{app}"; DestName: "GifPin-{#AppVersion}.ico"; Flags: ignoreversion
+; .gifpin 팩 파일 아이콘
+Source: "..\src\GifPin\Assets\GifPinPack.ico"; DestDir: "{app}"; DestName: "GifPinPack-{#AppVersion}.ico"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\GifPin"; Filename: "{app}\GifPin.exe"; IconFilename: "{app}\GifPin-{#AppVersion}.ico"
@@ -98,6 +103,12 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 ; 설치할 때 고른 언어 → GifPin이 처음 실행될 때(설치할 때마다 한 번) 그 언어로 시작
 Root: HKCU; Subkey: "Software\GifPin"; ValueType: string; ValueName: "InstallLanguage"; ValueData: "{language}"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\GifPin"; ValueType: string; ValueName: "InstallStamp"; ValueData: "{code:InstallStamp}"
+; .gifpin = GifPin 팩: 팩 전용 아이콘, 두 번 누르면 GifPin으로 가져오기 (현재 사용자만)
+Root: HKCU; Subkey: "Software\Classes\.gifpin"; ValueType: string; ValueName: ""; ValueData: "GifPin.Pack"; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\.gifpin\OpenWithProgids"; ValueType: string; ValueName: "GifPin.Pack"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\GifPin.Pack"; ValueType: string; ValueName: ""; ValueData: "{cm:PackType}"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\GifPin.Pack\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\GifPinPack-{#AppVersion}.ico"
+Root: HKCU; Subkey: "Software\Classes\GifPin.Pack\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\GifPin.exe"" ""%1"""
 ; 앱 설정에서 자동 실행을 켰더라도 제거할 때 함께 지움
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "GifPin"; Flags: uninsdeletevalue
 

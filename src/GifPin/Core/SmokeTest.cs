@@ -97,8 +97,15 @@ public static class SmokeTest
             if (st == null || !st.FxGlow || st.FxGlowColor != "#81D4FA" || st.FxParticleKind != Fx.Heart) throw new Exception("pack lost effect settings");
             if (!ex.Files.Any(f => f.item.Favorite && f.item.Name == "apng sample")) throw new Exception("pack metadata lost");
             if (!ex.Files.All(f => File.Exists(f.path))) throw new Exception("pack files not extracted");
-            report.Append("asset pack ok · ");
         }
+        // .gifpin(새 확장자)도 같은 형식으로 저장·열기
+        string gp = Path.Combine(Store.DataDir, "smoke-pack" + AssetPack.Extension);
+        AssetPack.Export(gp, "smoke pack", photos, null);
+        using (var ex = AssetPack.Extract(gp))
+            if (ex.Files.Count != 2 || ex.Name != "smoke pack") throw new Exception(".gifpin pack did not round-trip");
+        if (!AssetPack.IsPackFile(gp) || !AssetPack.IsPackFile(zip) || AssetPack.IsPackFile(Path.Combine(Store.DataDir, "a.gif")))
+            throw new Exception("pack file detection wrong");
+        report.Append("asset pack ok (.gifpin + old .zip) · ");
 
         report.Append(RunPhysics()).Append(" · ");
         report.Append(RunEffects()).Append(" · ");

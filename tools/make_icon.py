@@ -116,20 +116,21 @@ def write_ico(path, images):
     open(path, "wb").write(out.getvalue())
 
 
-sizes = {16: 0, 24: 1, 32: 1, 48: 2, 64: 2, 256: 2}
-imgs = [draw(s, d) for s, d in sizes.items()]
-write_ico(sys.argv[1], imgs)
-preview = Image.new("RGBA", (256 + 64 + 48 + 32 + 24 + 16 + 120, 280), (40, 44, 52, 255))
-x = 10
-for img in reversed(imgs):
-    preview.alpha_composite(img, (x, 10))
-    x += img.size[0] + 20
-light = preview.copy()
-light.paste((240, 240, 240, 255), [0, 0, light.width, light.height])
-x = 10
-for img in reversed(imgs):
-    light.alpha_composite(img, (x, 10))
-    x += img.size[0] + 20
-both = Image.new("RGBA", (preview.width, 560))
-both.paste(preview, (0, 0)); both.paste(light, (0, 280))
-both.save(sys.argv[2])
+if __name__ == "__main__":
+    sizes = {16: 0, 24: 1, 32: 1, 48: 2, 64: 2, 256: 2}
+    imgs = [draw(s, d) for s, d in sizes.items()]
+    write_ico(sys.argv[1], imgs)
+    preview = Image.new("RGBA", (256 + 64 + 48 + 32 + 24 + 16 + 120, 280), (40, 44, 52, 255))
+    x = 10
+    for img in reversed(imgs):
+        preview.alpha_composite(img, (x, 10))
+        x += img.size[0] + 20
+    light = preview.copy()
+    light.paste((240, 240, 240, 255), [0, 0, light.width, light.height])
+    x = 10
+    for img in reversed(imgs):
+        light.alpha_composite(img, (x, 10))
+        x += img.size[0] + 20
+    both = Image.new("RGBA", (preview.width, 560))
+    both.paste(preview, (0, 0)); both.paste(light, (0, 280))
+    both.save(sys.argv[2])

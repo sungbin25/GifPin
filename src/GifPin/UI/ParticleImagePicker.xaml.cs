@@ -103,7 +103,7 @@ public partial class ParticleImagePicker : Window
     private async System.Threading.Tasks.Task AddFilesAsync(IEnumerable<string> files)
     {
         var before = _app.State.Library.Select(p => p.Id).ToHashSet();
-        await _app.AddFilesAsync(files.Where(f => !f.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)));
+        await _app.AddFilesAsync(files.Where(f => !AssetPack.IsPackFile(f)));
         foreach (var p in _app.State.Library.Where(p => !before.Contains(p.Id)))
             if (_selected.Count < Fx.MaxParticleImages && !_selected.Contains(p.Id)) _selected.Add(p.Id);
         BuildTiles();

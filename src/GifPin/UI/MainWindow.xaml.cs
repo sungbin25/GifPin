@@ -233,11 +233,39 @@ public partial class MainWindow : Window
 
     // ── 에셋 팩 ──────────────────────────────────────────────
 
-    private void PackButton_Click(object sender, RoutedEventArgs e) => OpenMenuBelow(PackButton);
+    private void PackButton_Click(object sender, RoutedEventArgs e)
+    {
+        BuildRecentPacksMenu();
+        OpenMenuBelow(PackButton);
+    }
+
+    /// <summary>팩 메뉴의 "최근 팩": 최근에 가져오거나 내보낸 팩을 바로 다시 가져옴.</summary>
+    private int BuildRecentPacksMenu()
+    {
+        if (PackButton.ContextMenu is not ContextMenu menu) return 0;
+        foreach (var old in menu.Items.OfType<MenuItem>().Where(m => Equals(m.Tag, "recentPacks")).ToList()) menu.Items.Remove(old);
+        var recent = _app.RecentPacks();
+        if (recent.Count == 0) return 0;
+        var sub = new MenuItem { Header = Loc.T("pack.recent"), Tag = "recentPacks" };
+        foreach (var path in recent)
+        {
+            string p = path;
+            var item = new MenuItem { Header = Path.GetFileNameWithoutExtension(p).Replace("_", "__"), ToolTip = p };
+            item.Click += async (_, _) => await _app.ImportPackAsync(p);
+            sub.Items.Add(item);
+        }
+        menu.Items.Insert(1, sub);
+        return recent.Count;
+    }
+
+    internal int RecentPacksMenuForTest() => BuildRecentPacksMenu();
 
     private async void PackImport_Click(object sender, RoutedEventArgs e)
     {
-        var dlg = new Microsoft.Win32.OpenFileDialog { Title = Loc.T("pack.importTitle"), Filter = AssetPack.FileFilter };
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = Loc.T("pack.importTitle"), Filter = AssetPack.ImportFilter, InitialDirectory = _app.PackFolder(),
+        };
         if (dlg.ShowDialog(this) == true) await _app.ImportPackAsync(dlg.FileName);
     }
 
@@ -269,11 +297,16 @@ public partial class MainWindow : Window
         var dlg = new Microsoft.Win32.SaveFileDialog
         {
             Title = Loc.T("pack.exportTitle"),
-            Filter = AssetPack.FileFilter,
-            FileName = (safe.Length > 0 ? safe : "GifPin pack") + ".zip",
+            Filter = AssetPack.ExportFilter,
+            DefaultExt = AssetPack.Extension,
+            AddExtension = true,
+            InitialDirectory = _app.PackFolder(),
+            FileName = (safe.Length > 0 ? safe : "GifPin pack") + AssetPack.Extension,
         };
         if (dlg.ShowDialog(this) != true) return;
-        await _app.ExportPackAsync(dlg.FileName, Path.GetFileNameWithoutExtension(dlg.FileName), photos, withLayout);
+        string file = dlg.FileName;
+        if (!file.EndsWith(AssetPack.Extension, StringComparison.OrdinalIgnoreCase)) file += AssetPack.Extension; // 늘 .gifpin으로
+        await _app.ExportPackAsync(file, Path.GetFileNameWithoutExtension(file), photos, withLayout);
     }
 
     // ── 사진 카드 ────────────────────────────────────────────

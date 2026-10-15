@@ -44,7 +44,7 @@ internal static class Strings
         ["lib.sprite"] = ("Sprite", "스프라이트"),
         ["lib.spriteTip"] = ("Make an animation from a sprite sheet or a folder of frames", "스프라이트 시트나 프레임 폴더로 애니메이션 만들기"),
         ["lib.pack"] = ("Pack", "팩"),
-        ["lib.packTip"] = ("Share GIFs (and their layout) as a single .zip file", "GIF와 배치를 .zip 파일 하나로 주고받기"),
+        ["lib.packTip"] = ("Share GIFs (and their layout) as a single .gifpin pack file", "GIF와 배치를 .gifpin 팩 파일 하나로 주고받기"),
         ["lib.search"] = ("Search library", "라이브러리에서 검색"),
         ["lib.filterAll"] = ("All {0}", "전체 {0}"),
         ["lib.filterFavorite"] = ("Favorites {0}", "즐겨찾기 {0}"),
@@ -268,6 +268,8 @@ internal static class Strings
 
         // 에셋 팩
         ["pack.filter"] = ("GifPin pack", "GifPin 팩"),
+        ["pack.filterOld"] = ("Older GifPin packs (.zip)", "예전 형식 GifPin 팩 (.zip)"),
+        ["pack.recent"] = ("Recent packs", "최근 팩"),
         ["pack.import"] = ("Import pack…", "팩 가져오기…"),
         ["pack.exportScreen"] = ("Export what's on screen (with layout)…", "화면 배치 내보내기 (위치 포함)…"),
         ["pack.exportFavorites"] = ("Export favorites…", "즐겨찾기 내보내기…"),

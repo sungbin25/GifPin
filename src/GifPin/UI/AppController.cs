@@ -75,7 +75,7 @@ public sealed class AppController
 
     // ── 시작 / 종료 ──────────────────────────────────────────
 
-    public void Start(bool showWindow)
+    public void Start(bool showWindow, bool allowSplash = true)
     {
         Log.Info($"GifPin {AppVersion} starting · {Environment.OSVersion} · {State.Library.Count} photos, {State.Active.Count} on screen");
         Engine.Start();
@@ -100,13 +100,15 @@ public sealed class AppController
         if (State.Settings.StartWithWindows) Autostart.Apply(true); // 설치 위치가 바뀌었을 수 있어 경로 갱신
 
         RefreshShellIconOnce();
+        if (Environment.GetEnvironmentVariable("GIFPIN_SMOKETEST") != "1" || Environment.GetEnvironmentVariable("GIFPIN_SMOKE_ASSOC") == "1")
+            FileAssociation.EnsureRegistered();
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
         StartSceneClock();
         StartUpdateClock();
 
         if (showWindow)
         {
-            if (!TryPlaySplash(ShowMain)) ShowMain();
+            if (!allowSplash || !TryPlaySplash(ShowMain)) ShowMain();
         }
         if (Engine.HotkeyFailures.Count > 0)
             _tray.ShowBalloon(Loc.T("tray.hotkeyFailTitle"), Loc.F("tray.hotkeyFailText", string.Join(", ", Engine.HotkeyFailures)));
@@ -404,8 +406,8 @@ public sealed class AppController
         var list = paths.ToList();
         if (list.Count == 0) return;
 
-        // .zip은 에셋 팩으로 가져오기
-        foreach (var zip in list.Where(p => p.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) && File.Exists(p)).ToList())
+        // .gifpin(과 예전 .zip)은 에셋 팩으로 가져오기
+        foreach (var zip in list.Where(p => AssetPack.IsPackFile(p) && File.Exists(p)).ToList())
         {
             list.Remove(zip);
             await ImportPackAsync(zip);
@@ -531,6 +533,40 @@ public sealed class AppController
 
     // ── 에셋 팩 ──────────────────────────────────────────────
 
+    /// <summary>탐색기에서 연 팩(.gifpin)들을 가져옴.</summary>
+    public async Task ProcessOpenRequestsAsync()
+    {
+        var files = FileAssociation.TakeOpenRequests().Where(File.Exists).ToList();
+        foreach (var f in files)
+        {
+            Log.Info("Opening pack from Explorer: " + f);
+            await ImportPackAsync(f);
+        }
+    }
+
+    /// <summary>최근에 가져오거나 내보낸 팩 (지금도 있는 파일만, 최근 것부터).</summary>
+    public List<string> RecentPacks() => State.Settings.RecentPacks.Where(File.Exists).ToList();
+
+    private void AddRecentPack(string path)
+    {
+        try { path = Path.GetFullPath(path); } catch { return; }
+        var list = State.Settings.RecentPacks;
+        list.RemoveAll(p => p.Equals(path, StringComparison.OrdinalIgnoreCase));
+        list.Insert(0, path);
+        if (list.Count > 8) list.RemoveRange(8, list.Count - 8);
+        Save();
+    }
+
+    /// <summary>팩 고르는 창이 처음 열릴 폴더: 최근 팩이 있던 폴더 → 문서\GifPin Packs.</summary>
+    public string PackFolder()
+    {
+        var recent = RecentPacks().FirstOrDefault();
+        string? dir = recent != null ? Path.GetDirectoryName(recent) : null;
+        if (dir != null && Directory.Exists(dir)) return dir;
+        try { Directory.CreateDirectory(AssetPack.DefaultFolder); } catch { }
+        return AssetPack.DefaultFolder;
+    }
+
     public async Task ImportPackAsync(string zipPath)
     {
         Notice?.Invoke(Loc.T("notice.packImporting"));
@@ -562,6 +598,7 @@ public sealed class AppController
             Save();
             Log.Info($"Pack '{pack.Name}' imported: {r.Added.Count} photos, {pack.Layout.Count} layout entries");
 
+            AddRecentPack(zipPath);
             int skipped = pack.Skipped + r.Skipped;
             string summary = Loc.F("notice.packImported", pack.Name) + " · " + ImportSummary(r.Added.Count, 0, skipped);
             Notice?.Invoke(summary);
@@ -624,6 +661,7 @@ public sealed class AppController
         try
         {
             await Task.Run(() => AssetPack.Export(zipPath, name, photos, layout));
+            AddRecentPack(zipPath);
             Log.Info($"Pack exported: {zipPath} ({photos.Count} photos, layout {layout?.Count ?? 0})");
             Notice?.Invoke(Loc.F("notice.packExported", photos.Count, Path.GetFileName(zipPath)));
         }

@@ -251,6 +251,9 @@ public sealed class AppSettings
     public bool TrayNoticeShown { get; set; }
     public WindowBounds? Window { get; set; }
 
+    /// <summary>최근에 가져오거나 내보낸 팩 파일 (최근 것부터, 최대 8개)</summary>
+    public List<string> RecentPacks { get; set; } = new();
+
     /// <summary>탐색기 아이콘 캐시를 마지막으로 새로 고친 앱 버전 (버전이 바뀌면 한 번)</summary>
     public string? IconRefreshedVersion { get; set; }
 
@@ -330,6 +333,7 @@ public sealed class AppSettings
         AppliedInstallStamp = AppliedInstallStamp,
         LastSplashDate = LastSplashDate,
         IconRefreshedVersion = IconRefreshedVersion,
+        RecentPacks = new List<string>(RecentPacks ?? new()),
         StartWithWindows = StartWithWindows,
         AllHidden = false,
         SettingsVersion = SettingsVersion,
@@ -342,6 +346,7 @@ public sealed class AppSettings
     public void Normalize()
     {
         AutostartDelaySec = Math.Clamp(AutostartDelaySec, 0, 300);
+        RecentPacks = (RecentPacks ?? new()).Where(p => !string.IsNullOrWhiteSpace(p)).Distinct(StringComparer.OrdinalIgnoreCase).Take(8).ToList();
         RecentColors = (RecentColors ?? new()).Where(c => Fx.TryParseColor(c, out _)).Select(c => c.ToUpperInvariant()).Distinct().Take(12).ToList();
         if (Theme == "midnight") Theme = "amber"; // v0.7.1: 미드나잇 → 앰버
         // "system"은 없어진 테마 — 화면에 적용할 때 Windows 모드에 맞춰 라이트/다크로 옮김 (Themes.Normalize)

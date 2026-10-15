@@ -21,7 +21,12 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        // 하나만 실행: 이미 실행 중이면 그쪽 메인 창을 열고 종료
+        // 탐색기에서 .gifpin 팩을 두 번 눌러 실행됨 → 열 파일 경로
+        var openFiles = e.Args.Where(a => !a.StartsWith("--") && System.IO.File.Exists(a) && AssetPack.IsPackFile(a))
+                              .Select(a => System.IO.Path.GetFullPath(a)).ToList();
+        if (openFiles.Count > 0) FileAssociation.QueueOpen(openFiles);
+
+        // 하나만 실행: 이미 실행 중이면 그쪽 메인 창을 열고(열 파일이 있으면 그쪽에서 가져옴) 종료
         _mutex = new Mutex(true, MutexName, out bool first);
         if (!first)
         {
@@ -42,6 +47,7 @@ public partial class App : Application
                 {
                     if (_controller == null) _startNow?.Invoke(true); // 자동 실행 대기 중에 직접 실행함 → 바로 시작
                     else _controller.ShowMain();
+                    _ = _controller?.ProcessOpenRequestsAsync();
                 });
         }) { IsBackground = true, Name = "GifPin.ShowListener" };
         listener.Start();
@@ -78,7 +84,7 @@ public partial class App : Application
         Loc.SetLanguage(state.Settings.Language);
         AppController.ApplyLanguageResources();
         AppController.ApplyThemeFrom(state.Settings);
-        bool fromAutostart = e.Args.Any(a => a.Equals("--tray", StringComparison.OrdinalIgnoreCase));
+        bool fromAutostart = e.Args.Any(a => a.Equals("--tray", StringComparison.OrdinalIgnoreCase)) && openFiles.Count == 0;
         bool showWindow = !fromAutostart || state.Settings.OpenWindowOnStart;
 
         _startNow = show =>
@@ -86,7 +92,8 @@ public partial class App : Application
             if (_controller != null) return;
             _startNow = null;
             _controller = new AppController(state);
-            _controller.Start(show);
+            _controller.Start(show, allowSplash: openFiles.Count == 0); // 팩을 열려고 실행했으면 시작 애니메이션 없이 바로
+            _ = _controller.ProcessOpenRequestsAsync();
         };
 
         // Windows 시작 시 자동 실행: 설정한 만큼 기다렸다가 시작 (로그인 직후 다른 프로그램과 겹치지 않게)
@@ -961,6 +968,32 @@ public partial class App : Application
             }
         }
         if (app.State.Settings.IconRefreshedVersion != AppController.AppVersion) throw new Exception("shell icon cache was not refreshed for this version");
+
+        // .gifpin 팩: 파일 연결(아이콘·두 번 눌러 열기), 탐색기에서 연 팩 가져오기, 최근 팩 메뉴
+        {
+            FileAssociation.EnsureRegistered();
+            var exe = FileAssociation.RegisteredExe();
+            if (!FileAssociation.IsHealthy() || exe == null) throw new Exception(".gifpin association not registered");
+            if (!string.Equals(System.IO.Path.GetFullPath(exe), System.IO.Path.GetFullPath(Environment.ProcessPath!), StringComparison.OrdinalIgnoreCase))
+                throw new Exception(".gifpin opens with " + exe);
+            if (FileAssociation.EnsureRegistered()) throw new Exception("healthy association was registered again");
+            string packPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "GifPin smoke" + AssetPack.Extension);
+            var photo = app.State.Library.First();
+            await app.ExportPackAsync(packPath, "GifPin smoke", new[] { photo }, withLayout: false);
+            if (!System.IO.File.Exists(packPath)) throw new Exception(".gifpin export missing");
+            app.State.Settings.RecentPacks.Clear();
+            FileAssociation.QueueOpen(new[] { packPath });
+            await app.ProcessOpenRequestsAsync();
+            if (FileAssociation.TakeOpenRequests().Count != 0) throw new Exception("open requests not consumed");
+            if (app.RecentPacks().FirstOrDefault() is not string first || !first.Equals(System.IO.Path.GetFullPath(packPath), StringComparison.OrdinalIgnoreCase))
+                throw new Exception("opened pack not in recent packs");
+            var mw = Current.Windows.OfType<GifPin.UI.MainWindow>().First();
+            if (mw.RecentPacksMenuForTest() < 1) throw new Exception("recent packs menu empty");
+            if (!app.PackFolder().Equals(System.IO.Path.GetTempPath().TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)
+                && !app.PackFolder().Equals(System.IO.Path.GetDirectoryName(packPath), StringComparison.OrdinalIgnoreCase))
+                throw new Exception("pack dialogs do not open in the last pack folder: " + app.PackFolder());
+        }
+        sb.Append(" .gifpin ok ·");
         sb.Append(" icon/splash ok");
         return sb.ToString();
     }
