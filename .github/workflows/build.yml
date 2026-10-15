@@ -6,6 +6,15 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Skip tests for this manual build'
+        type: boolean
+        default: false
+      publish_release:
+        description: 'Publish the built installer and portable executable'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -32,6 +41,7 @@ jobs:
         run: dotnet build src/GifPin/GifPin.csproj -c Release
 
       - name: Collision and video conversion integration tests
+        if: ${{ !inputs.skip_tests }}
         run: dotnet run --project tests/GifPin.VideoTests -c Release -- --download-tools .work/video-tests
 
       - name: Publish single-file exe
@@ -47,6 +57,7 @@ jobs:
           -p:EnableCompressionInSingleFile=false -p:DebugType=none -o publish-fd
 
       - name: Smoke test (overlay + background removal + WebP)
+        if: ${{ !inputs.skip_tests }}
         shell: pwsh
         run: |
           $data = Join-Path ([Environment]::GetFolderPath('ApplicationData')) 'GifPin'
@@ -122,6 +133,7 @@ jobs:
           Get-ChildItem dist
 
       - name: Installer test (silent install, runtime check, start installed GifPin)
+        if: ${{ !inputs.skip_tests }}
         shell: pwsh
         run: |
           $setup = Get-ChildItem dist\GifPin-Setup-*.exe | Select-Object -First 1
@@ -181,7 +193,7 @@ jobs:
           path: dist/*.exe
 
       - name: Publish release
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+        if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) || (github.event_name == 'workflow_dispatch' && inputs.publish_release && github.ref == 'refs/heads/main')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.ver.outputs.version }}
