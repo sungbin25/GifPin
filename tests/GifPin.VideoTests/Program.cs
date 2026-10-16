@@ -17,6 +17,7 @@ internal static class Program
     {
         try
         {
+            if (args.Length == 2 && args[0] == "--splash-preview") { SplashPreview.Run(Path.GetFullPath(args[1])); return 0; }
             if (args.Length != 2) throw new ArgumentException("Usage: GifPin.VideoTests <FFmpeg directory> <test output directory>");
             string tools = args[0] == "--download-tools" ? VideoTools.EnsureAsync(null, default).GetAwaiter().GetResult() : Path.GetFullPath(args[0]);
             string output = Path.GetFullPath(args[1]);
@@ -25,6 +26,7 @@ internal static class Program
             CollisionTests.Engine(Path.GetFullPath("tests/sample.gif")).GetAwaiter().GetResult();
             RunAsync(tools, output).GetAwaiter().GetResult();
             Ui(tools, output);
+            SplashPreview.Run(output);
             Console.WriteLine("PASS: video conversion, transparency, timing, cancellation, validation, preview and UI resources");
             return 0;
         }

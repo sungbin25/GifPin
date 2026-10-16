@@ -832,7 +832,7 @@ internal static class Strings
         ["themeColor.CheckerB"] = ("Pattern dark", "무늬 어두운 칸"),
         ["themeColor.CheckerBTip"] = ("Checkerboard behind transparent images", "투명한 그림 뒤 바둑판 무늬"),
         ["splash.title"] = ("Startup animation (once a day)", "시작 애니메이션 (하루 한 번)"),
-        ["splash.desc"] = ("The first time you open MotiNook each day, a short animation plays before the main window. Click to skip.", "그날 처음 MotiNook을 열면 메인 화면 전에 짧은 애니메이션이 나와요. 클릭하면 건너뛰어요."),
+        ["splash.desc"] = ("The first time you open MotiNook each day, the animated title and character appear together at the center of your screen. Click to skip.", "그날 처음 MotiNook을 열면 화면 중앙에 타이틀과 캐릭터 모션이 함께 나와요. 클릭하면 건너뛰어요."),
         ["splash.preview"] = ("Preview", "미리 보기"),
         ["fx.colorMultiHint"] = ("Pick several colors to mix them — your own rainbow. Add any color with the palette or eyedropper.", "여러 색을 고르면 섞여서 나와요 (나만의 무지개). 팔레트·스포이드로 원하는 색도 추가할 수 있어요."),
     };

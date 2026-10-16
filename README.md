@@ -99,6 +99,8 @@ dotnet publish src/GifPin/GifPin.csproj -c Release -r win-x64 --self-contained t
 
 ## 이름 변경 호환성
 
+시작 화면에서는 위쪽 MotiNook 타이틀 모션과 아래쪽 캐릭터 모션을 동시에 재생합니다. 전체 구성을 화면 중앙에 배치하며, 하루 한 번 표시·설정에서 미리보기·클릭/키로 건너뛰기를 지원합니다. 타이틀은 투명 PNG 레이어를 앱에 내장해 재생하므로 별도 동영상 코덱이나 다운로드가 필요 없습니다.
+
 - 새 실행 파일: `MotiNook.exe`. 설치형과 포터블 배포 파일도 `MotiNook-…` 이름을 사용합니다.
 - 아이콘 그림은 기존 그대로 유지합니다. 내부 네임스페이스와 소스 폴더 이름은 `GifPin`을 유지합니다.
 - 기존 데이터 폴더 `%AppData%\GifPin`과 `.gifpin` 형식은 호환성을 위해 유지합니다.

@@ -10,7 +10,7 @@ using System.Windows.Shapes;
 namespace GifPin.UI;
 
 /// <summary>
-/// 시작 애니메이션 (하루에 한 번, A·B·C 중 하나). 투명한 창에 도형으로 그려 움직인다 — 그림 파일 없음.
+/// 시작 애니메이션: 위쪽 타이틀과 아래쪽 캐릭터(A·B·C 중 하나)를 같은 시계로 동시 재생.
 ///  A: 빈 창 아래에서 손이 먼저 올라오고 몸이 올라와 빼꼼 내다봄
 ///  B: 창 뒤에서 위 테두리를 두 손으로 잡고 캐릭터가 튀어나옴
 ///  C: 스티커처럼 화면에 착 붙고 모서리가 살짝 들림
@@ -29,6 +29,8 @@ public sealed class SplashWindow : Window
     private const double W = 360, H = 300;
     private const double Total = 2.6; // 초
     private readonly Canvas _root = new() { Width = W, Height = H };
+    private readonly Canvas _scene = new() { Width = 640, Height = 520, ClipToBounds = true };
+    private readonly BrandIntro _brand = new();
     private readonly Storyboard _story = new();
     private bool _done;
 
@@ -46,10 +48,14 @@ public sealed class SplashWindow : Window
         ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false;
         Topmost = true;
-        Width = W;
-        Height = H;
+        double fit = Math.Min(1, Math.Min(Math.Max(1, SystemParameters.WorkArea.Width - 32) / _scene.Width,
+            Math.Max(1, SystemParameters.WorkArea.Height - 32) / _scene.Height));
+        Width = _scene.Width * fit;
+        Height = _scene.Height * fit;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        Content = _root;
+        Place(_scene, _brand, 0, 50);
+        Place(_scene, _root, (_scene.Width - W) / 2, 190);
+        Content = new Viewbox { Child = _scene, Stretch = Stretch.Uniform };
         Cursor = Cursors.Hand;
 
         switch (variant)
@@ -59,15 +65,29 @@ public sealed class SplashWindow : Window
             default: BuildC(); break;
         }
         // 끝: 전체가 서서히 사라짐
-        Fade(_root, 1, 0, Total - 0.35, 0.35);
+        Fade(_scene, 1, 0, Total - 0.35, 0.35);
         _story.Completed += (_, _) => Finish();
 
-        Loaded += (_, _) => _story.Begin(this, true);
+        Loaded += (_, _) => { _story.Begin(this, true); CompositionTarget.Rendering += OnRendering; };
+        Closed += (_, _) =>
+        {
+            CompositionTarget.Rendering -= OnRendering;
+            _story.Remove(this);
+            if (!_done) { _done = true; Finished?.Invoke(); }
+        };
         MouseLeftButtonUp += (_, _) => Skip();
         KeyDown += (_, _) => Skip();
     }
 
     public static Variant RandomVariant() => (Variant)Random.Shared.Next(3);
+
+    private void OnRendering(object? sender, EventArgs e) => _brand.Seek(_story.GetCurrentTime(this)?.TotalSeconds ?? 0);
+
+    internal void SeekPreview(double seconds)
+    {
+        _story.SeekAlignedToLastTick(this, TimeSpan.FromSeconds(seconds), TimeSeekOrigin.BeginTime);
+        _brand.Seek(seconds);
+    }
 
     /// <summary>띄우고 끝나면 onDone을 부름.</summary>
     public static SplashWindow Play(Variant variant, Action onDone)
