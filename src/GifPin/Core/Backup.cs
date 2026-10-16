@@ -39,7 +39,7 @@ public static class Backup
 
     public static string BackupDir => Path.Combine(Store.DataDir, "Backups");
 
-    public static string DefaultFileName() => $"GifPin-backup-{DateTime.Now:yyyyMMdd-HHmm}.zip";
+    public static string DefaultFileName() => $"MotiNook-backup-{DateTime.Now:yyyyMMdd-HHmm}.zip";
 
     /// <summary>백업 파일을 만든다. 돌려주는 값: 담은 사진 수, 찾지 못한 사진 수.</summary>
     public static (int photos, int missing) Create(string zipPath, AppState state, string appVersion)

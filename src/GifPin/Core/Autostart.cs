@@ -12,7 +12,8 @@ public static class Autostart
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string ApprovedKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
-    private const string ValueName = "GifPin";
+    private const string ValueName = "MotiNook";
+    private const string LegacyValueName = "GifPin";
 
     public enum Status { Off, On, BlockedByWindows }
 
@@ -21,10 +22,11 @@ public static class Autostart
         try
         {
             using var run = Registry.CurrentUser.OpenSubKey(RunKey);
-            if (run?.GetValue(ValueName) is not string) return Status.Off;
+            string name = run?.GetValue(ValueName) is string ? ValueName : LegacyValueName;
+            if (run?.GetValue(name) is not string) return Status.Off;
             using var approved = Registry.CurrentUser.OpenSubKey(ApprovedKey);
             // 첫 바이트가 홀수(03, 07 …)면 Windows 설정에서 꺼 둔 상태, 짝수(02, 06)이거나 값이 없으면 허용
-            if (approved?.GetValue(ValueName) is byte[] b && b.Length > 0 && (b[0] & 1) == 1) return Status.BlockedByWindows;
+            if (approved?.GetValue(name) is byte[] b && b.Length > 0 && (b[0] & 1) == 1) return Status.BlockedByWindows;
             return Status.On;
         }
         catch { return Status.Off; }
@@ -38,12 +40,14 @@ public static class Autostart
         try
         {
             using var key = Registry.CurrentUser.CreateSubKey(RunKey);
+            key.DeleteValue(LegacyValueName, throwOnMissingValue: false);
             if (enable)
             {
                 var exe = Environment.ProcessPath;
                 if (!string.IsNullOrEmpty(exe)) key.SetValue(ValueName, $"\"{exe}\" --tray");
                 // 사용자가 GifPin에서 직접 켰으므로 Windows 설정에서 꺼 둔 표시도 "허용"으로 되돌림
                 using var approved = Registry.CurrentUser.OpenSubKey(ApprovedKey, writable: true);
+                approved?.DeleteValue(LegacyValueName, throwOnMissingValue: false);
                 if (approved?.GetValue(ValueName) is byte[] b && b.Length > 0 && (b[0] & 1) == 1)
                 {
                     var allowed = new byte[12];
@@ -56,6 +60,7 @@ public static class Autostart
             {
                 key.DeleteValue(ValueName, throwOnMissingValue: false);
                 using var approved = Registry.CurrentUser.OpenSubKey(ApprovedKey, writable: true);
+                approved?.DeleteValue(LegacyValueName, throwOnMissingValue: false);
                 approved?.DeleteValue(ValueName, throwOnMissingValue: false);
                 Log.Info("Start with Windows: off");
             }

@@ -1,6 +1,6 @@
 # Video conversion tools
 
-GifPin invokes FFmpeg and ffprobe as separate executables. They are downloaded on first use; no video is uploaded.
+MotiNook invokes FFmpeg and ffprobe as separate executables. They are downloaded on first use; no video is uploaded.
 
 - Project: https://ffmpeg.org/
 - Windows build provider: https://www.gyan.dev/ffmpeg/builds/
@@ -11,4 +11,4 @@ GifPin invokes FFmpeg and ffprobe as separate executables. They are downloaded o
 - FFmpeg source: https://github.com/FFmpeg/FFmpeg/tree/n8.1.2
 - Build provider's source/build information: https://github.com/GyanD/codexffmpeg
 
-Normal download location: `%LOCALAPPDATA%\GifPin\VideoTools\8.1.2`. A local distribution may supply `VideoTools` beside GifPin.exe, including `verified.txt` with the archive checksum and the original license/readme. Keep these notices and source links with any redistribution of the tools.
+Normal download location: `%LOCALAPPDATA%\GifPin\VideoTools\8.1.2`. A local distribution may supply `VideoTools` beside MotiNook.exe, including `verified.txt` with the archive checksum and the original license/readme. Keep these notices and source links with any redistribution of the tools.

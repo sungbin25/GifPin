@@ -303,7 +303,7 @@ public partial class MainWindow : Window
             DefaultExt = AssetPack.Extension,
             AddExtension = true,
             InitialDirectory = _app.PackFolder(),
-            FileName = (safe.Length > 0 ? safe : "GifPin pack") + AssetPack.Extension,
+            FileName = (safe.Length > 0 ? safe : "MotiNook pack") + AssetPack.Extension,
         };
         if (dlg.ShowDialog(this) != true) return;
         string file = dlg.FileName;
@@ -377,7 +377,7 @@ public partial class MainWindow : Window
     {
         if (VmOf(sender) is not PhotoVM vm) return;
         string msg = vm.InUse ? Loc.F("card.removeInUseQuestion", vm.Name) : Loc.F("card.removeQuestion", vm.Name);
-        if (MessageBox.Show(this, msg, "GifPin", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        if (MessageBox.Show(this, msg, "MotiNook", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         if (vm == _hoverVm) StopHover();
         _app.RemovePhoto(vm.Id);
         UpdateCounts();
@@ -1276,7 +1276,7 @@ public partial class MainWindow : Window
     {
         var mons = _app.MonitorList;
         DiagText.Text =
-            $"GifPin {AppController.AppVersion} · {Environment.OSVersion.VersionString}\n" +
+            $"MotiNook {AppController.AppVersion} · {Environment.OSVersion.VersionString}\n" +
             Loc.F("diag.summary", _app.State.Library.Count, _app.State.Active.Count, mons.Count) + "\n" +
             Loc.T("diag.logFile") + ": " + Log.FilePath;
     }
@@ -1937,13 +1937,13 @@ public partial class MainWindow : Window
     {
         var dlg = new Microsoft.Win32.OpenFileDialog { Filter = Loc.T("backup.filter") + "|*.zip" };
         if (dlg.ShowDialog(this) != true) return;
-        if (MessageBox.Show(this, Loc.T("backup.restoreQuestion"), "GifPin", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        if (MessageBox.Show(this, Loc.T("backup.restoreQuestion"), "MotiNook", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
         await _app.RestoreBackupAsync(dlg.FileName);
     }
 
     private void ResetSettings_Click(object sender, RoutedEventArgs e)
     {
-        if (MessageBox.Show(this, Loc.T("backup.resetQuestion"), "GifPin", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        if (MessageBox.Show(this, Loc.T("backup.resetQuestion"), "MotiNook", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
         _app.ResetSettings();
     }
 
@@ -2057,7 +2057,7 @@ public partial class MainWindow : Window
             string sid = sc.Id, name = sc.Name;
             del.Items.Add(MenuEntry(name, () =>
             {
-                if (MessageBox.Show(this, Loc.F("scene.deleteQuestion", name), "GifPin", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+                if (MessageBox.Show(this, Loc.F("scene.deleteQuestion", name), "MotiNook", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
                     _app.DeleteScene(sid);
             }));
         }
@@ -2276,7 +2276,7 @@ public partial class MainWindow : Window
             var delete = new MenuItem { Header = Loc.T("scene.delete") };
             delete.Click += (_, _) =>
             {
-                if (MessageBox.Show(this, Loc.F("scene.deleteQuestion", sc.Name), "GifPin", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+                if (MessageBox.Show(this, Loc.F("scene.deleteQuestion", sc.Name), "MotiNook", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
                     _app.DeleteScene(id);
             };
             menu.Items.Add(rename);

@@ -23,7 +23,7 @@ public sealed class TrayIcon : IDisposable
         _icon = new Forms.NotifyIcon
         {
             Icon = LoadIcon(),
-            Text = "GifPin",
+            Text = "MotiNook",
             ContextMenuStrip = _menu,
             Visible = true,
         };

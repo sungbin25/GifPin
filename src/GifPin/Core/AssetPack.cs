@@ -31,7 +31,7 @@ public static class AssetPack
     }
 
     /// <summary>팩을 모아 두는 기본 폴더: 문서\GifPin Packs</summary>
-    public static string DefaultFolder => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "GifPin Packs");
+    public static string DefaultFolder => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "MotiNook Packs");
     private const long MaxEntryBytes = 100L * 1024 * 1024;
     private const long MaxTotalBytes = 500L * 1024 * 1024;
     private const int MaxEntries = 2000;
@@ -124,7 +124,7 @@ public static class AssetPack
 
     public static void Export(string zipPath, string name, IReadOnlyList<PhotoItem> photos, IReadOnlyList<ActiveItem>? layout)
     {
-        var manifest = new Manifest { Name = name, CreatedAt = DateTimeOffset.Now, App = "GifPin " + typeof(AssetPack).Assembly.GetName().Version?.ToString(3) };
+        var manifest = new Manifest { Name = name, CreatedAt = DateTimeOffset.Now, App = "MotiNook " + typeof(AssetPack).Assembly.GetName().Version?.ToString(3) };
         var monitors = layout is { Count: > 0 } ? Monitors.List() : new List<MonitorInfo>();
         var tmp = zipPath + ".tmp";
 

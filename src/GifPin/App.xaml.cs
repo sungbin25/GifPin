@@ -62,7 +62,7 @@ public partial class App : Application
             }
             Log.Error("Unhandled UI exception", ex.Exception);
             MessageBox.Show(Loc.T("app.unexpectedError") + "\n\n" + ex.Exception.Message + "\n\n" + Loc.T("app.seeLog"),
-                "GifPin", MessageBoxButton.OK, MessageBoxImage.Error);
+                "MotiNook", MessageBoxButton.OK, MessageBoxImage.Error);
             ex.Handled = true;
         };
         AppDomain.CurrentDomain.UnhandledException += (_, ex) => Log.Error("Unhandled exception (fatal)", ex.ExceptionObject as Exception);
@@ -625,7 +625,7 @@ public partial class App : Application
 
         // 8) 프로그램별 숨기기: "실행 중" 규칙에 GifPin 자신을 넣으면 숨고, 빼면 다시 보임
         app.SetAppRuleMode(true);
-        app.AddAppRule(System.IO.Path.GetFileName(Environment.ProcessPath ?? "GifPin.exe"));
+        app.AddAppRule(System.IO.Path.GetFileName(Environment.ProcessPath ?? "MotiNook.exe"));
         await Wait(600);
         p = await P(id);
         if (eng.RuleHiddenBy == null || p.Shown) throw new Exception($"program rule did not hide GIFs (by={eng.RuleHiddenBy}, shown={p.Shown})");

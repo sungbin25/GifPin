@@ -77,7 +77,7 @@ public sealed class AppController
 
     public void Start(bool showWindow, bool allowSplash = true)
     {
-        Log.Info($"GifPin {AppVersion} starting · {Environment.OSVersion} · {State.Library.Count} photos, {State.Active.Count} on screen");
+        Log.Info($"MotiNook {AppVersion} starting · {Environment.OSVersion} · {State.Library.Count} photos, {State.Active.Count} on screen");
         Engine.Start();
         ApplyEngineSettings();
 
@@ -615,8 +615,8 @@ public sealed class AppController
             {
                 string q = Loc.F("pack.applyLayoutQuestion", layout.Count);
                 var answer = _main != null && _main.IsVisible
-                    ? MessageBox.Show(_main, q, "GifPin", MessageBoxButton.YesNo, MessageBoxImage.Question)
-                    : MessageBox.Show(q, "GifPin", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                    ? MessageBox.Show(_main, q, "MotiNook", MessageBoxButton.YesNo, MessageBoxImage.Question)
+                    : MessageBox.Show(q, "MotiNook", MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (answer == MessageBoxResult.Yes)
                 {
                     MonitorList = Monitors.List();
@@ -946,7 +946,7 @@ public sealed class AppController
         RebuildActives();
         Save();
         if (notify) Notice?.Invoke(Loc.F("notice.movedToPrimary", moved));
-        if (notify) _tray?.ShowBalloon("GifPin", Loc.F("notice.movedToPrimary", moved));
+        if (notify) _tray?.ShowBalloon("MotiNook", Loc.F("notice.movedToPrimary", moved));
     }
 
     // ── 복구 도구 ────────────────────────────────────────────
@@ -992,7 +992,7 @@ public sealed class AppController
     public string BuildDiagnostics()
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"GifPin {AppVersion}");
+        sb.AppendLine($"MotiNook {AppVersion}");
         sb.AppendLine($"OS: {Environment.OSVersion} ({(Environment.Is64BitProcess ? "x64" : "x86")})");
         sb.AppendLine($".NET: {Environment.Version}");
         sb.AppendLine($"Language: {Loc.Language}");
@@ -1648,7 +1648,7 @@ public sealed class AppController
         if (State.Scenes.Count == 0)
         {
             Notice?.Invoke(Loc.T("notice.noScenes"));
-            _tray?.ShowBalloon("GifPin", Loc.T("notice.noScenes"));
+            _tray?.ShowBalloon("MotiNook", Loc.T("notice.noScenes"));
             return;
         }
         int i = State.Scenes.FindIndex(x => x.Id == State.CurrentSceneId);

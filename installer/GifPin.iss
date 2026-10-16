@@ -18,25 +18,26 @@
 
 [Setup]
 AppId={{8C4F1E52-6A1D-4E7B-9C0E-3B2A9F5D7E61}
-AppName=GifPin
+AppName=MotiNook
 AppVersion={#AppVersion}
-AppVerName=GifPin {#AppVersion}
-AppPublisher=GifPin
-DefaultDirName={localappdata}\Programs\GifPin
-DefaultGroupName=GifPin
+AppVerName=MotiNook {#AppVersion}
+AppPublisher=MotiNook
+DefaultDirName={localappdata}\Programs\MotiNook
+DefaultGroupName=MotiNook
 DisableProgramGroupPage=yes
 DisableDirPage=auto
 PrivilegesRequired=lowest
-OutputBaseFilename=GifPin-Setup-{#AppVersion}
+OutputBaseFilename=MotiNook-Setup-{#AppVersion}
 SetupIconFile=..\src\GifPin\Assets\GifPin.ico
-UninstallDisplayIcon={app}\GifPin.exe
-UninstallDisplayName=GifPin
+UninstallDisplayIcon={app}\MotiNook.exe
+UninstallDisplayName=MotiNook
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 CloseApplications=force
+AppMutex=GifPin.SingleInstance.v1
 RestartApplications=no
 ; 설치가 끝나면 탐색기에 "아이콘이 바뀌었음"을 알림 (예전 아이콘이 캐시에 남아 바로가기에 보이는 문제)
 ChangesAssociations=yes
@@ -56,25 +57,25 @@ Name: "korean"; MessagesFile: "compiler:Languages\Korean.isl"
 english.DesktopIcon=Create a desktop shortcut
 english.Autostart=Start with Windows
 english.AdditionalTasks=Additional tasks:
-english.LaunchApp=Launch GifPin
-english.PackType=GifPin pack
+english.LaunchApp=Launch MotiNook
+english.PackType=MotiNook pack
 english.RuntimeTitle=Installing .NET 8 Desktop Runtime
-english.RuntimeDownloading=GifPin needs the Microsoft .NET 8 Desktop Runtime. Downloading it from Microsoft…
+english.RuntimeDownloading=MotiNook needs the Microsoft .NET 8 Desktop Runtime. Downloading it from Microsoft…
 english.RuntimeInstalling=Installing the .NET 8 Desktop Runtime… (Windows may ask for permission)
 english.RuntimeDownloadFailed=Couldn't download the .NET 8 Desktop Runtime:%n%1%n%nCheck your internet connection and run setup again, or install it yourself from https://dotnet.microsoft.com/download/dotnet/8.0 (".NET Desktop Runtime 8", x64).
-english.RuntimeCancelled=The .NET 8 Desktop Runtime was not installed because permission was declined. GifPin can't run without it. Run setup again and allow the permission request.
+english.RuntimeCancelled=The .NET 8 Desktop Runtime was not installed because permission was declined. MotiNook can't run without it. Run setup again and allow the permission request.
 english.RuntimeFailed=Installing the .NET 8 Desktop Runtime failed (code %1).%n%nInstall it yourself from https://dotnet.microsoft.com/download/dotnet/8.0 (".NET Desktop Runtime 8", x64) and run setup again.
 #if HasKorean
 korean.DesktopIcon=바탕화면에 바로가기 만들기
 korean.Autostart=Windows 시작 시 자동 실행
 korean.AdditionalTasks=추가 작업:
-korean.LaunchApp=GifPin 실행
-korean.PackType=GifPin 팩
+korean.LaunchApp=MotiNook 실행
+korean.PackType=MotiNook 팩
 korean.RuntimeTitle=.NET 8 데스크톱 런타임 설치
-korean.RuntimeDownloading=GifPin을 실행하려면 Microsoft .NET 8 데스크톱 런타임이 필요합니다. Microsoft에서 내려받는 중…
+korean.RuntimeDownloading=MotiNook을 실행하려면 Microsoft .NET 8 데스크톱 런타임이 필요합니다. Microsoft에서 내려받는 중…
 korean.RuntimeInstalling=.NET 8 데스크톱 런타임을 설치하는 중… (Windows에서 권한을 물어볼 수 있습니다)
 korean.RuntimeDownloadFailed=.NET 8 데스크톱 런타임을 내려받지 못했습니다:%n%1%n%n인터넷 연결을 확인하고 설치 프로그램을 다시 실행하거나, https://dotnet.microsoft.com/download/dotnet/8.0 에서 ".NET Desktop Runtime 8"(x64)을 직접 설치하세요.
-korean.RuntimeCancelled=권한 요청을 거절해서 .NET 8 데스크톱 런타임을 설치하지 못했습니다. 이 런타임이 없으면 GifPin을 실행할 수 없습니다. 설치 프로그램을 다시 실행하고 권한 요청을 허용하세요.
+korean.RuntimeCancelled=권한 요청을 거절해서 .NET 8 데스크톱 런타임을 설치하지 못했습니다. 이 런타임이 없으면 MotiNook을 실행할 수 없습니다. 설치 프로그램을 다시 실행하고 권한 요청을 허용하세요.
 korean.RuntimeFailed=.NET 8 데스크톱 런타임 설치에 실패했습니다 (코드 %1).%n%nhttps://dotnet.microsoft.com/download/dotnet/8.0 에서 ".NET Desktop Runtime 8"(x64)을 직접 설치한 뒤 설치 프로그램을 다시 실행하세요.
 #endif
 
@@ -83,6 +84,10 @@ Name: "desktopicon"; Description: "{cm:DesktopIcon}"; GroupDescription: "{cm:Add
 Name: "autostart"; Description: "{cm:Autostart}"; GroupDescription: "{cm:AdditionalTasks}"; Flags: unchecked
 
 [InstallDelete]
+; Remove the legacy launcher and shortcuts when upgrading the same AppId. User data stays intact.
+Type: files; Name: "{app}\GifPin.exe"
+Type: files; Name: "{autoprograms}\GifPin.lnk"
+Type: files; Name: "{autodesktop}\GifPin.lnk"
 ; 예전 버전의 바로가기 아이콘 파일
 Type: files; Name: "{app}\GifPin-*.ico"
 Type: files; Name: "{app}\GifPinPack-*.ico"
@@ -95,11 +100,12 @@ Source: "..\src\GifPin\Assets\GifPin.ico"; DestDir: "{app}"; DestName: "GifPin-{
 Source: "..\src\GifPin\Assets\GifPinPack.ico"; DestDir: "{app}"; DestName: "GifPinPack-{#AppVersion}.ico"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\GifPin"; Filename: "{app}\GifPin.exe"; IconFilename: "{app}\GifPin-{#AppVersion}.ico"
-Name: "{autodesktop}\GifPin"; Filename: "{app}\GifPin.exe"; IconFilename: "{app}\GifPin-{#AppVersion}.ico"; Tasks: desktopicon
+Name: "{autoprograms}\MotiNook"; Filename: "{app}\MotiNook.exe"; IconFilename: "{app}\GifPin-{#AppVersion}.ico"
+Name: "{autodesktop}\MotiNook"; Filename: "{app}\MotiNook.exe"; IconFilename: "{app}\GifPin-{#AppVersion}.ico"; Tasks: desktopicon
 
 [Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "GifPin"; ValueData: """{app}\GifPin.exe"" --tray"; Tasks: autostart
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "GifPin"; Flags: deletevalue uninsdeletevalue
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "MotiNook"; ValueData: """{app}\MotiNook.exe"" --tray"; Check: EnableAutostart
 ; 설치할 때 고른 언어 → GifPin이 처음 실행될 때(설치할 때마다 한 번) 그 언어로 시작
 Root: HKCU; Subkey: "Software\GifPin"; ValueType: string; ValueName: "InstallLanguage"; ValueData: "{language}"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\GifPin"; ValueType: string; ValueName: "InstallStamp"; ValueData: "{code:InstallStamp}"
@@ -108,19 +114,25 @@ Root: HKCU; Subkey: "Software\Classes\.gifpin"; ValueType: string; ValueName: ""
 Root: HKCU; Subkey: "Software\Classes\.gifpin\OpenWithProgids"; ValueType: string; ValueName: "GifPin.Pack"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKCU; Subkey: "Software\Classes\GifPin.Pack"; ValueType: string; ValueName: ""; ValueData: "{cm:PackType}"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\GifPin.Pack\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\GifPinPack-{#AppVersion}.ico"
-Root: HKCU; Subkey: "Software\Classes\GifPin.Pack\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\GifPin.exe"" ""%1"""
+Root: HKCU; Subkey: "Software\Classes\GifPin.Pack\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\MotiNook.exe"" ""%1"""
 ; 앱 설정에서 자동 실행을 켰더라도 제거할 때 함께 지움
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "GifPin"; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "MotiNook"; Flags: uninsdeletevalue
 
 [Run]
-Filename: "{app}\GifPin.exe"; Description: "{cm:LaunchApp}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\MotiNook.exe"; Description: "{cm:LaunchApp}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
-Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM GifPin.exe"; Flags: runhidden; RunOnceId: "KillGifPin"
+Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM MotiNook.exe"; Flags: runhidden; RunOnceId: "KillGifPin"
 
 [Code]
 var
   DownloadPage: TDownloadWizardPage;
+  LegacyAutostart: Boolean;
+
+function EnableAutostart(): Boolean;
+begin
+  Result := LegacyAutostart or WizardIsTaskSelected('autostart');
+end;
 
 { 이번 설치를 구별하는 값 (앱이 같은 설치의 언어를 두 번 적용하지 않게) }
 function InstallStamp(Param: String): String;
@@ -179,7 +191,14 @@ begin
 end;
 
 procedure InitializeWizard();
+var
+  Command: String;
+  Approved: TArrayOfByte;
 begin
+  LegacyAutostart := RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'GifPin', Command);
+  if LegacyAutostart and RegQueryBinaryValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run', 'GifPin', Approved) then
+    if GetArrayLength(Approved) > 0 then
+      LegacyAutostart := (Approved[0] and 1) = 0;
   DownloadPage := CreateDownloadPage(CustomMessage('RuntimeTitle'), CustomMessage('RuntimeDownloading'), nil);
 end;
 

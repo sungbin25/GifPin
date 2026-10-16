@@ -9,8 +9,8 @@ namespace GifPin.Core;
 /// <summary>GitHub의 최신 릴리스를 확인 (설정에서 끌 수 있음). 보내는 정보는 일반 HTTP 요청뿐이다.</summary>
 public static class Updates
 {
-    public const string ReleasesPage = "https://github.com/sungbin25/GifPin/releases/latest";
-    private const string LatestApi = "https://api.github.com/repos/sungbin25/GifPin/releases/latest";
+    public const string ReleasesPage = "https://github.com/sungbin25/MotiNook/releases/latest";
+    private const string LatestApi = "https://api.github.com/repos/sungbin25/MotiNook/releases/latest";
 
     public sealed record Result(string Version, string Url, bool IsNewer);
 
@@ -20,7 +20,7 @@ public static class Updates
         try
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd($"GifPin/{currentVersion}");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd($"MotiNook/{currentVersion}");
             http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
             using var resp = await http.GetAsync(LatestApi, ct).ConfigureAwait(false);
             if (!resp.IsSuccessStatusCode) return null;

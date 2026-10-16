@@ -1,7 +1,7 @@
 <Window x:Class="GifPin.UI.EditToolbar"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="GifPin" WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        Title="MotiNook" WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ResizeMode="NoResize" SizeToContent="WidthAndHeight" Topmost="True" ShowInTaskbar="False"
         FontFamily="{DynamicResource UiFont}" FontSize="13" Foreground="{DynamicResource TextBrush}"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">

@@ -1,4 +1,6 @@
-# GifPin
+# MotiNook
+
+기존 GifPin의 새 이름입니다. 기존 설정·라이브러리·장면과 `.gifpin` 팩을 그대로 사용합니다.
 
 화면 위에 투명 배경 GIF를 띄우는 Windows 프로그램. 게임이나 다른 프로그램 위에서도 항상 보이고, 클릭은 아래로 통과합니다.
 
@@ -6,8 +8,8 @@
 
 [Releases](../../releases/latest)에서 받습니다. (main에 올라가면 자동으로 새 릴리스가 만들어집니다)
 
-- `GifPin-Setup-x.y.z.exe` — 설치 프로그램 (작은 용량). PC에 .NET 8 데스크톱 런타임(x64)이 있는지 확인하고, 없으면 설치 중에 Microsoft에서 내려받아 자동으로 설치합니다. 런타임을 설치할 때만 Windows가 권한을 묻고, GifPin 자체는 관리자 권한 없이 설치됩니다.
-- `GifPin-portable-x.y.z.exe` — 설치 없이 바로 실행 (.NET 런타임 포함)
+- `MotiNook-Setup-x.y.z.exe` — 설치 프로그램 (작은 용량). PC에 .NET 8 데스크톱 런타임(x64)이 있는지 확인하고, 없으면 설치 중에 Microsoft에서 내려받아 자동으로 설치합니다. 런타임을 설치할 때만 Windows가 권한을 묻고, MotiNook 자체는 관리자 권한 없이 설치됩니다.
+- `MotiNook-portable-x.y.z.exe` — 설치 없이 바로 실행 (.NET 런타임 포함)
 
 처음 실행하면 영어로 나옵니다. **Settings → Language → 한국어**로 바꾸면 바로 적용됩니다.
 
@@ -48,7 +50,7 @@
 | 효과 | 속성의 "효과": 둥실둥실·숨쉬기·흔들흔들·빙글빙글·깜빡임 / 말랑말랑·착지 먼지·잔상 / 바닥 그림자·외곽 빛 / 파티클(반짝·하트·별·방울·점) — 효과마다 세부 설정 |
 | 내 이미지 파티클 | 효과 → 파티클 → 모양 "내 이미지" → 이미지 고르기 (여러 장이면 랜덤, 원래 색/물들이기, "GIF 움직이기"는 CPU 주의) |
 | 성능 | 설정 → 성능: 성능 모드(절전/균형/최고 품질/직접 설정), 30/60fps, PC가 바쁠 때 파티클 끄기, 전체 파티클 상한, GIF 초당 최대 그리기, 화질, GIF당 메모리, 숨긴 GIF 메모리 비우기, 창에 가려진 GIF·화면 잠금 중 멈춤, 라이브러리 미리보기 끄기 |
-| 성능 모니터 | 설정 → 진단: GifPin CPU·메모리와 GIF별 상태(fps·파티클·멈춤 이유) 실시간 표시 |
+| 성능 모니터 | 설정 → 진단: MotiNook CPU·메모리와 GIF별 상태(fps·파티클·멈춤 이유) 실시간 표시 |
 | 파티클 모양 섞기 | 모양을 여러 개 고르면(내 이미지 포함) 같은 비율로 섞여 나옴 |
 | 던지기 | "미끄러짐"에서 GIF를 끌다가 놓으면 마우스 속도만큼 화면에 튕기며 미끄러지다 멈춤 |
 | 모니터 옮기기 | 속성의 "모니터"에서 선택. 모니터를 빼면 그 위의 GIF는 주 모니터로 이동 |
@@ -94,3 +96,11 @@ dotnet run --project tests/GifPin.VideoTests -c Release -- <ffmpeg-폴더> <테�
 ```powershell
 dotnet publish src/GifPin/GifPin.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
 ```
+
+## 이름 변경 호환성
+
+- 새 실행 파일: `MotiNook.exe`. 설치형과 포터블 배포 파일도 `MotiNook-…` 이름을 사용합니다.
+- 아이콘 그림은 기존 그대로 유지합니다. 내부 네임스페이스와 소스 폴더 이름은 `GifPin`을 유지합니다.
+- 기존 데이터 폴더 `%AppData%\GifPin`과 `.gifpin` 형식은 호환성을 위해 유지합니다.
+- 설치 식별자는 동일하므로 기존 GifPin 위에 업데이트됩니다. 새 설치의 기본 폴더는 `%LocalAppData%\Programs\MotiNook`, 기존 설치는 원래 설치 경로를 사용합니다.
+- 기존 GitHub 릴리스는 GifPin 이름으로 보존하며, 새 릴리스부터 MotiNook으로 배포합니다.
