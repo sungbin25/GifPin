@@ -193,12 +193,12 @@ end;
 procedure InitializeWizard();
 var
   Command: String;
-  Approved: TArrayOfByte;
+  Approved: AnsiString;
 begin
   LegacyAutostart := RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'GifPin', Command);
   if LegacyAutostart and RegQueryBinaryValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run', 'GifPin', Approved) then
-    if GetArrayLength(Approved) > 0 then
-      LegacyAutostart := (Approved[0] and 1) = 0;
+    if Length(Approved) > 0 then
+      LegacyAutostart := (Ord(Approved[1]) and 1) = 0;
   DownloadPage := CreateDownloadPage(CustomMessage('RuntimeTitle'), CustomMessage('RuntimeDownloading'), nil);
 end;
 
