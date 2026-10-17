@@ -96,6 +96,7 @@ public sealed class ActiveVM : Observable
         + (Motion.IsMoving(Item.MotionMode) ? " · " + Loc.T("motion." + Item.MotionMode) : "")
         + (Layers.Normalize(Item.Layer) == Layers.Desktop ? " · " + Loc.T("layer.desktop") : "")
         + (Item.Visible ? "" : " · " + Loc.T("active.hidden"));
+    public bool IsHidden => !Item.Visible;
     public double TileOpacity => Item.Visible ? 1.0 : 0.4;
     public string EyeTip => Item.Visible ? Loc.T("active.hide") : Loc.T("active.show");
     public ImageSource? Thumb => Photo == null ? null : Images.LoadThumb(Photo);
@@ -115,6 +116,7 @@ public sealed class ActiveVM : Observable
         Index = index;
         Raise(nameof(Name));
         Raise(nameof(Meta));
+        Raise(nameof(IsHidden));
         Raise(nameof(TileOpacity));
         Raise(nameof(EyeTip));
         Raise(nameof(Thumb));

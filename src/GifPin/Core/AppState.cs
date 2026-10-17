@@ -287,7 +287,7 @@ public sealed class AppSettings
     /// <summary>화면 녹화·공유·캡처에 GIF가 찍히지 않게 (내 화면에만 보임)</summary>
     public bool HideFromCapture { get; set; }
     /// <summary>클릭 통과 GIF 위에 마우스를 올리면 흐려짐</summary>
-    public bool HoverFade { get; set; }
+    public bool HoverFade { get; set; } = true;
     /// <summary>흐려졌을 때 남는 진하기 (%)</summary>
     public int HoverFadeOpacity { get; set; } = 25;
     /// <summary>모든 효과 끄기 (단축키·트레이로 켜고 끔)</summary>

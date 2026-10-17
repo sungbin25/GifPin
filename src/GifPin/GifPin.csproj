@@ -13,7 +13,7 @@
     <AssemblyName>MotiNook</AssemblyName>
     <ApplicationIcon>Assets\GifPin.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>0.8.7</Version>
+    <Version>0.8.8</Version>
     <Product>MotiNook</Product>
     <Title>MotiNook</Title>
     <Company>MotiNook</Company>

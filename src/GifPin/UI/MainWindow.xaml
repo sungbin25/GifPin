@@ -94,7 +94,13 @@
             <TextBlock Text="{Binding Meta}" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" Margin="0,3,0,6" TextTrimming="CharacterEllipsis"/>
             <StackPanel Orientation="Horizontal">
               <Button Width="26" Height="26" Padding="0" Click="Tile_Eye" ToolTip="{Binding EyeTip}">
-                <TextBlock Text="&#xE7B3;" FontFamily="{DynamicResource IconFont}" FontSize="12"/>
+                <Grid Width="12" Height="12">
+                  <TextBlock x:Name="OpenEye" Text="&#xE7B3;" FontFamily="{DynamicResource IconFont}" FontSize="12"/>
+                  <Path x:Name="ClosedEye" Visibility="Collapsed"
+                        Data="M 1,4 Q 6,10 11,4 M 2,5.2 L 0.8,7 M 4.5,6.8 L 4,9 M 7.5,6.8 L 8,9 M 10,5.2 L 11.2,7"
+                        Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                        StrokeThickness="1" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                </Grid>
               </Button>
               <Button Width="26" Height="26" Padding="0" Margin="4,0,0,0" Click="Tile_Remove" ToolTip="{DynamicResource s.panel.removeFromScreen}">
                 <TextBlock Text="&#xE711;" FontFamily="{DynamicResource IconFont}" FontSize="10"/>
@@ -104,6 +110,10 @@
         </StackPanel>
       </Border>
       <DataTemplate.Triggers>
+        <DataTrigger Binding="{Binding IsHidden}" Value="True">
+          <Setter TargetName="OpenEye" Property="Visibility" Value="Collapsed"/>
+          <Setter TargetName="ClosedEye" Property="Visibility" Value="Visible"/>
+        </DataTrigger>
         <DataTrigger Binding="{Binding IsSelected}" Value="True">
           <Setter TargetName="Tile" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
           <Setter TargetName="Tile" Property="Background" Value="{DynamicResource SelectedBgBrush}"/>
